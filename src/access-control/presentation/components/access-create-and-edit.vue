@@ -455,65 +455,6 @@ function onSave(formData) {
             </div>
           </div>
 
-          <!-- 4. Registro -->
-          <div class="ace-section ace-section--last">
-            <div class="ace-section-header">
-              <i class="pi pi-clock ace-section-icon" />
-              <span>Registro</span>
-            </div>
-            <div class="ace-row">
-              <div class="ace-field ace-field--flex">
-                <label class="ace-label">Fecha Ingreso</label>
-                <pv-calendar v-model="form.entryDate" date-format="dd/mm/yy" show-icon icon-display="input" placeholder="dd/mm/aaaa" class="w-full" :disabled="true" />
-              </div>
-              <div class="ace-field ace-field--flex">
-                <label class="ace-label">Hora Ingreso</label>
-                <pv-input-mask v-model="form.entryTime" mask="99:99:99 aa" placeholder="00:00:00 AM" class="w-full" :disabled="true" />
-              </div>
-            </div>
-            <template v-if="edit">
-              <div class="ace-row">
-                <div class="ace-field ace-field--full">
-                  <label class="ace-label">Tipo de salida</label>
-                  <pv-select v-model="form.exitType" :options="TIPOS_SALIDA" option-label="label" option-value="value" placeholder="Selecciona" class="w-full" />
-                </div>
-              </div>
-              <div class="ace-row">
-                <div class="ace-field ace-field--flex">
-                  <label class="ace-label">Fecha Salida</label>
-                  <pv-calendar v-model="form.exitDate" date-format="dd/mm/yy" show-icon icon-display="input" placeholder="dd/mm/aaaa" class="w-full" :disabled="true" />
-                </div>
-                <div class="ace-field ace-field--flex">
-                  <label class="ace-label">Hora Salida</label>
-                  <pv-input-mask v-model="form.exitTime" mask="99:99:99 aa" placeholder="00:00:00 AM" class="w-full" :disabled="true" />
-                </div>
-              </div>
-              <div v-if="form.exitType && form.exitType !== 'PERMANENTE'" class="ace-row">
-                <div class="ace-field ace-field--full">
-                  <pv-button
-                    label="Registrar fecha y hora de retorno"
-                    icon="pi pi-replay"
-                    severity="secondary"
-                    size="small"
-                    type="button"
-                    class="w-full"
-                    @click="fillReturnNow"
-                  />
-                </div>
-              </div>
-              <div v-if="form.exitType && form.exitType !== 'PERMANENTE'" class="ace-row">
-                <div class="ace-field ace-field--flex">
-                  <label class="ace-label">Fecha Retorno</label>
-                  <pv-calendar v-model="form.returnDate" date-format="dd/mm/yy" show-icon icon-display="input" placeholder="dd/mm/aaaa" class="w-full" />
-                </div>
-                <div class="ace-field ace-field--flex">
-                  <label class="ace-label">Hora Retorno</label>
-                  <pv-input-mask v-model="form.returnTime" mask="99:99:99 aa" placeholder="00:00:00 AM" class="w-full" />
-                </div>
-              </div>
-            </template>
-          </div>
-
         </template>
 
         <!-- ══════════════════════════════════════
