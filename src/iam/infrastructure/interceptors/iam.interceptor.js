@@ -12,11 +12,19 @@
 const TOKEN_KEY = 'gs_token';
 const USER_KEY  = 'gs_user';
 
+// Endpoints que no requieren token de autorización
+const PUBLIC_URL_PATTERNS = ['/sign-in', '/register', '/forgot-password', '/reset-password'];
+
 /**
  * Interceptor de request: agrega Authorization, X-User-Id y X-Role.
+ * Se omite en endpoints públicos para evitar que un token expirado en
+ * localStorage cause un 401 antes de que el backend procese las credenciales.
  * @param {import('axios').InternalAxiosRequestConfig} config
  */
 export function iamRequestInterceptor(config) {
+    const isPublic = PUBLIC_URL_PATTERNS.some(pattern => config.url?.includes(pattern));
+    if (isPublic) return config;
+
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) config.headers['Authorization'] = `Bearer ${token}`;
 
