@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted }              from 'vue'
+import { ref, computed, onMounted }  from 'vue'
 import { useRouter }                   from 'vue-router'
 import { useVehicleCatalogStore }      from '../../application/vehicle-catalog.store.js'
 import { useAsyncAction }              from '@/shared/composables/use-async-action.js'
@@ -9,7 +9,7 @@ import VehicleCreateAndEdit            from '../components/vehicle-create-and-ed
 import VehicleDetailDrawer             from '../components/vehicle-detail-drawer.vue'
 import { VEHICLE_COLUMNS, VEHICLE_IMPORT_COLUMNS } from '../constants/vehicle-catalog-ui.constants.js'
 
-import { getAccessStatusLabel as VEHICLE_STATUS_LABEL_FN, getAccessStatusSeverity } from '@/shared/presentation/constants/access-status.constants.js'
+import { getAccessStatusLabel as VEHICLE_STATUS_LABEL_FN, getAccessStatusSeverity, ACCESS_STATUS } from '@/shared/presentation/constants/access-status.constants.js'
 
 const router             = useRouter()
 const store              = useVehicleCatalogStore()
@@ -22,6 +22,28 @@ const editEntity    = ref(null)
 
 const drawerVisible = ref(false)
 const drawerItem    = ref(null)
+
+// Filtros
+const filterStatus = ref(null)
+const searchText   = ref('')
+
+const filteredItems = computed(() => {
+  const q = searchText.value.trim().toLowerCase()
+  return store.vehicles.filter(v => {
+    if (filterStatus.value && v.currentStatus !== filterStatus.value) return false
+    if (q) {
+      const searchable = [v.licensePlate, v.brand, v.model, v.color, String(v.year ?? '')]
+        .filter(Boolean).join(' ').toLowerCase()
+      if (!searchable.includes(q)) return false
+    }
+    return true
+  })
+})
+
+function clearAllFilters() {
+  filterStatus.value = null
+  searchText.value   = ''
+}
 
 function openDrawer(item) {
   drawerItem.value    = item
@@ -142,6 +164,7 @@ function daysBadgeClass(days) {
 
     <DataManager
       :items="store.vehicles"
+      :filtered-items="filteredItems"
       :title="{ singular: 'vehículo', plural: 'vehículos' }"
       :columns="columns"
       :dynamic="true"
@@ -163,7 +186,21 @@ function daysBadgeClass(days) {
       @delete-selected-items-requested-manager="handleDeleteSelected"
       @import-data-requested-manager="handleImport"
       @history-item-requested-manager="openHistory"
+      @global-filter-change="(v) => searchText = v"
+      @clear-filters="clearAllFilters"
     >
+      <template #filters>
+        <pv-select
+          v-model="filterStatus"
+          :options="ACCESS_STATUS"
+          option-label="label"
+          option-value="value"
+          placeholder="Estado"
+          show-clear
+          style="width: 12rem"
+        />
+      </template>
+
       <template #vehicle-status="{ value }">
         <pv-tag
           :value="VEHICLE_STATUS_LABEL_FN(value)"

@@ -33,12 +33,26 @@ const returnEntity        = ref(null)
 const filterStatus = ref(null)
 const filterType   = ref(null)
 const filterMotivo = ref(null)
+const searchText   = ref('')
 
 const filteredItems = computed(() => {
+  const q = searchText.value.trim().toLowerCase()
   return store.items.filter(item => {
     if (filterStatus.value && item.status !== filterStatus.value) return false
     if (filterType.value   && item.type   !== filterType.value)   return false
     if (filterMotivo.value && item.entryReason !== filterMotivo.value) return false
+    if (q) {
+      const searchable = [
+        item.licensePlate,
+        item.fullName,
+        item.firstName,
+        item.lastName,
+        item.brand,
+        item.model,
+        item.clientDocumentNumber,
+      ].filter(Boolean).join(' ').toLowerCase()
+      if (!searchable.includes(q)) return false
+    }
     return true
   })
 })
@@ -47,6 +61,7 @@ function clearAllFilters() {
   filterStatus.value = null
   filterType.value   = null
   filterMotivo.value = null
+  searchText.value   = ''
 }
 
 async function openDrawer(item) {
@@ -349,7 +364,7 @@ function handleExport() {
       :columns="columns"
       :dynamic="true"
       :loading="isLoading"
-      search-placeholder="Busca por placa, motivo..."
+      search-placeholder="Busca por placa, nombre, marca..."
       new-button-label="Registrar Ingreso"
       :show-view-action="true"
       :view-action-icon-only="true"
@@ -372,6 +387,7 @@ function handleExport() {
       @import-data-requested-manager="handleImport"
       @exit-item-requested-manager="openExitDialog"
       @return-item-requested-manager="openReturnDialog"
+      @global-filter-change="(v) => searchText = v"
       @clear-filters="clearAllFilters"
     >
       <template #extra-actions>

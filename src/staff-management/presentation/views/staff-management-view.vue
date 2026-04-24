@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted }                               from 'vue'
+import { ref, computed, onMounted }                               from 'vue'
 import { useStaffManagementStore }          from '../../application/staff-management.store.js'
 import { useAsyncAction }                   from '@/shared/composables/use-async-action.js'
 import { useNotification }                  from '@/shared/composables/use-notification.js'
@@ -7,7 +7,7 @@ import DataManager                          from '@/shared/presentation/componen
 import StaffCreateAndEdit                   from '../components/staff-create-and-edit.vue'
 import ImportSpreadsheet                    from '@/shared/presentation/components/import-spreadsheet.vue'
 import StaffDetailDrawer                    from '../components/staff-detail-drawer.vue'
-import { TIPOS_DOCUMENTO, DEPARTAMENTOS, STAFF_IMPORT_COLUMNS } from '../constants/staff-management-ui.constants.js'
+import { TIPOS_DOCUMENTO, DEPARTAMENTOS, STAFF_IMPORT_COLUMNS, ROLES_OPTIONS } from '../constants/staff-management-ui.constants.js'
 
 const store              = useStaffManagementStore()
 const { isLoading, error, run } = useAsyncAction()
@@ -22,6 +22,36 @@ const drawerItem    = ref(null)
 
 // Importación
 const importVisible = ref(false)
+
+// Filtros
+const filterActive     = ref(null)
+const filterDepartment = ref(null)
+const searchText       = ref('')
+
+const ESTADO_OPTIONS = [
+  { label: 'Activo',   value: true  },
+  { label: 'Inactivo', value: false },
+]
+
+const filteredItems = computed(() => {
+  const q = searchText.value.trim().toLowerCase()
+  return store.employees.filter(e => {
+    if (filterActive.value !== null && e.active !== filterActive.value) return false
+    if (filterDepartment.value && e.department !== filterDepartment.value) return false
+    if (q) {
+      const searchable = [e.fullName, e.firstName, e.lastName, e.email, e.position, e.username, e.documentNumber]
+        .filter(Boolean).join(' ').toLowerCase()
+      if (!searchable.includes(q)) return false
+    }
+    return true
+  })
+})
+
+function clearAllFilters() {
+  filterActive.value     = null
+  filterDepartment.value = null
+  searchText.value       = ''
+}
 
 function openDrawer(item) {
   drawerItem.value    = item
@@ -121,6 +151,7 @@ onMounted(async () => {
 
     <DataManager
       :items="store.employees"
+      :filtered-items="filteredItems"
       :title="{ singular: 'colaborador', plural: 'colaboradores' }"
       :columns="columns"
       :dynamic="true"
@@ -136,6 +167,8 @@ onMounted(async () => {
       @edit-item-requested-manager="openEditDialog"
       @delete-item-requested-manager="handleDelete"
       @delete-selected-items-requested-manager="handleDeleteSelected"
+      @global-filter-change="(v) => searchText = v"
+      @clear-filters="clearAllFilters"
     >
       <template #extra-actions>
         <pv-button
@@ -145,6 +178,27 @@ onMounted(async () => {
           size="small"
           outlined
           @click="importVisible = true"
+        />
+      </template>
+
+      <template #filters>
+        <pv-select
+          v-model="filterActive"
+          :options="ESTADO_OPTIONS"
+          option-label="label"
+          option-value="value"
+          placeholder="Estado"
+          show-clear
+          style="width: 9rem"
+        />
+        <pv-select
+          v-model="filterDepartment"
+          :options="DEPARTAMENTOS"
+          option-label="label"
+          option-value="value"
+          placeholder="Área"
+          show-clear
+          style="width: 11rem"
         />
       </template>
       <template #nombre-template="{ data }">

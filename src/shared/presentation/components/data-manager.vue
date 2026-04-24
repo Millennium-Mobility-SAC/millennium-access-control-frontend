@@ -52,7 +52,7 @@ const props = defineProps({
   // Configuración de búsqueda y filtros
   searchPlaceholder: { type: String, default: 'Busca por ID reporte, ID orden, verificador...' },
   filteredItems: { type: Array, default: null }, // Items pre-filtrados desde padre
-  globalFilterValue: { type: String, default: '' }, // Control externo del filtro global
+  globalFilterValue: { type: String, default: null }, // Control externo del filtro global
   
   // Configuración de visibilidad de componentes
   showActions: { type: Boolean, default: true },
@@ -147,7 +147,7 @@ const displayItems = computed(() => props.filteredItems || props.items)
  * Permite control interno o externo del filtro
  */
 const currentGlobalFilterValue = computed({
-  get: () => props.globalFilterValue ?? internalGlobalFilterValue.value,
+  get: () => props.globalFilterValue !== null ? props.globalFilterValue : internalGlobalFilterValue.value,
   set: (value) => {
     internalGlobalFilterValue.value = value || ''
     emit('global-filter-change', value || '')
