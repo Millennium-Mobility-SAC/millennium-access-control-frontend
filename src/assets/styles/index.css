@@ -1,0 +1,46 @@
+/**
+ * ==========================================================================
+ * STYLES INDEX - PUNTO ÚNICO DE IMPORTACIÓN
+ * ==========================================================================
+ * Importa todos los estilos del design system en el orden correcto.
+ * Este es el ÚNICO archivo que debe importarse en main.js
+ * 
+ * ORDEN DE CARGA CRÍTICO:
+ * 1. Variables (tokens del design system)
+ * 2. Base (reset + configuración global)
+ * 3. Typography (sistema tipográfico)
+ * 4. Layout (estructura dashboard)
+ * 5. Utilities (clases utilitarias)
+ * 6. PrimeVue Overrides (tema corporativo)
+ */
+
+/* ========================================
+   1. DESIGN TOKENS
+   ======================================== */
+@import './variables.css';
+
+/* ========================================
+   2. BASE & RESET
+   ======================================== */
+@import './base.css';
+
+/* ========================================
+   3. TYPOGRAPHY
+   ======================================== */
+@import './typography.css';
+
+/* ========================================
+   4. LAYOUT SYSTEM
+   ======================================== */
+/*@import './layout.css';*/
+
+/* ========================================
+   5. UTILITIES
+   ======================================== */
+@import './utilities.css';
+
+/* ========================================
+   6. PRIMEVUE OVERRIDES
+   ⚠️ DEBE SER EL ÚLTIMO
+   ======================================== */
+@import './primevue-overrides.css';

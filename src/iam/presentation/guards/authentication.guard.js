@@ -1,0 +1,39 @@
+import { useIamStore } from '../../application/iam.store.js';
+import { hasRouteAccess } from '@/shared/presentation/constants/roles.constants.js';
+
+/**
+ * Rutas que no requieren autenticación.
+ * Definidas aquí directamente para evitar la dependencia infrastructure → presentation.
+ */
+const PUBLIC_PATHS = ['/sign-in', '/forgot-password', '/reset-password'];
+
+/**
+ * Guard de autenticación global para Vue Router 4.
+ * Retorna el destino de redirección en lugar de llamar next() (API deprecada).
+ *
+ * Lógica:
+ *   1. Si ya autenticado e intenta ir a /sign-in → redirige a /access-control.
+ *   2. Ruta protegida sin sesión → redirige a /sign-in.
+ *   3. Rol sin acceso a la ruta → redirige a /access-control.
+ *   4. Todo lo demás → permite la navegación.
+ */
+export function authenticationGuard(to, from) {
+    const iamStore = useIamStore();
+    const isAnonymous = !iamStore.isSignedIn;
+    const requiresAuth = !PUBLIC_PATHS.includes(to.path);
+
+    if (to.path === '/sign-in' && iamStore.isSignedIn) {
+        return '/access-control';
+    }
+
+    if (isAnonymous && requiresAuth) {
+        return { path: '/sign-in', query: { redirect: to.fullPath } };
+    }
+
+    const role = iamStore.userRole;
+    if (role && requiresAuth && !hasRouteAccess(role, to.path)) {
+        return '/access-control';
+    }
+
+    return true;
+}

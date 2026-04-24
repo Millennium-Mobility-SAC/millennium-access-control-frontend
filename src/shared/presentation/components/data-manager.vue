@@ -1,0 +1,506 @@
+<script setup>
+/**
+ * DataManagerComponent
+ * 
+ * Componente reutilizable para gestión de datos en tablas con funcionalidades completas:
+ * - Paginación y ordenamiento dinámico
+ * - Filtrado global y personalizado (interno/externo)
+ * - Operaciones CRUD con confirmaciones
+ * - Selección múltiple y exportación a CSV
+ * - Acciones por fila (ver, editar, eliminar)
+ * - Slots personalizables para columnas y filtros
+ * 
+ * @component
+ * @example
+ * <DataManagerComponent
+ *   :items="orders"
+ *   :title="{ singular: 'orden', plural: 'órdenes' }"
+ *   :columns="columns"
+ *   :dynamic="true"
+ *   @new-item-requested-manager="handleNew"
+ *   @delete-item-requested-manager="handleDelete"
+ * />
+ */
+
+// ===========================
+// IMPORTS
+// ===========================
+import { ref, computed, onMounted } from 'vue'
+import { FilterMatchMode } from '@primevue/core'
+import { useConfirm } from 'primevue/useconfirm'
+import ImportSpreadsheet from './import-spreadsheet.vue'
+
+// ===========================
+// PROPS
+// ===========================
+/**
+ * Props del componente organizadas por categoría:
+ * - Datos básicos: items, title, columns
+ * - Configuración de vista: dynamic, loading, rows
+ * - Filtros: searchPlaceholder, filteredItems, globalFilterValue
+ * - Visibilidad de acciones: showActions, showSelection, showNew, etc.
+ * - Textos personalizables: labels de botones y acciones
+ */
+const props = defineProps({
+  // Datos y configuración básica
+  items: { type: Array, required: true },
+  title: { type: Object, required: true }, // { singular: '', plural: '' }
+  dynamic: { type: Boolean, default: false },
+  columns: { type: Array, default: () => [] },
+  loading: { type: Boolean, default: false },
+  
+  // Configuración de búsqueda y filtros
+  searchPlaceholder: { type: String, default: 'Busca por ID reporte, ID orden, verificador...' },
+  filteredItems: { type: Array, default: null }, // Items pre-filtrados desde padre
+  globalFilterValue: { type: String, default: '' }, // Control externo del filtro global
+  
+  // Configuración de visibilidad de componentes
+  showActions: { type: Boolean, default: true },
+  showSelection: { type: Boolean, default: true },
+  showExport: { type: Boolean, default: true },
+  showNew: { type: Boolean, default: true },
+  showDelete: { type: Boolean, default: true },
+  showActionButtons: { type: Boolean, default: true },
+  
+  // Configuración de paginación
+  rows: { type: Number, default: 10 },
+  rowsPerPageOptions: { type: Array, default: () => [10, 20, 30, 50] },
+  
+  // Labels de botones principales
+  newButtonLabel:    { type: String, default: 'Agregar'   },
+  deleteButtonLabel: { type: String, default: 'Eliminar'  },
+  exportButtonLabel: { type: String, default: 'Exportar'  },
+  importButtonLabel: { type: String, default: 'Importar'  },
+
+  // Configuración de importación
+  showImport:    { type: Boolean, default: false      },
+  importColumns: { type: Array,   default: () => []   }, // [{ key, header, required?, default? }]
+
+  // Configuración de acciones por fila
+  showViewAction: { type: Boolean, default: true },
+  showEditAction: { type: Boolean, default: false },
+  showDeleteAction: { type: Boolean, default: false },
+  showHistoryAction: { type: Boolean, default: false },
+  showExitAction: { type: Boolean, default: false },
+  showReturnAction: { type: Boolean, default: false },
+  editButtonLabel: { type: String, default: 'Editar' },
+  deleteActionLabel: { type: String, default: 'Eliminar' },
+  viewButtonLabel: { type: String, default: 'Ver detalles' },
+  historyButtonLabel: { type: String, default: 'Ver historial' },
+  exitButtonLabel: { type: String, default: 'Registrar salida' },
+  returnButtonLabel: { type: String, default: 'Registrar retorno' },
+  exitActionCondition: { type: Function, default: null },
+  returnActionCondition: { type: Function, default: null },
+  viewActionIconOnly: { type: Boolean, default: false }
+})
+
+// ===========================
+// EMITS
+// ===========================
+/**
+ * Eventos emitidos hacia el componente padre:
+ * - CRUD: new, delete-selected, delete-item, view, edit
+ * - Filtros: global-filter-change, clear-filters
+ * - Selección: row-select, row-unselect
+ */
+const emit = defineEmits([
+  'new-item-requested-manager',
+  'delete-selected-items-requested-manager',
+  'view-item-requested-manager',
+  'edit-item-requested-manager',
+  'delete-item-requested-manager',
+  'history-item-requested-manager',
+  'exit-item-requested-manager',
+  'return-item-requested-manager',
+  'global-filter-change',
+  'clear-filters',
+  'row-select',
+  'row-unselect',
+  'import-data-requested-manager',
+])
+
+// ===========================
+// COMPOSABLES
+// ===========================
+const confirm = useConfirm() // Servicio de confirmación de PrimeVue
+
+// ===========================
+// STATE
+// ===========================
+const selectedItems = ref([]) // Items seleccionados en la tabla
+const filters = ref(null) // Configuración de filtros de PrimeVue
+const internalGlobalFilterValue = ref('') // Valor interno del filtro global
+const dt = ref(null) // Referencia al componente DataTable
+const showImportDialog = ref(false) // Controla la visibilidad del diálogo de importación
+
+// ===========================
+// COMPUTED PROPERTIES
+// ===========================
+/**
+ * Items a mostrar en la tabla
+ * Prioriza filteredItems del padre, caso contrario usa items
+ */
+const displayItems = computed(() => props.filteredItems || props.items)
+
+/**
+ * Valor del filtro global con sincronización bidireccional
+ * Permite control interno o externo del filtro
+ */
+const currentGlobalFilterValue = computed({
+  get: () => props.globalFilterValue ?? internalGlobalFilterValue.value,
+  set: (value) => {
+    internalGlobalFilterValue.value = value || ''
+    emit('global-filter-change', value || '')
+  }
+})
+
+// ===========================
+// METHODS - FILTERS
+// ===========================
+/**
+ * Inicializa la configuración de filtros de PrimeVue
+ */
+const initFilters = () => {
+  filters.value = { global: { value: null, matchMode: FilterMatchMode.CONTAINS } }
+}
+
+/**
+ * Aplica el filtro global cuando cambia el valor
+ * Solo funciona si no hay filtros personalizados del padre
+ */
+const onGlobalFilterChange = () => {
+  if (!props.filteredItems) {
+    filters.value['global'].value = currentGlobalFilterValue.value || null
+  }
+}
+
+/**
+ * Limpia todos los filtros (internos y externos)
+ * Emite eventos para sincronizar con el componente padre
+ */
+const clearFilters = () => {
+  internalGlobalFilterValue.value = ''
+  currentGlobalFilterValue.value = ''
+  initFilters()
+  emit('clear-filters')
+  emit('global-filter-change', '')
+}
+
+// ===========================
+// METHODS - CRUD OPERATIONS
+// ===========================
+/**
+ * Emite evento para crear nuevo item
+ */
+const newItem = () => emit('new-item-requested-manager')
+
+/**
+ * Muestra confirmación y elimina items seleccionados
+ * Maneja plural/singular según cantidad de items
+ */
+const confirmDeleteSelected = () => {
+  const count = selectedItems.value.length
+  confirm.require({
+    message: `¿Está seguro de que desea eliminar ${count} ${count === 1 ? props.title.singular : props.title.plural}?`,
+    header: 'Confirmación',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: {
+      label: 'Cancelar',
+      severity: 'secondary',
+      outlined: true
+    },
+    acceptProps: {
+      label: 'Eliminar',
+      severity: 'danger'
+    },
+    accept: () => emit('delete-selected-items-requested-manager', selectedItems.value),
+    reject: () => {}
+  })
+}
+
+/**
+ * Muestra confirmación y elimina un item individual
+ * Detecta automáticamente el identificador del item (orderNumber, name, id)
+ */
+const confirmDeleteItem = (item) => {
+
+
+  const itemIdentifier = item.licensePlate || item.fullName || item.firstName || item.name || item.id || ''
+  
+  confirm.require({
+    message: `¿Está seguro de eliminar ${itemIdentifier ? `"${itemIdentifier}"` : `esta ${props.title.singular}`}?`,
+    header: 'Confirmación',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: {
+      label: 'Cancelar',
+      severity: 'secondary',
+      outlined: true
+    },
+    acceptProps: {
+      label: 'Eliminar',
+      severity: 'danger'
+    },
+    accept: () => emit('delete-item-requested-manager', item),
+    reject: () => {}
+  })
+}
+
+// ===========================
+// METHODS - TABLE ACTIONS
+// ===========================
+/**
+ * Exporta los datos de la tabla a formato CSV
+ */
+const exportToCsv = () => dt.value.exportCSV()
+
+/**
+ * Emite evento cuando se selecciona una fila
+ */
+const onRowSelect = (event) => emit('row-select', event)
+
+/**
+ * Emite evento cuando se deselecciona una fila
+ */
+const onRowUnselect = (event) => emit('row-unselect', event)
+
+// ===========================
+// LIFECYCLE HOOKS
+// ===========================
+/**
+ * Inicializa los filtros al montar el componente
+ */
+onMounted(() => initFilters())
+</script>
+
+<template>
+  <!-- NOTA: pv-toast eliminado - se usa el global de App.vue para evitar duplicados -->
+
+  <div class="h-full flex flex-column overflow-hidden">
+
+    <!-- Search and Filter Section -->
+    <div class="flex flex-column mb-2 border-bottom-1 surface-border">
+
+      <!-- Custom filters slot -->
+      <div class="flex gap-2 mb-4 flex-wrap">
+        <!-- Global Search Input -->
+        <pv-icon-field class="flex-1">
+      
+          <pv-input-icon class="pi pi-search" />
+
+          <pv-input-text
+              v-model="currentGlobalFilterValue"
+              :placeholder="searchPlaceholder"
+              @input="onGlobalFilterChange"
+          />
+        </pv-icon-field>
+
+        <slot name="filters" :clear-filters="clearFilters" ></slot>
+
+      </div>
+
+    </div>
+
+    <!-- Action Buttons Section -->
+    <div v-if="showActionButtons && (showNew || showDelete || showExport || showImport || $slots['extra-actions'])"
+         class="flex flex-column md:flex-row md:align-items-center gap-2 mb-3">
+
+      <div class="flex gap-2 w-full md:w-auto flex-1 flex-column md:flex-row md:align-items-center">
+        <pv-button
+            v-if="showNew"
+            icon="pi pi-plus"
+            :label="newButtonLabel"
+            severity="success"
+            size="small"
+            class="w-full md:w-auto"
+            @click="newItem"
+        />
+
+        <pv-button
+            v-if="showDelete && showSelection"
+            :disabled="!selectedItems || !selectedItems.length"
+            icon="pi pi-trash"
+            :label="deleteButtonLabel"
+            severity="danger"
+            size="small"
+            class="w-full md:w-auto"
+            @click="confirmDeleteSelected"
+        />
+      </div>
+
+      <div class="flex gap-2 flex-wrap">
+        <slot name="extra-actions" />
+        <pv-button
+          v-if="showImport"
+          icon="pi pi-upload"
+          :label="importButtonLabel"
+          severity="info"
+          size="small"
+          outlined
+          class="w-full md:w-auto"
+          @click="showImportDialog = true"
+        />
+        <pv-button
+          v-if="showExport"
+          icon="pi pi-download"
+          :label="exportButtonLabel"
+          severity="secondary"
+          size="small"
+          outlined
+          class="w-full md:w-auto"
+          @click="exportToCsv"
+        />
+      </div>
+    </div>
+
+    <ImportSpreadsheet
+      v-if="showImport"
+      v-model:visible="showImportDialog"
+      :import-columns="importColumns"
+      @import-confirmed="(rows) => emit('import-data-requested-manager', rows)"
+    />
+
+    <!-- Data Table Section -->
+    <div class="flex-1 flex flex-column overflow-hidden" style="min-height: 0;">
+
+      <pv-data-table
+        ref="dt"
+        v-model:selection="selectedItems"
+        :value="loading ? [] : displayItems"
+        :filters="filteredItems ? null : filters"
+        :loading="loading"
+        :paginator="true"
+        :rows="rows"
+        :rows-per-page-options="rowsPerPageOptions"
+        scrollable
+        scroll-height="flex"
+        :global-filter-fields="filteredItems ? [] : columns.map(col => col.field)"
+        data-key="id"
+        paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+        current-page-report-template="Mostrando {first} - {last} de {totalRecords} registros"
+        hover
+        @row-select="onRowSelect"
+        @row-unselect="onRowUnselect"
+      >
+        <!-- Selection Column -->
+        <pv-column
+            v-if="showSelection"
+            :exportable="false"
+            selection-mode="multiple"
+            header-style="width: 3rem; text-align: center"
+            body-style="text-align: center"
+        />
+
+        <!-- Custom Slot Columns -->
+        <slot name="custom-columns-manager" />
+
+        <!-- Dynamic Columns -->
+        <pv-column
+          v-if="dynamic"
+          v-for="column in columns"
+          :key="column.field"
+          :field="column.field"
+          :header="column.header"
+          :sortable="false"
+          :style="column.style || 'min-width: 150px;'"
+          :header-style="column.headerStyle || 'text-align: center;'"
+          :body-style="column.bodyStyle || 'text-align: center;'"
+        >
+          <template v-if="column.template" #body="slotProps">
+            <slot :name="column.template" :data="slotProps.data" :value="slotProps.data[column.field]" />
+          </template>
+        </pv-column>
+
+        <!-- Actions Column -->
+        <pv-column
+          v-if="showActions"
+          :exportable="false"
+          header="Acciones"
+          :header-style="{ width: '8rem', textAlign: 'center' }"
+          :body-style="{ textAlign: 'center' }"
+        >
+          <template #body="slotProps">
+            <div class="flex gap-1 justify-content-center">
+              <pv-button
+                  v-if="showViewAction && !viewActionIconOnly"
+                  :label="viewButtonLabel"
+                  link
+                  size="small"
+                  @click="emit('view-item-requested-manager', slotProps.data)"
+              />
+              <pv-button
+                  v-if="showViewAction && viewActionIconOnly"
+                  icon="pi pi-eye"
+                  severity="info"
+                  text
+                  rounded
+                  v-tooltip.top="viewButtonLabel"
+                  @click="emit('view-item-requested-manager', slotProps.data)"
+              />
+              <pv-button
+                  v-if="showEditAction"
+                  icon="pi pi-pencil"
+                  severity="warn"
+                  text
+                  rounded
+                  v-tooltip.top="editButtonLabel"
+                  @click="emit('edit-item-requested-manager', slotProps.data)"
+              />
+              <pv-button
+                  v-if="showDeleteAction"
+                  icon="pi pi-trash"
+                  severity="danger"
+                  text
+                  rounded
+                  v-tooltip.top="deleteActionLabel"
+                  @click="confirmDeleteItem(slotProps.data)"
+              />
+              <pv-button
+                  v-if="showHistoryAction"
+                  icon="pi pi-history"
+                  severity="secondary"
+                  text
+                  rounded
+                  v-tooltip.top="historyButtonLabel"
+                  @click="emit('history-item-requested-manager', slotProps.data)"
+              />
+              <pv-button
+                  v-if="showExitAction && (exitActionCondition ? exitActionCondition(slotProps.data) : true)"
+                  icon="pi pi-sign-out"
+                  severity="warn"
+                  text
+                  rounded
+                  v-tooltip.top="exitButtonLabel"
+                  @click="emit('exit-item-requested-manager', slotProps.data)"
+              />
+              <pv-button
+                  v-if="showReturnAction && (returnActionCondition ? returnActionCondition(slotProps.data) : true)"
+                  icon="pi pi-replay"
+                  severity="success"
+                  text
+                  rounded
+                  v-tooltip.top="returnButtonLabel"
+                  @click="emit('return-item-requested-manager', slotProps.data)"
+              />
+            </div>
+          </template>
+        </pv-column>
+
+        <!-- Empty State -->
+        <template #empty>
+          <div class="flex flex-column align-items-center justify-content-center gap-2 p-4">
+            <i class="pi pi-search text-4xl text-400"></i>
+            <p class="text-600 m-0">No se encontraron registros</p>
+          </div>
+        </template>
+
+        <!-- Loading State -->
+        <template #loading>
+          <div class="flex flex-column align-items-center justify-content-center gap-3 p-4">
+            <pv-progress-spinner style="width:50px;height:50px" stroke-width="4" />
+            <p class="text-600 m-0">Cargando datos...</p>
+          </div>
+        </template>
+      </pv-data-table>
+    </div>
+  </div>
+</template>

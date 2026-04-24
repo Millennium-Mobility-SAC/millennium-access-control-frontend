@@ -1,0 +1,599 @@
+/**
+ * ==========================================================================
+ * UTILITIES - CLASES UTILITARIAS CORPORATIVAS
+ * ==========================================================================
+ * Utilidades basadas en variables CSS del design system.
+ * Complementan PrimeFlex sin duplicar funcionalidades.
+ * 
+ * ⚠️ NO DUPLICAR CLASES DE PRIMEFLEX
+ * PrimeFlex provee: display, position, spacing, overflow, width/height, cursor
+ * Este archivo: solo clases específicas del design system corporativo
+ */
+
+/* ========================================
+   BACKGROUNDS - FONDOS CORPORATIVOS
+   ======================================== */
+
+.bg-primary {
+  background-color: var(--bg-primary);
+}
+
+.bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.bg-surface {
+  background-color: var(--bg-surface);
+}
+
+.bg-card {
+  background-color: var(--bg-card);
+}
+
+.bg-hover {
+  background-color: var(--bg-hover);
+}
+
+.bg-active {
+  background-color: var(--bg-active);
+}
+
+.bg-success {
+  background-color: var(--color-success);
+}
+
+.bg-warning {
+  background-color: var(--color-warning);
+}
+
+.bg-error {
+  background-color: var(--color-error);
+}
+
+.bg-info {
+  background-color: var(--color-info);
+}
+
+.bg-white {
+  background-color: var(--color-white);
+}
+
+.bg-transparent {
+  background-color: transparent;
+}
+
+/* ========================================
+   BORDERS - COLORES CORPORATIVOS
+   ========================================
+   ℹ️ Usa PrimeFlex para bordes básicos: .border-1, .border-top-1, etc.
+   Aquí solo definimos colores corporativos
+   ======================================== */
+
+.border-primary {
+  border-color: var(--color-primary);
+}
+
+.border-success {
+  border-color: var(--color-success);
+}
+
+.border-warning {
+  border-color: var(--color-warning);
+}
+
+.border-error {
+  border-color: var(--color-error);
+}
+
+.border-light {
+  border-color: var(--border-light);
+}
+
+.border-default {
+  border-color: var(--border-color);
+}
+
+/* ========================================
+   SHADOWS - SISTEMA DE SOMBRAS
+   ========================================
+   ℹ️ PrimeFlex NO incluye shadows
+   ======================================== */
+
+.shadow-none {
+  box-shadow: none;
+}
+
+.shadow-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.shadow {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-md {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+.shadow-xl {
+  box-shadow: var(--shadow-xl);
+}
+
+/* ========================================
+   ESTADOS CORPORATIVOS
+   ======================================== */
+
+.is-active {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  border-color: var(--color-primary);
+}
+
+.is-inactive {
+  background-color: var(--bg-surface);
+  color: var(--text-muted);
+  opacity: var(--opacity-disabled);
+}
+
+.is-disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.is-hover:hover {
+  opacity: var(--opacity-hover);
+}
+
+/* ========================================
+   ESTADOS DE COLOR - VERSIÓN SÓLIDA
+   ======================================== */
+
+.is-success {
+  background-color: var(--color-success);
+  color: var(--color-white);
+}
+
+.is-warning {
+  background-color: var(--color-warning);
+  color: var(--color-white);
+}
+
+.is-error {
+  background-color: var(--color-error);
+  color: var(--color-white);
+}
+
+.is-info {
+  background-color: var(--color-info);
+  color: var(--color-white);
+}
+
+/* ========================================
+   ESTADOS DE COLOR - VERSIÓN OUTLINE
+   ======================================== */
+
+.is-success-outline {
+  border: 2px solid var(--color-success);
+  color: var(--color-success);
+  background-color: transparent;
+}
+
+.is-warning-outline {
+  border: 2px solid var(--color-warning);
+  color: var(--color-warning);
+  background-color: transparent;
+}
+
+.is-error-outline {
+  border: 2px solid var(--color-error);
+  color: var(--color-error);
+  background-color: transparent;
+}
+
+.is-info-outline {
+  border: 2px solid var(--color-info);
+  color: var(--color-info);
+  background-color: transparent;
+}
+
+/* ========================================
+   OPACITY CORPORATIVA
+   ========================================
+   ℹ️ PrimeFlex tiene .opacity-* pero usamos variables corporativas
+   ======================================== */
+
+.opacity-disabled {
+  opacity: var(--opacity-disabled);
+}
+
+.opacity-hover {
+  opacity: var(--opacity-hover);
+}
+
+/* ========================================
+   TRANSITIONS CORPORATIVAS
+   ======================================== */
+
+.transition-fast {
+  transition: all var(--transition-fast);
+}
+
+.transition {
+  transition: all var(--transition-base);
+}
+
+.transition-slow {
+  transition: all var(--transition-slow);
+}
+
+.transition-none {
+  transition: none;
+}
+
+/* ========================================
+   BADGE COMPONENT
+   ======================================== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-full);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge--primary {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+.badge--success {
+  background-color: var(--color-success);
+  color: var(--color-white);
+}
+
+.badge--warning {
+  background-color: var(--color-warning);
+  color: var(--color-white);
+}
+
+.badge--error {
+  background-color: var(--color-error);
+  color: var(--color-white);
+}
+
+.badge--info {
+  background-color: var(--color-info);
+  color: var(--color-white);
+}
+
+.badge--outline {
+  background-color: transparent;
+  border: 1px solid currentColor;
+}
+
+/* ========================================
+   SPINNER COMPONENT
+   ======================================== */
+
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.spinner--small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.spinner--large {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
+}
+
+.spinner--primary {
+  border-top-color: var(--color-primary);
+}
+
+.spinner--white {
+  border-color: rgba(255, 255, 255, 0.3);
+  border-top-color: var(--color-white);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ========================================
+   ACCESSIBILITY
+   ======================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ========================================
+   ANIMATIONS CORPORATIVAS
+   ======================================== */
+
+.fade-in {
+  animation: fadeIn var(--transition-base);
+}
+
+.fade-out {
+  animation: fadeOut var(--transition-base);
+}
+
+.slide-in-right {
+  animation: slideInRight var(--transition-base);
+}
+
+.slide-in-left {
+  animation: slideInLeft var(--transition-base);
+}
+
+/* ========================================
+   DETAIL DRAWER - PANEL DE DETALLES
+   Panel lateral reutilizable en todos los módulos
+   ======================================== */
+.detail-header-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--primary-tint-bg);
+  border: 1px solid var(--primary-tint-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.detail-section {
+  background: var(--surface-white);
+  margin: 0.75rem;
+  border-radius: 0.625rem;
+  border: 1px solid var(--border-ui);
+  overflow: hidden;
+}
+
+.detail-section-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-primary);
+  padding: 0.625rem 1rem 0;
+  margin-bottom: 0;
+}
+
+.detail-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.45rem 1rem;
+  border-top: 1px solid var(--border-ui-subtle);
+}
+
+.detail-row:first-child {
+  border-top: none;
+}
+
+.detail-label {
+  font-size: 0.8125rem;
+  color: var(--text-body-secondary);
+  flex-shrink: 0;
+}
+
+.detail-value {
+  font-size: 0.8125rem;
+  color: var(--text-body);
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.slide-in-up {
+  animation: slideInUp var(--transition-base);
+}
+
+.slide-in-down {
+  animation: slideInDown var(--transition-base);
+}
+
+.scale-in {
+  animation: scaleIn var(--transition-base);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   INPUT CON ÍCONO — PATRÓN MANUAL
+   ========================================
+   ⚠️ NO usar pv-icon-field / pv-input-icon.
+   El mecanismo dt() de PrimeVue resuelve los tokens en runtime;
+   en rutas públicas (sin layout autenticado) las variables CSS
+   --p-form-field-padding-x y --p-icon-size pueden ser 0,
+   haciendo que el padding-inline-start calculado sea 0 y el
+   ícono quede superpuesto sobre el texto.
+   Este patrón usa CSS puro y funciona en cualquier contexto.
+   ======================================== */
+.input-icon-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.input-icon-wrapper__icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  font-size: 0.875rem;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* padding-left del input se sobreescribe en primevue-overrides.css
+   (.input-icon-wrapper .p-inputtext) con mayor especificidad */
+
+/* ========================================
+   FILTER PILL — COMPONENTE GLOBAL
+   ========================================
+   Uso:
+     <button class="filter-pill [filter-pill--active]"
+             [:style="{ borderLeft: '4px solid <color>' }"]>
+       Etiqueta (n)
+     </button>
+
+   Con ícono interno:
+     <button class="filter-pill [filter-pill--active]">
+       <i class="pi pi-bolt filter-pill__icon" [:style="{color}"]></i>
+       Etiqueta
+     </button>
+
+   Nota: aplica el borderLeft en estado INACTIVO vía :style para
+   mantener el color de zona/categoría/estación como indicador visual.
+   El estado activo lo sobreescribe con el color primario global.
+   ======================================== */
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.9rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.filter-pill--active {
+  background: var(--color-primary, #3b82f6);
+  color: #fff;
+  border-color: var(--color-primary, #3b82f6);
+  /* border-left-color se mantiene desde el :style inline para conservar
+     el color de zona/categoría/estación como acento visual */
+}
+
+.filter-pill--active .filter-pill__icon {
+  color: #fff !important;
+}
+
+.filter-pill:not(.filter-pill--active):hover {
+  background: #f3f4f6;
+}
+
+.filter-pill__icon {
+  font-size: 0.82rem;
+  line-height: 1;
+}
