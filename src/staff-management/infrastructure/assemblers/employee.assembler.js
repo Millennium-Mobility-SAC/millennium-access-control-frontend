@@ -5,6 +5,7 @@ export class EmployeeAssembler {
     return new Employee({
       id:             resource.id             ?? null,
       userId:         resource.userId         ?? null,
+      username:       resource.username       ?? '',
       email:          resource.email          ?? '',
       firstName:      resource.firstName      ?? resource.first_name  ?? '',
       lastName:       resource.lastName       ?? resource.last_name   ?? '',
@@ -15,6 +16,7 @@ export class EmployeeAssembler {
       position:       resource.position       ?? '',
       department:     resource.department     ?? '',
       active:         resource.active         ?? true,
+      roles:          resource.roles          ?? [],
     })
   }
 
@@ -29,22 +31,41 @@ export class EmployeeAssembler {
   }
 
   /**
-   * Serializes the form (camelCase) into the snake_case body expected by the API.
+   * Serializes the form into the camelCase body expected by the API.
    * @param {Object} form
    * @returns {Object}
    */
   static toResource(form) {
-    return {
-      user_id:         form.userId         ?? null,
-      email:           form.email          || null,
-      first_name:      form.firstName      || null,
-      last_name:       form.lastName       || null,
-      phone_number:    form.phoneNumber    || null,
-      document_type:   form.documentType   ?? null,
-      document_number: form.documentNumber || null,
-      position:        form.position       || null,
-      department:      form.department     || null,
-      active:          form.active         ?? true,
+    const payload = {
+      email:          form.email          || null,
+      firstName:      form.firstName      || null,
+      lastName:       form.lastName       || null,
+      phoneNumber:    form.phoneNumber    || null,
+      documentType:   form.documentType   ?? null,
+      documentNumber: form.documentNumber || null,
+      position:       form.position       || null,
+      department:     form.department     || null,
+      active:         form.active         ?? true,
+      username:       form.username       || null,
+      roles:          EmployeeAssembler._normalizeRoles(form.roles),
     }
+    // Solo incluir password si viene con valor (no cambiar en edición si está vacío)
+    if (form.password) payload.password = form.password
+    return payload
+  }
+
+  /**
+   * Normaliza roles que pueden venir como string (Excel: "ROLE_ADMIN")
+   * o como array (formulario: ["ROLE_ADMIN"]).
+   * @param {string|string[]|null|undefined} roles
+   * @returns {string[]|null}
+   */
+  static _normalizeRoles(roles) {
+    if (!roles) return null
+    if (typeof roles === 'string') {
+      const arr = roles.split(',').map(r => r.trim()).filter(Boolean)
+      return arr.length ? arr : null
+    }
+    return roles.length ? roles : null
   }
 }

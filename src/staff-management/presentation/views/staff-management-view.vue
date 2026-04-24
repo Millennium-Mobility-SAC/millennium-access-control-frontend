@@ -26,6 +26,10 @@ const importVisible = ref(false)
 function openDrawer(item) {
   drawerItem.value    = item
   drawerVisible.value = true
+  // Fetch full profile to get username and roles
+  store.fetchById(item.id).then(() => {
+    if (store.selected) drawerItem.value = store.selected
+  })
 }
 
 const columns = [

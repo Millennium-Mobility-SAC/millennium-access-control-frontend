@@ -1,6 +1,6 @@
 <script setup>
 import DetailDrawer from '@/shared/presentation/components/detail-drawer.vue'
-import { TIPOS_DOCUMENTO, DEPARTAMENTOS } from '../constants/staff-management-ui.constants.js'
+import { TIPOS_DOCUMENTO, DEPARTAMENTOS, ROLES_OPTIONS } from '../constants/staff-management-ui.constants.js'
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -24,6 +24,10 @@ function getDocumentTypeLabel(value) {
 
 function getDepartmentLabel(value) {
   return DEPARTAMENTOS.find(d => d.value === value)?.label ?? value ?? '—'
+}
+
+function getRoleLabel(value) {
+  return ROLES_OPTIONS.find(r => r.value === value)?.label ?? value
 }
 </script>
 
@@ -79,6 +83,10 @@ function getDepartmentLabel(value) {
               <span class="detail-label">Correo</span>
               <span class="detail-value">{{ item.email || '—' }}</span>
             </div>
+            <div class="detail-row">
+              <span class="detail-label">Teléfono</span>
+              <span class="detail-value">{{ item.phoneNumber || '—' }}</span>
+            </div>
           </div>
         </div>
 
@@ -99,6 +107,19 @@ function getDepartmentLabel(value) {
         <div class="detail-section">
           <p class="detail-section-title">Acceso al sistema</p>
           <div class="detail-grid">
+            <div class="detail-row">
+              <span class="detail-label">Usuario</span>
+              <span class="detail-value font-bold">{{ item.username || '—' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Rol</span>
+              <span class="detail-value">
+                <template v-if="item.roles?.length">
+                  {{ item.roles.map(getRoleLabel).join(', ') }}
+                </template>
+                <template v-else>—</template>
+              </span>
+            </div>
             <div class="detail-row">
               <span class="detail-label">Estado</span>
               <pv-tag

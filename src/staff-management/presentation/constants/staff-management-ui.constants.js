@@ -2,7 +2,7 @@ export const TIPOS_DOCUMENTO = [
   { label: 'DNI',       value: 'DNI'       },
   { label: 'C.E.',      value: 'CE'        },
   { label: 'Pasaporte', value: 'PASAPORTE' },
-  { label: 'Otros',     value: 'OTROS'     },
+  { label: 'Otro',      value: 'OTRO'      },
 ]
 
 export const DEPARTAMENTOS = [
@@ -25,14 +25,19 @@ export const ROLES_OPTIONS = [
 
 /**
  * Columnas para importar colaboradores desde Excel/CSV.
+ * username, password y roles son obligatorios para crear la cuenta de usuario.
+ * roles: un único rol por fila. Valores: ROLE_ADMIN · ROLE_SUPPORT_ADMIN · ROLE_SECURITY_GUARD
  */
 export const STAFF_IMPORT_COLUMNS = [
-  { key: 'firstName',      header: 'Nombre',          required: true                                                                                     },
-  { key: 'lastName',       header: 'Apellido',        required: true                                                                                     },
-  { key: 'documentType',   header: 'Tipo Documento',  required: true,  hint: 'DNI · CE · PASAPORTE · OTROS'                                            },
-  { key: 'documentNumber', header: 'Número Documento', required: true                                                                                     },
-  { key: 'email',          header: 'Correo',          required: true                                                                                     },
-  { key: 'position',       header: 'Cargo',           required: true                                                                                     },
-  { key: 'department',     header: 'Área',             required: true,  hint: 'ADMINISTRACION · MECANICA · CARROCERIA · VENTAS · ATENCION_CLIENTE · LOGISTICA · SEGURIDAD · SISTEMAS · OTRO' },
-  { key: 'phoneNumber',    header: 'Teléfono',         required: false, default: '' },
+  { key: 'firstName',      header: 'Nombre',           required: true                                                                                      },
+  { key: 'lastName',       header: 'Apellido',         required: true                                                                                      },
+  { key: 'documentType',   header: 'Tipo Documento',   required: true,  hint: 'DNI · CE · PASAPORTE · OTRO'                                              },
+  { key: 'documentNumber', header: 'Número Documento', required: true                                                                                      },
+  { key: 'email',          header: 'Correo',           required: true                                                                                      },
+  { key: 'username',       header: 'Usuario',          required: true                                                                                      },
+  { key: 'password',       header: 'Contraseña',       required: true                                                                                      },
+  { key: 'roles',          header: 'Rol',              required: true,  hint: 'ROLE_ADMIN · ROLE_SUPPORT_ADMIN · ROLE_SECURITY_GUARD'                    },
+  { key: 'position',       header: 'Cargo',            required: true                                                                                      },
+  { key: 'department',     header: 'Área',              required: true,  hint: 'ADMINISTRACION · MECANICA · CARROCERIA · VENTAS · ATENCION_CLIENTE · LOGISTICA · SEGURIDAD · SISTEMAS · OTRO' },
+  { key: 'phoneNumber',    header: 'Teléfono',          required: false, default: '' },
 ]

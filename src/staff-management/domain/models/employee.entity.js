@@ -2,6 +2,7 @@ export class Employee {
   constructor({
     id             = null,
     userId         = null,
+    username       = '',
     email          = '',
     firstName      = '',
     lastName       = '',
@@ -12,9 +13,11 @@ export class Employee {
     position       = '',
     department     = '',
     active         = true,
+    roles          = [],
   } = {}) {
     this.id             = id
     this.userId         = userId
+    this.username       = username
     this.email          = email
     this.firstName      = firstName
     this.lastName       = lastName
@@ -25,5 +28,6 @@ export class Employee {
     this.position       = position
     this.department     = department
     this.active         = active
+    this.roles          = roles
   }
 }
