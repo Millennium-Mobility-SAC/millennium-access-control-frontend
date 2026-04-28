@@ -1,14 +1,17 @@
 <script setup>
 import { reactive, watch } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
+import { useFormRules } from '@/shared/composables/use-form-rules.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   edit:    { type: Boolean, default: false },
   entity:  { type: Object,  default: null  },
+  submitLoading: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['canceled-shared', 'saved-shared'])
+const rules = useFormRules()
 
 const form = reactive({
   id:           null,
@@ -19,9 +22,17 @@ const form = reactive({
   color:        '',
 })
 
+const errors = reactive({
+  licensePlate: '',
+  brand: '',
+  model: '',
+  year: '',
+})
+
 watch(() => props.visible, (val) => {
   if (!val) return
   const src = props.entity ?? {}
+  clearErrors()
   Object.assign(form, {
     id:           src.id           ?? null,
     licensePlate: src.licensePlate ?? '',
@@ -31,6 +42,40 @@ watch(() => props.visible, (val) => {
     color:        src.color        ?? '',
   })
 })
+
+function clearErrors() {
+  errors.licensePlate = ''
+  errors.brand = ''
+  errors.model = ''
+  errors.year = ''
+}
+
+function validate() {
+  clearErrors()
+  let valid = true
+  if (rules.isBlank(form.licensePlate) || !rules.isLicensePlate(form.licensePlate)) {
+    errors.licensePlate = 'Ingresa una placa valida (5-10 caracteres, letras/numeros/guion).'
+    valid = false
+  }
+  if (rules.isBlank(form.brand) || !rules.hasMaxLength(form.brand, 50)) {
+    errors.brand = 'La marca es requerida y no debe superar 50 caracteres.'
+    valid = false
+  }
+  if (rules.isBlank(form.model) || !rules.hasMaxLength(form.model, 50)) {
+    errors.model = 'El modelo es requerido y no debe superar 50 caracteres.'
+    valid = false
+  }
+  if (!rules.isYear(form.year)) {
+    errors.year = 'Ingresa un anio valido entre 1900 y 2100.'
+    valid = false
+  }
+  return valid
+}
+
+function onSave(payload) {
+  if (!validate()) return
+  emit('saved-shared', payload)
+}
 </script>
 
 <template>
@@ -40,8 +85,10 @@ watch(() => props.visible, (val) => {
     entity-name="Vehículo"
     :edit="edit"
     size="standard"
+    :submit-loading="submitLoading"
+    :submit-disabled="submitLoading"
     @canceled-shared="emit('canceled-shared')"
-    @saved-shared="emit('saved-shared', $event)"
+    @saved-shared="onSave($event)"
   >
     <template #content>
       <div class="vce-form">
@@ -59,7 +106,9 @@ watch(() => props.visible, (val) => {
                 v-model="form.licensePlate"
                 placeholder="Ej. ABC-123"
                 class="w-full vce-input-plate"
+                :invalid="!!errors.licensePlate"
               />
+              <small v-if="errors.licensePlate" class="vce-error">{{ errors.licensePlate }}</small>
             </div>
             <div class="vce-field vce-field--flex">
               <label class="vce-label">Color</label>
@@ -78,10 +127,12 @@ watch(() => props.visible, (val) => {
             <div class="vce-field vce-field--flex">
               <label class="vce-label">Marca</label>
               <pv-input-text v-model="form.brand" placeholder="Ej. Toyota" class="w-full" />
+              <small v-if="errors.brand" class="vce-error">{{ errors.brand }}</small>
             </div>
             <div class="vce-field vce-field--flex">
               <label class="vce-label">Modelo</label>
               <pv-input-text v-model="form.model" placeholder="Ej. Corolla" class="w-full" />
+              <small v-if="errors.model" class="vce-error">{{ errors.model }}</small>
             </div>
           </div>
           <div class="vce-row">
@@ -94,7 +145,9 @@ watch(() => props.visible, (val) => {
                 :max="2100"
                 placeholder="2022"
                 class="w-full"
+                :invalid="!!errors.year"
               />
+              <small v-if="errors.year" class="vce-error">{{ errors.year }}</small>
             </div>
           </div>
         </div>
@@ -146,4 +199,5 @@ watch(() => props.visible, (val) => {
 .vce-label-opt { font-weight: 400; color: #9ca3af; font-size: 0.75rem; margin-left: 0.25rem; }
 
 .vce-input-plate { font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.vce-error { font-size: 0.75rem; color: #dc2626; }
 </style>

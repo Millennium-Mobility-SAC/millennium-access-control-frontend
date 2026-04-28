@@ -23,18 +23,23 @@ export const useStaffManagementStore = defineStore('staff-management', () => {
   }
 
   async function create(resource) {
-    await api.create(EmployeeAssembler.toResource(resource))
-    await fetchAll()
+    const response = await api.create(EmployeeAssembler.toResource(resource))
+    const created = EmployeeAssembler.toEntityFromResponse(response)
+    _employees.value = [created, ..._employees.value]
+    _selected.value = created
   }
 
   async function update(id, resource) {
-    await api.update(id, EmployeeAssembler.toResource(resource))
-    await fetchAll()
+    const response = await api.update(id, EmployeeAssembler.toResource(resource))
+    const updated = EmployeeAssembler.toEntityFromResponse(response)
+    _employees.value = _employees.value.map(employee => employee.id === id ? updated : employee)
+    if (_selected.value?.id === id) _selected.value = updated
   }
 
   async function remove(id) {
     await api.delete(id)
-    await fetchAll()
+    _employees.value = _employees.value.filter(employee => employee.id !== id)
+    if (_selected.value?.id === id) _selected.value = null
   }
 
   async function bulkCreate(resources) {

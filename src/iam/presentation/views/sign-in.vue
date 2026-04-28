@@ -14,7 +14,7 @@ const password = ref('');
 async function handleLogin() {
   
   const ok = await iamStore.login({ username: username.value, password: password.value });
-  if (ok) router.push('/access-control');
+  if (ok) router.push('/stays');
 }
 
 </script>

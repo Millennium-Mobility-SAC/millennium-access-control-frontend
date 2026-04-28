@@ -1,12 +1,12 @@
 import { BaseApi }      from '../../../shared/infrustructure/base-api.js'
 import { BaseEndpoint } from '../../../shared/infrustructure/base-endpoint.js'
 
-export class AccessControlApi extends BaseApi {
+export class StaysApi extends BaseApi {
   #endpoint
 
   constructor() {
     super()
-    this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_ACCESS_CONTROL_ENDPOINT ?? '/stays')
+    this.#endpoint = new BaseEndpoint(this, import.meta.env.VITE_STAYS_ENDPOINT ?? '/stays')
   }
 
   /** @returns {Promise} */
@@ -62,5 +62,13 @@ export class AccessControlApi extends BaseApi {
   /** @param {number} vehicleId */
   getByVehicleId(vehicleId) {
     return this.http.get(`${this.#endpoint.endpointPath}/by-vehicle/${vehicleId}`)
+  }
+
+  getAttachments(stayId) {
+    return this.http.get(`/integrations/storage/stays/${stayId}/files`)
+  }
+
+  deleteAttachment(stayId, fileId) {
+    return this.http.delete(`/integrations/storage/stays/${stayId}/files/${fileId}`)
   }
 }

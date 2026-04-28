@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { normalizeApiError } from '../infrustructure/error-normalizer.js';
 
 /**
  * Composable para ejecutar acciones asíncronas con manejo de isLoading + error.
@@ -47,7 +48,7 @@ export function useAsyncAction(sharedLoading, sharedError) {
             const result = await action();
             return result;
         } catch (e) {
-            error.value = e?.response?.data?.message ?? e?.message ?? errorMessage;
+            error.value = normalizeApiError(e, errorMessage);
             if (rethrow) throw e;
         } finally {
             isLoading.value = false;

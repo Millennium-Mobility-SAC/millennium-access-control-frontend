@@ -2,14 +2,17 @@
 import { reactive, watch } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
 import { TIPOS_DOCUMENTO, DEPARTAMENTOS, ROLES_OPTIONS } from '../constants/staff-management-ui.constants.js'
+import { useFormRules } from '@/shared/composables/use-form-rules.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   edit:    { type: Boolean, default: false },
   entity:  { type: Object,  default: null  },
+  submitLoading: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['canceled-shared', 'saved-shared'])
+const rules = useFormRules()
 
 const form = reactive({
   id:             null,
@@ -27,10 +30,24 @@ const form = reactive({
   roles:          [],
 })
 
+const errors = reactive({
+  documentNumber: '',
+  firstName: '',
+  lastName: '',
+  email: '',
+  phoneNumber: '',
+  username: '',
+  password: '',
+  position: '',
+  department: '',
+  role: '',
+})
+
 watch(() => props.visible, (val) => {
   if (!val) return
 
   const src = props.entity ?? {}
+  clearErrors()
 
   Object.assign(form, {
     id:             src.id             ?? null,
@@ -47,6 +64,76 @@ watch(() => props.visible, (val) => {
     roles:          src.roles          ? [...src.roles] : [],
   })
 })
+
+function clearErrors() {
+  errors.documentNumber = ''
+  errors.firstName = ''
+  errors.lastName = ''
+  errors.email = ''
+  errors.phoneNumber = ''
+  errors.username = ''
+  errors.password = ''
+  errors.position = ''
+  errors.department = ''
+  errors.role = ''
+}
+
+function validate() {
+  clearErrors()
+  let valid = true
+
+  if (rules.isBlank(form.documentNumber) || !rules.hasMaxLength(form.documentNumber, 30)) {
+    errors.documentNumber = 'El numero de documento es requerido y no debe superar 30 caracteres.'
+    valid = false
+  }
+  if (rules.isBlank(form.firstName) || !rules.hasMaxLength(form.firstName, 60)) {
+    errors.firstName = 'El nombre es requerido y no debe superar 60 caracteres.'
+    valid = false
+  }
+  if (rules.isBlank(form.lastName) || !rules.hasMaxLength(form.lastName, 60)) {
+    errors.lastName = 'El apellido es requerido y no debe superar 60 caracteres.'
+    valid = false
+  }
+  if (!rules.isEmail(form.email)) {
+    errors.email = 'Ingresa un correo electronico valido.'
+    valid = false
+  }
+  if (!rules.isPhone(form.phoneNumber)) {
+    errors.phoneNumber = 'Ingresa un telefono valido (6-20 caracteres).'
+    valid = false
+  }
+  if (rules.isBlank(form.username) || !rules.hasMaxLength(form.username, 50)) {
+    errors.username = 'El usuario es requerido y no debe superar 50 caracteres.'
+    valid = false
+  }
+  if (!props.edit && (rules.isBlank(form.password) || String(form.password).length < 8)) {
+    errors.password = 'La contrasena debe tener al menos 8 caracteres.'
+    valid = false
+  }
+  if (!rules.isBlank(form.password) && String(form.password).length < 8) {
+    errors.password = 'La contrasena debe tener al menos 8 caracteres.'
+    valid = false
+  }
+  if (rules.isBlank(form.position) || !rules.hasMaxLength(form.position, 100)) {
+    errors.position = 'El puesto es requerido y no debe superar 100 caracteres.'
+    valid = false
+  }
+  if (rules.isBlank(form.department)) {
+    errors.department = 'Selecciona un departamento.'
+    valid = false
+  }
+  if (!form.roles?.[0]) {
+    errors.role = 'Selecciona un rol del sistema.'
+    valid = false
+  }
+
+  return valid
+}
+
+function onSave(payload) {
+  if (!validate()) return
+  emit('saved-shared', payload)
+}
 </script>
 
 <template>
@@ -56,8 +143,10 @@ watch(() => props.visible, (val) => {
     entity-name="Colaborador"
     :edit="edit"
     size="standard"
+    :submit-loading="submitLoading"
+    :submit-disabled="submitLoading"
     @canceled-shared="emit('canceled-shared')"
-    @saved-shared="emit('saved-shared', $event)"
+    @saved-shared="onSave($event)"
   >
     <template #content>
       <div class="sce-form">
@@ -82,16 +171,19 @@ watch(() => props.visible, (val) => {
             <div class="sce-field sce-field--flex">
               <label class="sce-label">Número de documento</label>
               <pv-input-text v-model="form.documentNumber" placeholder="Ej. 12345678" class="w-full" />
+              <small v-if="errors.documentNumber" class="sce-error">{{ errors.documentNumber }}</small>
             </div>
           </div>
           <div class="sce-row">
             <div class="sce-field sce-field--flex">
               <label class="sce-label">Nombres</label>
               <pv-input-text v-model="form.firstName" placeholder="Ej. Juan" class="w-full" />
+              <small v-if="errors.firstName" class="sce-error">{{ errors.firstName }}</small>
             </div>
             <div class="sce-field sce-field--flex">
               <label class="sce-label">Apellidos</label>
               <pv-input-text v-model="form.lastName" placeholder="Ej. Pérez" class="w-full" />
+              <small v-if="errors.lastName" class="sce-error">{{ errors.lastName }}</small>
             </div>
           </div>
         </div>
@@ -106,10 +198,12 @@ watch(() => props.visible, (val) => {
             <div class="sce-field sce-field--flex">
               <label class="sce-label">Correo electrónico</label>
               <pv-input-text v-model="form.email" type="email" placeholder="Ej. juan@empresa.com" class="w-full" />
+              <small v-if="errors.email" class="sce-error">{{ errors.email }}</small>
             </div>
             <div class="sce-field sce-field--flex">
               <label class="sce-label">Teléfono</label>
               <pv-input-text v-model="form.phoneNumber" placeholder="Ej. 956321478" class="w-full" />
+              <small v-if="errors.phoneNumber" class="sce-error">{{ errors.phoneNumber }}</small>
             </div>
           </div>
         </div>
@@ -124,6 +218,7 @@ watch(() => props.visible, (val) => {
             <div class="sce-field sce-field--flex">
               <label class="sce-label">Puesto</label>
               <pv-input-text v-model="form.position" placeholder="Ej. Mecánico Senior" class="w-full" />
+              <small v-if="errors.position" class="sce-error">{{ errors.position }}</small>
             </div>
             <div class="sce-field sce-field--flex">
               <label class="sce-label">Área / Departamento</label>
@@ -135,6 +230,7 @@ watch(() => props.visible, (val) => {
                 placeholder="Selecciona"
                 class="w-full"
               />
+              <small v-if="errors.department" class="sce-error">{{ errors.department }}</small>
             </div>
           </div>
         </div>
@@ -149,6 +245,7 @@ watch(() => props.visible, (val) => {
             <div class="sce-field sce-field--flex">
               <label class="sce-label">Nombre de usuario</label>
               <pv-input-text v-model="form.username" placeholder="Ej. jperez" class="w-full" autocomplete="off" />
+              <small v-if="errors.username" class="sce-error">{{ errors.username }}</small>
             </div>
             <div class="sce-field sce-field--flex">
               <label class="sce-label">
@@ -164,6 +261,7 @@ watch(() => props.visible, (val) => {
                 input-class="w-full"
                 autocomplete="new-password"
               />
+              <small v-if="errors.password" class="sce-error">{{ errors.password }}</small>
             </div>
           </div>
           <div class="sce-row">
@@ -178,6 +276,7 @@ watch(() => props.visible, (val) => {
                 class="w-full"
                 @change="form.roles = form.roles[0] ? [form.roles[0]] : []"
               />
+              <small v-if="errors.role" class="sce-error">{{ errors.role }}</small>
             </div>
           </div>
         </div>
@@ -244,6 +343,7 @@ watch(() => props.visible, (val) => {
   font-size: 0.75rem;
   margin-left: 0.25rem;
 }
+.sce-error { font-size: 0.75rem; color: #dc2626; }
 
 /* Forzar ancho completo en pv-password */
 .sce-field .p-password {

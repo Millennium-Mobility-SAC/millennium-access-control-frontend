@@ -96,6 +96,7 @@ function closeDialog() {
 }
 
 async function handleSave(entity) {
+  if (isLoading.value) return
   await run(async () => {
     if (isEditing.value) {
       await store.update(entity.id, entity)
@@ -237,6 +238,7 @@ onMounted(async () => {
       :entity="editEntity"
       :visible="dialogVisible"
       :edit="isEditing"
+      :submit-loading="isLoading"
       @canceled-shared="closeDialog"
       @saved-shared="handleSave"
     />

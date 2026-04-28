@@ -1,11 +1,13 @@
 <script setup>
 import { reactive, watch, onUnmounted } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
-import { TIPOS_SALIDA, MOTIVOS_SALIDA_TEMPORAL, TIPOS_DOCUMENTO } from '../constants/access-control-ui.constants.js'
+import StayImagePicker from './stay-image-picker.vue'
+import { TIPOS_SALIDA, MOTIVOS_SALIDA_TEMPORAL, TIPOS_DOCUMENTO } from '../constants/stays-ui.constants.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   entity:  { type: Object,  default: null  },
+  submitLoading: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['canceled', 'saved'])
@@ -67,6 +69,7 @@ const form = reactive({
   customerDni:             null,
   customerFirstName:       null,
   customerLastName:        null,
+  attachments:             [],
 })
 
 watch(() => props.visible, (val) => {
@@ -92,6 +95,7 @@ watch(() => props.visible, (val) => {
     customerDni:             src.type === 'PERSONA' ? (src.clientDocumentNumber ?? null)   : null,
     customerFirstName:       src.type === 'PERSONA' ? (src.firstName            ?? null)   : null,
     customerLastName:        src.type === 'PERSONA' ? (src.lastName             ?? null)   : null,
+    attachments:             [],
   })
 
   clearErrors()
@@ -185,6 +189,7 @@ function onSaved(formData) {
   stopClock()
   emit('saved', { ...formData })
 }
+
 </script>
 
 <template>
@@ -195,6 +200,8 @@ function onSaved(formData) {
     :edit="false"
     size="standard"
     custom-button-label="Registrar salida"
+    :submit-loading="submitLoading"
+    :submit-disabled="submitLoading"
     @canceled-shared="onCanceled"
     @saved-shared="onSaved($event)"
   >
@@ -339,6 +346,23 @@ function onSaved(formData) {
           </div>
 
         </template>
+
+        <!-- ── 5. Fecha y hora de salida ── -->
+        <div class="ace-section">
+          <div class="ace-section-header">
+            <i class="pi pi-images ace-section-icon" />
+            <span>Evidencias (opcional)</span>
+          </div>
+          <div class="ace-row">
+            <div class="ace-field ace-field--full">
+              <StayImagePicker
+                v-model="form.attachments"
+                label="Imágenes de salida"
+                hint="Ideal para evidencias rápidas desde la cámara del celular."
+              />
+            </div>
+          </div>
+        </div>
 
         <!-- ── 5. Fecha y hora de salida ── -->
         <div class="ace-section">

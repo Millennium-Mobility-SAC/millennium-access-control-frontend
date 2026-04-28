@@ -1,6 +1,6 @@
 import {createRouter, createWebHistory} from "vue-router";
 import iamRoutes             from "../iam/presentation/iam.routes.js";
-import accessControlRoutes   from "../access-control/presentation/access-control.routes.js";
+import staysRoutes           from "../stays/presentation/stays.routes.js";
 import staffManagementRoutes from "../staff-management/presentation/staff-management.routes.js";
 import vehicleCatalogRoutes  from "../vehicle-catalog/presentation/vehicle-catalog.routes.js";
 import { authenticationGuard } from "../iam/presentation/guards/authentication.guard.js";
@@ -18,9 +18,9 @@ const routes = [
     ...iamRoutes,
 
     {
-        path: '/access-control',
+        path: '/stays',
         component: layout,
-        children: accessControlRoutes,
+        children: staysRoutes,
         meta: { title: 'Control de Acceso' },
     },
     {

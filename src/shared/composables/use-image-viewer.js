@@ -81,22 +81,18 @@ export function useImageViewer() {
   const downloadImage = async (image) => {
     try {
       if (!image || !image.url) {
-        console.warn('No se puede descargar la imagen: URL no válida');
         showError('URL no válida', 'Error');
         return;
       }
 
-      console.log('Iniciando descarga de:', image.url);
       showInfo('Preparando descarga...', 'Descargando');
 
       const filename = generateFileName(image);
       await performDownload(image.url, filename);
 
-      console.log('Imagen descargada correctamente');
       showSuccess('Imagen descargada correctamente', 'Éxito');
 
     } catch (error) {
-      console.error('Error al descargar imagen:', error);
       showError('No se pudo descargar la imagen. Intente nuevamente.', 'Error de descarga');
     }
   };
@@ -107,18 +103,15 @@ export function useImageViewer() {
   const performDownload = async (url, filename) => {
     // Para imágenes, intentar método canvas primero
     if (isImageFile(url)) {
-      console.log('Detectada imagen, usando método canvas para:', url);
       try {
         await downloadImageWithCanvas(url, filename);
         return;
       } catch (error) {
-        console.warn('Método canvas falló, intentando fetch:', error);
+        // fallback a fetch cuando canvas no funciona por CORS u otros motivos
       }
     }
 
     try {
-      console.log('Intentando descarga con fetch para:', url);
-
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -132,11 +125,9 @@ export function useImageViewer() {
       }
 
       const blob = await response.blob();
-      console.log('Archivo descargado como blob, tamaño:', blob.size);
       downloadBlob(blob, filename);
 
     } catch (error) {
-      console.warn('Descarga con fetch falló, usando método alternativo:', error);
       downloadWithLink(url, filename);
     }
   };
@@ -160,7 +151,6 @@ export function useImageViewer() {
 
           canvas.toBlob((blob) => {
             if (blob) {
-              console.log('Imagen convertida a blob con canvas, tamaño:', blob.size);
               downloadBlob(blob, filename);
               resolve();
             } else {
@@ -201,7 +191,6 @@ export function useImageViewer() {
       }, 100);
 
     } catch (error) {
-      console.error('Error en downloadBlob:', error);
       throw error;
     }
   };
@@ -227,7 +216,6 @@ export function useImageViewer() {
       }, 100);
 
     } catch (error) {
-      console.error('Error en downloadWithLink:', error);
       window.open(url, '_blank');
     }
   };
@@ -288,7 +276,7 @@ export function useImageViewer() {
    * Manejar error de carga de imagen
    */
   const handleImageError = (event) => {
-    console.error('Error al cargar imagen:', event);
+    void event;
     showError('No se pudo cargar la imagen', 'Error');
   };
 

@@ -269,6 +269,9 @@ Crea un archivo `.env` en la raíz del proyecto:
 # URL base del backend REST (sin barra al final)
 VITE_PLATFORM_API_URL=http://localhost:8080/api/v1
 
+# Endpoint oficial de estadias/accesos
+VITE_STAYS_ENDPOINT=/stays
+
 # Prefijo del endpoint de autenticación
 VITE_IAM_ENDPOINT=/authentication
 
@@ -279,6 +282,7 @@ VITE_USE_MOCK=false
 | Variable | Valor por defecto | Descripción |
 |---|---|---|
 | `VITE_PLATFORM_API_URL` | `http://localhost:8080/api/v1` | URL base de la API REST del backend. |
+| `VITE_STAYS_ENDPOINT` | `/stays` | Endpoint oficial para el modulo de control de acceso/estadias. |
 | `VITE_IAM_ENDPOINT` | `/authentication` | Prefijo del servicio de autenticación. |
 | `VITE_USE_MOCK` | `false` | Si es `true`, usa datos mock cuando la API no responde. |
 

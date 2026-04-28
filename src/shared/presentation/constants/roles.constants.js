@@ -23,15 +23,15 @@ export const ROLE_LABELS = Object.freeze({
  */
 export const ROLE_ALLOWED_ROUTES = Object.freeze({
     [ROLES.ROLE_ADMIN]: [
-        '/access-control',
+        '/stays',
         '/staff-management',
         '/vehicle-catalog',
     ],
     [ROLES.ROLE_SECURITY_GUARD]: [
-        '/access-control',
+        '/stays',
     ],
     [ROLES.ROLE_SUPPORT_ADMIN]: [
-        '/access-control',
+        '/stays',
         '/staff-management',
         '/vehicle-catalog',
     ],

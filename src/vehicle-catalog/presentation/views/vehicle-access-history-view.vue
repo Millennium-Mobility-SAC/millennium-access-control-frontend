@@ -2,15 +2,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute }                 from 'vue-router'
 import { useVehicleCatalogStore }   from '../../application/vehicle-catalog.store.js'
-import { useAccessControlStore }    from '@/access-control/application/access-control.store.js'
+import { useStaysStore }            from '@/stays/application/stays.store.js'
 import { useAsyncAction }           from '@/shared/composables/use-async-action.js'
 import { ACCESS_STATUS, ACCESS_STATUS_SEVERITY } from '@/shared/presentation/constants/access-status.constants.js'
-import { MOTIVOS_INGRESO, MOTIVOS_SALIDA_TEMPORAL, TIPOS_DOCUMENTO } from '@/access-control/presentation/constants/access-control-ui.constants.js'
+import { MOTIVOS_INGRESO, MOTIVOS_SALIDA_TEMPORAL, TIPOS_DOCUMENTO } from '@/stays/presentation/constants/stays-ui.constants.js'
 import * as XLSX from 'xlsx'
 
 const route        = useRoute()
 const vehicleStore = useVehicleCatalogStore()
-const accessStore  = useAccessControlStore()
+const accessStore  = useStaysStore()
 const { isLoading, run } = useAsyncAction()
 
 // ── Vehicle id from route ─────────────────────────────────────────────────────

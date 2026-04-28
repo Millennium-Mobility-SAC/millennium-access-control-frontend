@@ -1,16 +1,21 @@
 <script setup>
-import { reactive, watch, onUnmounted, ref } from 'vue'
+import { reactive, watch, onUnmounted, ref, computed } from 'vue'
 import CreateAndEdit        from '@/shared/presentation/components/create-and-edit.vue'
-import { MOTIVOS_INGRESO, TIPOS_INGRESO, TIPOS_DOCUMENTO, TIPOS_SALIDA } from '../constants/access-control-ui.constants.js'
+import StayImagePicker      from './stay-image-picker.vue'
+import { MOTIVOS_INGRESO, TIPOS_INGRESO, TIPOS_DOCUMENTO } from '../constants/stays-ui.constants.js'
 import { useVehicleCatalogStore } from '@/vehicle-catalog/application/vehicle-catalog.store.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   edit:    { type: Boolean, default: false },
   entity:  { type: Object,  default: null  },
+  submitLoading: { type: Boolean, default: false },
+  existingAttachments: { type: Array, default: () => [] },
+  canManageAttachments: { type: Boolean, default: false },
+  deletingAttachmentId: { type: [Number, null], default: null },
 })
 
-const emit = defineEmits(['canceled-shared', 'saved-shared'])
+const emit = defineEmits(['canceled-shared', 'saved-shared', 'remove-existing-attachment-requested'])
 
 const store           = useVehicleCatalogStore()
 const plateMatched    = ref(false)
@@ -75,6 +80,7 @@ const form = reactive({
   exitType:             null,
   returnDate:           null,
   returnTime:           '',
+  attachments:          [],
 })
 
 watch(() => props.visible, (val) => {
@@ -105,6 +111,7 @@ watch(() => props.visible, (val) => {
     exitType:             src.exitType   ?? (!isNew ? 'PERMANENTE' : null),
     returnDate:           src.returnDate ? new Date(src.returnDate) : null,
     returnTime:           src.returnTime ? to12h(src.returnTime)   : '',
+    attachments:          [],
   })
 
   // Determina si hay datos de cliente precargados
@@ -170,11 +177,6 @@ function to12h(value) {
     : `${base} ${period}`
 }
 
-function fillReturnNow() {
-  form.returnDate = new Date()
-  form.returnTime = to12h(nowTimeString())
-}
-
 function onTypeChange(newType) {
   if (newType === 'PERSONA') {
     form.licensePlate = null
@@ -189,6 +191,181 @@ function onTypeChange(newType) {
     hasClient.value = false
   }
 }
+
+function hasValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== ''
+}
+
+const sourceEntity = computed(() => props.entity ?? {})
+
+const temporalExits = computed(() =>
+  Array.isArray(sourceEntity.value.temporalExits) ? sourceEntity.value.temporalExits : [],
+)
+
+const latestTemporalExit = computed(() => temporalExits.value[temporalExits.value.length - 1] ?? null)
+
+const hasPermanentExitData = computed(() =>
+  hasValue(sourceEntity.value.permanentExitDate) || hasValue(sourceEntity.value.permanentExitTime),
+)
+
+const hasTemporalExitData = computed(() =>
+  temporalExits.value.some(exit => hasValue(exit?.exitDate) || hasValue(exit?.exitTime)),
+)
+
+const hasAnyExitData = computed(() => hasPermanentExitData.value || hasTemporalExitData.value)
+
+const hasReturnData = computed(() =>
+  temporalExits.value.some(exit => hasValue(exit?.returnDate) || hasValue(exit?.returnTime)),
+)
+
+const visibleStageRank = computed(() => {
+  if (hasReturnData.value) return 3
+  if (hasAnyExitData.value) return 2
+  return 1
+})
+
+const OPERATION_RANK = {
+  ENTRY: 1,
+  TEMPORAL_EXIT: 2,
+  PERMANENT_EXIT: 2,
+  RETURN: 3,
+}
+
+const OPERATION_LABEL = {
+  ENTRY: 'Ingreso',
+  TEMPORAL_EXIT: 'Salida temporal',
+  PERMANENT_EXIT: 'Salida permanente',
+  RETURN: 'Retorno',
+}
+
+const filteredExistingAttachments = computed(() => {
+  if (!props.edit) return []
+  return props.existingAttachments.filter((attachment) => {
+    const operation =
+      attachment?.stay_operation_type ??
+      attachment?.stayOperationType ??
+      null
+    const rank = operation ? (OPERATION_RANK[operation] ?? 1) : 1
+    return rank <= visibleStageRank.value
+  })
+})
+
+const groupedExistingAttachmentSections = computed(() => {
+  const byOperation = filteredExistingAttachments.value.reduce((acc, attachment) => {
+    const operation = attachment?.stay_operation_type ?? attachment?.stayOperationType ?? 'ENTRY'
+    if (!acc[operation]) acc[operation] = []
+    acc[operation].push(attachment)
+    return acc
+  }, {})
+
+  const sections = [
+    { key: 'ENTRY', title: OPERATION_LABEL.ENTRY, items: byOperation.ENTRY ?? [], initiallyOpen: true },
+    {
+      key: 'EXIT',
+      title: 'Salida',
+      items: [...(byOperation.TEMPORAL_EXIT ?? []), ...(byOperation.PERMANENT_EXIT ?? [])],
+      initiallyOpen: true,
+    },
+    { key: 'RETURN', title: OPERATION_LABEL.RETURN, items: byOperation.RETURN ?? [], initiallyOpen: true },
+  ]
+
+  return sections.filter(section => section.items.length > 0)
+})
+
+const openSections = ref({
+  ENTRY: true,
+  EXIT: true,
+  RETURN: true,
+})
+const confirmRemoveVisible = ref(false)
+const pendingRemoveAttachment = ref(null)
+
+watch(groupedExistingAttachmentSections, (sections) => {
+  const keys = sections.map(section => section.key)
+  const latestKey = keys.includes('RETURN')
+    ? 'RETURN'
+    : keys.includes('EXIT')
+      ? 'EXIT'
+      : keys.includes('ENTRY')
+        ? 'ENTRY'
+        : null
+
+  openSections.value = {
+    ENTRY: latestKey === 'ENTRY',
+    EXIT: latestKey === 'EXIT',
+    RETURN: latestKey === 'RETURN',
+  }
+}, { immediate: true })
+
+function toggleSection(sectionKey) {
+  openSections.value[sectionKey] = !openSections.value[sectionKey]
+}
+
+function resolveProviderFileId(attachment) {
+  return attachment?.provider_file_id ?? attachment?.providerFileId ?? null
+}
+
+function buildDriveViewUrl(providerFileId) {
+  return `https://drive.google.com/file/d/${providerFileId}/view`
+}
+
+function buildDrivePreviewUrl(providerFileId) {
+  return `https://drive.google.com/thumbnail?id=${providerFileId}&sz=w1200`
+}
+
+function getOpenUrl(attachment) {
+  const providerFileId = resolveProviderFileId(attachment)
+  if (providerFileId) return buildDriveViewUrl(providerFileId)
+  return attachment?.public_url ?? attachment?.publicUrl ?? '#'
+}
+
+function getPreviewSrc(attachment) {
+  const providerFileId = resolveProviderFileId(attachment)
+  if (providerFileId) return buildDrivePreviewUrl(providerFileId)
+  return attachment?.public_url ?? attachment?.publicUrl ?? ''
+}
+
+function onExistingImageError(event) {
+  event.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='160'%3E%3Crect width='240' height='160' fill='%23e5e7eb'/%3E%3Ctext x='120' y='85' text-anchor='middle' fill='%236b7280' font-size='14' font-family='Arial'%3ESin vista previa%3C/text%3E%3C/svg%3E"
+}
+
+function requestRemoveExistingAttachment(attachment) {
+  pendingRemoveAttachment.value = attachment
+  confirmRemoveVisible.value = true
+}
+
+function cancelRemoveExistingAttachment() {
+  confirmRemoveVisible.value = false
+  pendingRemoveAttachment.value = null
+}
+
+function confirmRemoveExistingAttachment() {
+  if (!pendingRemoveAttachment.value) return
+  emit('remove-existing-attachment-requested', pendingRemoveAttachment.value)
+  cancelRemoveExistingAttachment()
+}
+
+const exitDateValue = computed(() => {
+  if (hasPermanentExitData.value) return sourceEntity.value.permanentExitDate ?? null
+  return latestTemporalExit.value?.exitDate ?? null
+})
+
+const exitTimeValue = computed(() => {
+  if (hasPermanentExitData.value) return to12h(sourceEntity.value.permanentExitTime)
+  return to12h(latestTemporalExit.value?.exitTime)
+})
+
+const returnDateValue = computed(() => {
+  if (!hasReturnData.value) return null
+  const exitsWithReturn = temporalExits.value.filter(exit => hasValue(exit?.returnDate) || hasValue(exit?.returnTime))
+  return exitsWithReturn[exitsWithReturn.length - 1]?.returnDate ?? null
+})
+
+const returnTimeValue = computed(() => {
+  if (!hasReturnData.value) return ''
+  const exitsWithReturn = temporalExits.value.filter(exit => hasValue(exit?.returnDate) || hasValue(exit?.returnTime))
+  return to12h(exitsWithReturn[exitsWithReturn.length - 1]?.returnTime)
+})
 
 function onClientToggle(enabled) {
   if (!enabled) {
@@ -266,6 +443,7 @@ function onSave(formData) {
   if (!validate()) return
   emit('saved-shared', formData)
 }
+
 </script>
 
 <template>
@@ -275,6 +453,8 @@ function onSave(formData) {
     entity-name="Registro de Acceso"
     :edit="edit"
     size="standard"
+    :submit-loading="submitLoading"
+    :submit-disabled="submitLoading"
     @canceled-shared="emit('canceled-shared')"
     @saved-shared="onSave($event)"
   >
@@ -517,6 +697,71 @@ function onSave(formData) {
         </template>
 
         <!-- ── Registro (compartido, siempre montado) ── -->
+        <div class="ace-section">
+          <div class="ace-section-header">
+            <i class="pi pi-images ace-section-icon" />
+            <span>Evidencias (opcional)</span>
+          </div>
+          <div v-if="edit && groupedExistingAttachmentSections.length" class="ace-existing-attachments">
+            <div class="ace-existing-attachments__title">Evidencias registradas</div>
+            <div class="ace-existing-attachments__sections">
+              <section
+                v-for="section in groupedExistingAttachmentSections"
+                :key="section.key"
+                class="ace-existing-attachments__section"
+              >
+                <button
+                  type="button"
+                  class="ace-existing-attachments__section-toggle"
+                  @click="toggleSection(section.key)"
+                >
+                  <span class="ace-existing-attachments__section-title">{{ section.title }}</span>
+                  <span class="ace-existing-attachments__section-meta">
+                    {{ section.items.length }}
+                    <i class="pi" :class="openSections[section.key] ? 'pi-chevron-up' : 'pi-chevron-down'" />
+                  </span>
+                </button>
+                <div v-if="openSections[section.key]" class="ace-existing-attachments__grid">
+                  <div
+                    v-for="attachment in section.items"
+                    :key="attachment.id"
+                    class="ace-existing-attachment"
+                  >
+                    <a :href="getOpenUrl(attachment)" target="_blank" rel="noopener noreferrer">
+                      <img
+                        :src="getPreviewSrc(attachment)"
+                        :alt="attachment.file_name ?? attachment.fileName"
+                        @error="onExistingImageError"
+                      >
+                    </a>
+                    <button
+                      v-if="canManageAttachments"
+                      type="button"
+                      class="ace-existing-attachment__remove"
+                      :disabled="deletingAttachmentId === attachment.id"
+                      @click="requestRemoveExistingAttachment(attachment)"
+                    >
+                      {{ deletingAttachmentId === attachment.id ? '...' : '×' }}
+                    </button>
+                    <span class="ace-existing-attachment__label">
+                      {{ attachment.file_name ?? attachment.fileName }}
+                    </span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+          <div class="ace-row">
+            <div class="ace-field ace-field--full">
+              <StayImagePicker
+                v-model="form.attachments"
+                label="Imágenes del ingreso"
+                hint="Desde celular podrás abrir la cámara o elegir fotos guardadas."
+              />
+            </div>
+          </div>
+        </div>
+
         <div class="ace-section ace-section--last">
           <div class="ace-section-header">
             <i class="pi pi-clock ace-section-icon" />
@@ -532,44 +777,27 @@ function onSave(formData) {
               <pv-input-mask v-model="form.entryTime" mask="99:99:99 aa" placeholder="00:00:00 AM" class="w-full" :disabled="true" />
             </div>
           </div>
-          <template v-if="edit">
-            <div class="ace-row">
-              <div class="ace-field ace-field--full">
-                <label class="ace-label">Tipo de salida</label>
-                <pv-select v-model="form.exitType" :options="TIPOS_SALIDA" option-label="label" option-value="value" placeholder="Selecciona" class="w-full" />
-              </div>
-            </div>
+          <template v-if="edit && hasAnyExitData">
             <div class="ace-row">
               <div class="ace-field ace-field--flex">
                 <label class="ace-label">Fecha Salida</label>
-                <pv-calendar v-model="form.exitDate" date-format="dd/mm/yy" show-icon icon-display="input" placeholder="dd/mm/aaaa" class="w-full" :disabled="true" />
+                <pv-calendar :model-value="exitDateValue ? new Date(exitDateValue) : null" date-format="dd/mm/yy" show-icon icon-display="input" placeholder="dd/mm/aaaa" class="w-full" :disabled="true" />
               </div>
               <div class="ace-field ace-field--flex">
                 <label class="ace-label">Hora Salida</label>
-                <pv-input-mask v-model="form.exitTime" mask="99:99:99 aa" placeholder="00:00:00 AM" class="w-full" :disabled="true" />
+                <pv-input-mask :model-value="exitTimeValue" mask="99:99:99 aa" placeholder="00:00:00 AM" class="w-full" :disabled="true" />
               </div>
             </div>
-            <div v-if="form.exitType && form.exitType !== 'PERMANENTE'" class="ace-row">
-              <div class="ace-field ace-field--full">
-                <pv-button
-                  label="Registrar fecha y hora de retorno"
-                  icon="pi pi-replay"
-                  severity="secondary"
-                  size="small"
-                  type="button"
-                  class="w-full"
-                  @click="fillReturnNow"
-                />
-              </div>
-            </div>
-            <div v-if="form.exitType && form.exitType !== 'PERMANENTE'" class="ace-row">
+          </template>
+          <template v-if="edit && hasReturnData">
+            <div class="ace-row">
               <div class="ace-field ace-field--flex">
                 <label class="ace-label">Fecha Retorno</label>
-                <pv-calendar v-model="form.returnDate" date-format="dd/mm/yy" show-icon icon-display="input" placeholder="dd/mm/aaaa" class="w-full" />
+                <pv-calendar :model-value="returnDateValue ? new Date(returnDateValue) : null" date-format="dd/mm/yy" show-icon icon-display="input" placeholder="dd/mm/aaaa" class="w-full" :disabled="true" />
               </div>
               <div class="ace-field ace-field--flex">
                 <label class="ace-label">Hora Retorno</label>
-                <pv-input-mask v-model="form.returnTime" mask="99:99:99 aa" placeholder="00:00:00 AM" class="w-full" />
+                <pv-input-mask :model-value="returnTimeValue" mask="99:99:99 aa" placeholder="00:00:00 AM" class="w-full" :disabled="true" />
               </div>
             </div>
           </template>
@@ -578,6 +806,23 @@ function onSave(formData) {
       </div>
     </template>
   </CreateAndEdit>
+
+  <pv-dialog
+    v-model:visible="confirmRemoveVisible"
+    modal
+    header="Confirmar eliminación"
+    :style="{ width: 'min(420px, 92vw)' }"
+  >
+    <p style="margin: 0; color: #374151;">
+      ¿Deseas eliminar la evidencia
+      <strong>{{ pendingRemoveAttachment?.file_name ?? pendingRemoveAttachment?.fileName ?? '' }}</strong>?
+      Esta acción no se puede deshacer.
+    </p>
+    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+      <pv-button label="Cancelar" severity="secondary" text @click="cancelRemoveExistingAttachment" />
+      <pv-button label="Eliminar" severity="danger" @click="confirmRemoveExistingAttachment" />
+    </div>
+  </pv-dialog>
 </template>
 
 <style>
@@ -776,6 +1021,113 @@ function onSave(formData) {
   font-size: 0.75rem;
   color: #dc2626;
   margin-top: -0.1rem;
+}
+
+.ace-existing-attachments {
+  margin-bottom: 0.75rem;
+}
+
+.ace-existing-attachments__title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 0.45rem;
+}
+
+.ace-existing-attachments__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.ace-existing-attachments__section {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.5rem;
+  background: #f9fafb;
+}
+
+.ace-existing-attachments__section-toggle {
+  width: 100%;
+  border: none;
+  padding: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  margin-bottom: 0.45rem;
+}
+
+.ace-existing-attachments__section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1e40af;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ace-existing-attachments__section-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.ace-existing-attachments__section-meta .pi {
+  font-size: 0.68rem;
+}
+
+.ace-existing-attachments__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 0.5rem;
+}
+
+.ace-existing-attachment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: relative;
+  color: inherit;
+}
+
+.ace-existing-attachment a {
+  text-decoration: none;
+}
+
+.ace-existing-attachment img {
+  width: 100%;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+}
+
+.ace-existing-attachment__remove {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.ace-existing-attachment__label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #334155;
+  line-height: 1.2;
+  word-break: break-word;
 }
 
 /* ── Responsive ── */

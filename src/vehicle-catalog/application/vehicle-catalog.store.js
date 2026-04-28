@@ -36,18 +36,23 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
   }
 
   async function create(resource) {
-    await api.create(VehicleAssembler.toResource(resource))
-    await fetchAll()
+    const response = await api.create(VehicleAssembler.toResource(resource))
+    const created = VehicleAssembler.toEntityFromResponse(response)
+    _vehicles.value = [created, ..._vehicles.value]
+    _selected.value = created
   }
 
   async function update(id, resource) {
-    await api.update(id, VehicleAssembler.toResource(resource))
-    await fetchAll()
+    const response = await api.update(id, VehicleAssembler.toResource(resource))
+    const updated = VehicleAssembler.toEntityFromResponse(response)
+    _vehicles.value = _vehicles.value.map(vehicle => vehicle.id === id ? updated : vehicle)
+    if (_selected.value?.id === id) _selected.value = updated
   }
 
   async function remove(id) {
     await api.delete(id)
-    await fetchAll()
+    _vehicles.value = _vehicles.value.filter(vehicle => vehicle.id !== id)
+    if (_selected.value?.id === id) _selected.value = null
   }
 
   /**

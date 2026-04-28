@@ -1,10 +1,10 @@
 import { defineStore }          from 'pinia'
 import { ref, computed }        from 'vue'
-import { AccessControlApi }     from '../infrastructure/api/access-control.api.js'
+import { StaysApi }             from '../infrastructure/api/stays.api.js'
 import { AccessEntryAssembler } from '../infrastructure/assemblers/access-entry.assembler.js'
 
-export const useAccessControlStore = defineStore('access-control', () => {
-  const api = new AccessControlApi()
+export const useStaysStore = defineStore('stays', () => {
+  const api = new StaysApi()
 
   const _items    = ref([])
   const _selected = ref(null)
@@ -23,37 +23,58 @@ export const useAccessControlStore = defineStore('access-control', () => {
   }
 
   async function create(resource) {
-    await api.create(AccessEntryAssembler.toResource(resource))
-    await fetchAll()
+    const response = await api.create(AccessEntryAssembler.toResource(resource))
+    const created = AccessEntryAssembler.toEntityFromResponse(response)
+    _items.value = [created, ..._items.value]
+    _selected.value = created
   }
 
   async function update(id, resource) {
-    await api.update(id, AccessEntryAssembler.toResource(resource))
-    await fetchAll()
+    const response = await api.update(id, AccessEntryAssembler.toResource(resource))
+    const updated = AccessEntryAssembler.toEntityFromResponse(response)
+    _items.value = _items.value.map(item => item.id === id ? updated : item)
+    if (_selected.value?.id === id) _selected.value = updated
   }
 
   async function remove(id) {
     await api.delete(id)
-    await fetchAll()
+    _items.value = _items.value.filter(item => item.id !== id)
+    if (_selected.value?.id === id) _selected.value = null
   }
 
   async function registerExit(id, exitForm) {
     if (exitForm.exitType === 'TEMPORAL') {
-      await api.registerTemporalExit(id, AccessEntryAssembler.toTemporalExitResource(exitForm))
+      const response = await api.registerTemporalExit(id, AccessEntryAssembler.toTemporalExitResource(exitForm))
+      const updated = AccessEntryAssembler.toEntityFromResponse(response)
+      _items.value = _items.value.map(item => item.id === id ? updated : item)
+      if (_selected.value?.id === id) _selected.value = updated
     } else {
-      await api.registerExit(id, AccessEntryAssembler.toExitResource(exitForm))
+      const response = await api.registerExit(id, AccessEntryAssembler.toExitResource(exitForm))
+      const updated = AccessEntryAssembler.toEntityFromResponse(response)
+      _items.value = _items.value.map(item => item.id === id ? updated : item)
+      if (_selected.value?.id === id) _selected.value = updated
     }
-    await fetchAll()
   }
 
   async function registerReturn(id, returnForm) {
-    await api.registerReturn(id, AccessEntryAssembler.toReturnResource(returnForm))
-    await fetchAll()
+    const response = await api.registerReturn(id, AccessEntryAssembler.toReturnResource(returnForm))
+    const updated = AccessEntryAssembler.toEntityFromResponse(response)
+    _items.value = _items.value.map(item => item.id === id ? updated : item)
+    if (_selected.value?.id === id) _selected.value = updated
   }
 
   async function fetchByVehicleId(vehicleId) {
     const response = await api.getByVehicleId(vehicleId)
     return AccessEntryAssembler.toEntitiesFromResponse(response)
+  }
+
+  async function fetchAttachments(stayId) {
+    const response = await api.getAttachments(stayId)
+    return Array.isArray(response?.data) ? response.data : []
+  }
+
+  async function deleteAttachment(stayId, fileId) {
+    await api.deleteAttachment(stayId, fileId)
   }
 
   /**
@@ -95,6 +116,8 @@ export const useAccessControlStore = defineStore('access-control', () => {
     registerExit,
     registerReturn,
     fetchByVehicleId,
+    fetchAttachments,
+    deleteAttachment,
     select,
     clear,
   }

@@ -12,9 +12,9 @@ const PUBLIC_PATHS = ['/sign-in', '/forgot-password', '/reset-password'];
  * Retorna el destino de redirección en lugar de llamar next() (API deprecada).
  *
  * Lógica:
- *   1. Si ya autenticado e intenta ir a /sign-in → redirige a /access-control.
+ *   1. Si ya autenticado e intenta ir a /sign-in → redirige a /stays.
  *   2. Ruta protegida sin sesión → redirige a /sign-in.
- *   3. Rol sin acceso a la ruta → redirige a /access-control.
+ *   3. Rol sin acceso a la ruta → redirige a /stays.
  *   4. Todo lo demás → permite la navegación.
  */
 export function authenticationGuard(to, from) {
@@ -23,7 +23,7 @@ export function authenticationGuard(to, from) {
     const requiresAuth = !PUBLIC_PATHS.includes(to.path);
 
     if (to.path === '/sign-in' && iamStore.isSignedIn) {
-        return '/access-control';
+        return '/stays';
     }
 
     if (isAnonymous && requiresAuth) {
@@ -32,7 +32,7 @@ export function authenticationGuard(to, from) {
 
     const role = iamStore.userRole;
     if (role && requiresAuth && !hasRouteAccess(role, to.path)) {
-        return '/access-control';
+        return '/stays';
     }
 
     return true;

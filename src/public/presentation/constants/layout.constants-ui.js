@@ -8,7 +8,7 @@ const ALL_MENU_ITEMS = [
     {
         label: 'Control de acceso',
         icon: 'pi pi-fw pi-shield',
-        to: '/access-control',
+        to: '/stays',
         title: 'Control de acceso',
     },
     {

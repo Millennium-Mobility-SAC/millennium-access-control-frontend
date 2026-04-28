@@ -1,4 +1,5 @@
 import { useToast } from 'primevue/usetoast'
+import { normalizeApiError, toUserMessage } from '../infrustructure/error-normalizer.js'
 
 /**
  * Composable para gestionar notificaciones con PrimeVue Toast.
@@ -18,7 +19,17 @@ export function useNotification() {
      * Notificación de error.
      */
     const showError = (message, title = 'Error', life = 5000) => {
-        toast.add({ severity: 'error', summary: title, detail: message, life })
+        const normalized = typeof message === 'string'
+            ? { message, type: 'business' }
+            : (message?.type && message?.message ? message : normalizeApiError(message))
+        const typedTitle = normalized.type === 'validation'
+            ? 'Error de validacion'
+            : normalized.type === 'auth'
+                ? 'Error de autenticacion'
+                : normalized.type === 'infrastructure'
+                    ? 'Error de infraestructura'
+                    : title
+        toast.add({ severity: 'error', summary: typedTitle, detail: toUserMessage(normalized), life })
     }
 
     /**

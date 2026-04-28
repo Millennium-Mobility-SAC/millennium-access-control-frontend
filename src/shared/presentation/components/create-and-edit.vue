@@ -3,7 +3,7 @@
 // IMPORTS
 // ===========================
 // Importación de dependencias de Vue para estado reactivo y ciclo de vida
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 
 // ===========================
 // PROPS
@@ -34,6 +34,14 @@ const props = defineProps({
   customButtonLabel: {
     type: String,
     default: null
+  },
+  submitLoading: {
+    type: Boolean,
+    default: false
+  },
+  submitDisabled: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -77,13 +85,6 @@ const onSaveRequested = () => {
   emit('saved-shared', props.entity)
 }
 
-// ===========================
-// LIFECYCLE HOOKS
-// ===========================
-// Inicialización y logging al montar el componente
-onMounted(() => {
-  console.log('Create and Edit component mounted', props.entity)
-})
 </script>
 
 <template>
@@ -123,6 +124,8 @@ onMounted(() => {
           type="button"
           :label="submitLabel"
           size="small"
+          :loading="submitLoading"
+          :disabled="submitDisabled"
           @click="onSaveRequested"
         />
       </div>

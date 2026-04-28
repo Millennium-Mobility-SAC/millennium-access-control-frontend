@@ -129,6 +129,7 @@ export class AccessEntryAssembler {
       first_name:             form.firstName            || null,
       last_name:              form.lastName             || null,
       vehicle_id:             form.vehicleId            ?? null,
+      attachment_ids:         Array.isArray(form.attachmentIds) ? form.attachmentIds : [],
     }
   }
 
@@ -146,6 +147,7 @@ export class AccessEntryAssembler {
       customer_document_number: form.customerDni          ?? null,
       customer_first_name:      form.customerFirstName    ?? null,
       customer_last_name:       form.customerLastName     ?? null,
+      attachment_ids:           Array.isArray(form.attachmentIds) ? form.attachmentIds : [],
     }
   }
 
@@ -160,6 +162,7 @@ export class AccessEntryAssembler {
       exit_date:   toISODate(form.exitDate),
       exit_time:   exitTimeTo24h(form.exitTime),
       exit_reason: form.temporaryExitReason ?? null,
+      attachment_ids: Array.isArray(form.attachmentIds) ? form.attachmentIds : [],
     }
 
     if (form.temporaryExitReason === 'PRESTAMO') {
@@ -179,6 +182,7 @@ export class AccessEntryAssembler {
     return {
       return_date: toISODate(form.returnDate),
       return_time: exitTimeTo24h(form.returnTime),
+      attachment_ids: Array.isArray(form.attachmentIds) ? form.attachmentIds : [],
     }
   }
 

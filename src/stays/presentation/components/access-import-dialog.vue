@@ -4,7 +4,7 @@ import ImportSpreadsheet from '@/shared/presentation/components/import-spreadshe
 import {
   ACCESS_IMPORT_COLUMNS_VEHICULO,
   ACCESS_IMPORT_COLUMNS_PERSONA,
-} from '../constants/access-control-ui.constants.js'
+} from '../constants/stays-ui.constants.js'
 
 // ===========================
 // PROPS & EMITS

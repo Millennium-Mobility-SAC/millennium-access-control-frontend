@@ -2,6 +2,7 @@
 import { ref, computed, onScopeDispose } from 'vue';
 import { IamApi } from '../infrastructure/api/iam.api.js';
 import { UserAssembler } from '../infrastructure/assemblers/user.assembler.js';
+import { normalizeApiError } from '@/shared/infrustructure/error-normalizer.js';
 
 const TOKEN_KEY = 'gs_token';
 const USER_KEY  = 'gs_user';
@@ -91,7 +92,7 @@ export const useIamStore = defineStore('iam', () => {
             _setSession(loginResult);
             return true;
         } catch (err) {
-            error.value = err.response?.data?.message ?? 'No se pudo iniciar sesión. Verifica tus credenciales e intenta de nuevo.';
+            error.value = normalizeApiError(err, 'No se pudo iniciar sesión. Verifica tus credenciales e intenta de nuevo.');
             _clearSession();
             return false;
         } finally {
@@ -125,7 +126,7 @@ export const useIamStore = defineStore('iam', () => {
             await api.register(payload);
             return true;
         } catch (err) {
-            error.value = err.response?.data?.message ?? 'Error al registrar. Intenta nuevamente.';
+            error.value = normalizeApiError(err, 'Error al registrar. Intenta nuevamente.');
             return false;
         } finally {
             isLoading.value = false;
@@ -144,7 +145,7 @@ export const useIamStore = defineStore('iam', () => {
             await api.forgotPassword(email);
             return true;
         } catch (err) {
-            error.value = err.response?.data?.message ?? 'No encontramos una cuenta con ese correo.';
+            error.value = normalizeApiError(err, 'No encontramos una cuenta con ese correo.');
             return false;
         } finally {
             isLoading.value = false;

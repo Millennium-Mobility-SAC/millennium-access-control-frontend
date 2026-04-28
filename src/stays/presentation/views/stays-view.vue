@@ -1,27 +1,35 @@
 ﻿<script setup>
 import { ref, computed, onMounted }                        from 'vue'
-import { useAccessControlStore }                from '../../application/access-control.store.js'
+import { useStaysStore }                        from '../../application/stays.store.js'
+import { useIamStore }                          from '@/iam/application/iam.store.js'
 import { useAsyncAction }                       from '@/shared/composables/use-async-action.js'
 import { useNotification }                      from '@/shared/composables/use-notification.js'
+import { StorageFilesApi }                      from '../../infrastructure/api/storage-files.api.js'
 import DataManager                              from '@/shared/presentation/components/data-manager.vue'
 import AccessCreateAndEdit                      from '../components/access-create-and-edit.vue'
 import AccessRegisterExit                       from '../components/access-register-exit.vue'
 import AccessRegisterReturn                     from '../components/access-register-return.vue'
 import AccessImportDialog                        from '../components/access-import-dialog.vue'
 import AccessDetailDrawer                        from '../components/access-detail-drawer.vue'
-import { MOTIVOS_INGRESO, MOTIVO_SEVERITY, TIPOS_INGRESO, TIPOS_DOCUMENTO, ACCESS_STATUS, ACCESS_STATUS_SEVERITY, MOTIVOS_SALIDA_TEMPORAL } from '../constants/access-control-ui.constants.js'
+import { MOTIVOS_INGRESO, MOTIVO_SEVERITY, TIPOS_INGRESO, TIPOS_DOCUMENTO, ACCESS_STATUS, ACCESS_STATUS_SEVERITY, MOTIVOS_SALIDA_TEMPORAL } from '../constants/stays-ui.constants.js'
 import * as XLSX from 'xlsx'
 
-const store              = useAccessControlStore()
+const store              = useStaysStore()
+const iamStore           = useIamStore()
 const { isLoading, error, run } = useAsyncAction()
 const { showSuccess, showError } = useNotification()
+const storageFilesApi = new StorageFilesApi()
 
 const dialogVisible = ref(false)
 const isEditing     = ref(false)
 const editEntity    = ref(null)
+const editAttachments = ref([])
+const editDeletingAttachmentId = ref(null)
 
 const drawerVisible = ref(false)
 const drawerItem    = ref(null)
+const drawerAttachments = ref([])
+const deletingAttachmentId = ref(null)
 
 const exitDialogVisible   = ref(false)
 const exitEntity          = ref(null)
@@ -67,7 +75,10 @@ function clearAllFilters() {
 async function openDrawer(item) {
   drawerItem.value    = item
   drawerVisible.value = true
-  await run(() => store.fetchById(item.id))
+  await run(async () => {
+    await store.fetchById(item.id)
+    drawerAttachments.value = await store.fetchAttachments(item.id)
+  })
   if (store.selected) drawerItem.value = store.selected
 }
 
@@ -128,31 +139,80 @@ function getDocumentTypeLabel(value) {
 function openNewDialog() {
   isEditing.value  = false
   editEntity.value = null
+  editAttachments.value = []
   dialogVisible.value = true
 }
 
 async function openEditDialog(item) {
   isEditing.value = true
-  await run(() => store.fetchById(item.id))
+  await run(async () => {
+    await store.fetchById(item.id)
+    editAttachments.value = await store.fetchAttachments(item.id)
+  })
   editEntity.value    = store.selected ?? item
   dialogVisible.value = true
 }
 
 function closeDialog() {
   dialogVisible.value = false
+  editAttachments.value = []
+  editDeletingAttachmentId.value = null
 }
 
 async function handleSave(entity) {
+  if (isLoading.value) return
   await run(async () => {
+    const subjectIdentifier = entity.licensePlate || entity.clientDocumentNumber || 'SIN_IDENTIFICADOR'
+    const attachmentIds = await uploadAttachments(entity.attachments, {
+      plate: subjectIdentifier,
+      accessType: entity.type,
+      stayType: 'INGRESO',
+      operationDate: toIsoDate(entity.entryDate),
+    })
+    const payload = { ...entity, attachmentIds }
     if (isEditing.value) {
-      await store.update(entity.id, entity)
+      await store.update(entity.id, payload)
+      await store.fetchById(entity.id)
+      if (drawerVisible.value && drawerItem.value?.id === entity.id) {
+        drawerItem.value = store.selected ?? drawerItem.value
+        drawerAttachments.value = await store.fetchAttachments(entity.id)
+      }
       showSuccess('Registro actualizado correctamente.')
     } else {
-      await store.create(entity)
+      await store.create(payload)
       showSuccess('Registro creado correctamente.')
     }
     dialogVisible.value = false
   }, { rethrow: false })
+  if (error.value) showError(error.value)
+}
+
+const canManageAttachments = computed(() => {
+  const roles = iamStore.currentUserRoles ?? []
+  return roles.includes('ROLE_ADMIN') || roles.includes('ROLE_SECURITY_GUARD') || roles.includes('ROLE_SUPPORT_ADMIN')
+})
+
+async function handleRemoveAttachment(attachment) {
+  if (!drawerItem.value?.id || !attachment?.id) return
+  deletingAttachmentId.value = attachment.id
+  await run(async () => {
+    await store.deleteAttachment(drawerItem.value.id, attachment.id)
+    drawerAttachments.value = drawerAttachments.value.filter(file => file.id !== attachment.id)
+    showSuccess('Evidencia eliminada correctamente.')
+  }, { rethrow: false })
+  deletingAttachmentId.value = null
+  if (error.value) showError(error.value)
+}
+
+async function handleRemoveEditAttachment(attachment) {
+  if (!editEntity.value?.id || !attachment?.id) return
+  editDeletingAttachmentId.value = attachment.id
+  await run(async () => {
+    await store.deleteAttachment(editEntity.value.id, attachment.id)
+    editAttachments.value = editAttachments.value.filter(file => file.id !== attachment.id)
+    showSuccess('Evidencia eliminada correctamente.')
+  }, { rethrow: false })
+  editDeletingAttachmentId.value = null
   if (error.value) showError(error.value)
 }
 
@@ -174,8 +234,16 @@ function openReturnDialog(item) {
 }
 
 async function handleExit(exitData) {
+  if (isLoading.value) return
   await run(async () => {
-    await store.registerExit(exitData.id, exitData)
+    const subjectIdentifier = exitData.licensePlate || exitData.clientDocumentNumber || 'SIN_IDENTIFICADOR'
+    const attachmentIds = await uploadAttachments(exitData.attachments, {
+      plate: subjectIdentifier,
+      accessType: exitData.type,
+      stayType: exitData.exitType === 'TEMPORAL' ? 'SALIDA_TEMPORAL' : 'SALIDA_PERMANENTE',
+      operationDate: toIsoDate(exitData.exitDate),
+    })
+    await store.registerExit(exitData.id, { ...exitData, attachmentIds })
     showSuccess('Salida registrada correctamente.')
     exitDialogVisible.value = false
   }, { rethrow: false })
@@ -183,8 +251,16 @@ async function handleExit(exitData) {
 }
 
 async function handleReturn(returnData) {
+  if (isLoading.value) return
   await run(async () => {
-    await store.registerReturn(returnData.id, returnData)
+    const subjectIdentifier = returnData.licensePlate || returnData.clientDocumentNumber || 'SIN_IDENTIFICADOR'
+    const attachmentIds = await uploadAttachments(returnData.attachments, {
+      plate: subjectIdentifier,
+      accessType: returnData.type,
+      stayType: 'RETORNO',
+      operationDate: toIsoDate(returnData.returnDate),
+    })
+    await store.registerReturn(returnData.id, { ...returnData, attachmentIds })
     showSuccess('Retorno registrado correctamente.')
     returnDialogVisible.value = false
   }, { rethrow: false })
@@ -222,6 +298,20 @@ async function handleImport(rows) {
 onMounted(async () => {
   await run(() => store.fetchAll())
 })
+
+async function uploadAttachments(files, naming = {}) {
+  if (!Array.isArray(files) || files.length === 0) return []
+  const response = await storageFilesApi.upload(files, naming)
+  if (!Array.isArray(response?.data)) return []
+  return response.data.map(file => file.id).filter(Boolean)
+}
+
+function toIsoDate(value) {
+  if (!value) return null
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10)
+}
 
 // Exportación a Excel
 function label(list, value, fallback = value ?? '—') {
@@ -455,10 +545,10 @@ function handleExport() {
 
       <template #identidad-template="{ data }">
         <span v-if="data.type === 'PERSONA'" style="color: var(--color-gray-900); font-weight: 500">
-          {{ data.fullName || '—' }}
+          {{ data.fullName || data.clientDocumentNumber || '—' }}
         </span>
         <span v-else class="font-bold" style="letter-spacing: 0.04em">
-          {{ data.licensePlate || '—' }}
+          {{ data.licensePlate || data.clientDocumentNumber || '—' }}
         </span>
       </template>
 
@@ -489,15 +579,24 @@ function handleExport() {
     <AccessDetailDrawer
       v-model:visible="drawerVisible"
       :item="drawerItem"
+      :attachments="drawerAttachments"
+      :can-manage-attachments="canManageAttachments"
+      :deleting-attachment-id="deletingAttachmentId"
       @edit-requested="openEditDialog"
+      @remove-attachment-requested="handleRemoveAttachment"
     />
 
     <!-- Create / Edit dialog -->
     <AccessCreateAndEdit
       :entity="editEntity"
+      :existing-attachments="editAttachments"
       :visible="dialogVisible"
       :edit="isEditing"
+      :can-manage-attachments="canManageAttachments"
+      :deleting-attachment-id="editDeletingAttachmentId"
+      :submit-loading="isLoading"
       @canceled-shared="closeDialog"
+      @remove-existing-attachment-requested="handleRemoveEditAttachment"
       @saved-shared="handleSave"
     />
 
@@ -505,6 +604,7 @@ function handleExport() {
     <AccessRegisterExit
       :entity="exitEntity"
       :visible="exitDialogVisible"
+      :submit-loading="isLoading"
       @canceled="exitDialogVisible = false"
       @saved="handleExit"
     />
@@ -513,6 +613,7 @@ function handleExport() {
     <AccessRegisterReturn
       :entity="returnEntity"
       :visible="returnDialogVisible"
+      :submit-loading="isLoading"
       @canceled="returnDialogVisible = false"
       @saved="handleReturn"
     />

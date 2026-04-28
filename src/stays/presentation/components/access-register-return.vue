@@ -1,10 +1,12 @@
 <script setup>
 import { reactive, watch, onUnmounted } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
+import StayImagePicker from './stay-image-picker.vue'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   entity:  { type: Object,  default: null  },
+  submitLoading: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['canceled', 'saved'])
@@ -57,6 +59,7 @@ const form = reactive({
   color:        null,
   returnDate:   null,
   returnTime:   '',
+  attachments:  [],
 })
 
 watch(() => props.visible, (val) => {
@@ -73,6 +76,7 @@ watch(() => props.visible, (val) => {
     color:        src.color        ?? null,
     returnDate:   new Date(),
     returnTime:   to12h(nowTimeString()),
+    attachments:  [],
   })
 
   startClock()
@@ -87,6 +91,7 @@ function onSaved(formData) {
   stopClock()
   emit('saved', { ...formData })
 }
+
 </script>
 
 <template>
@@ -97,6 +102,8 @@ function onSaved(formData) {
     :edit="false"
     size="standard"
     custom-button-label="Registrar retorno"
+    :submit-loading="submitLoading"
+    :submit-disabled="submitLoading"
     @canceled-shared="onCanceled"
     @saved-shared="onSaved($event)"
   >
@@ -127,6 +134,23 @@ function onSaved(formData) {
             <div class="ace-field ace-field--flex">
               <label class="ace-label">Modelo</label>
               <pv-input-text :model-value="form.model || '—'" class="w-full" :disabled="true" />
+            </div>
+          </div>
+        </div>
+
+        <!-- ── 2. Fecha y hora de retorno ── -->
+        <div class="ace-section">
+          <div class="ace-section-header">
+            <i class="pi pi-images ace-section-icon" />
+            <span>Evidencias (opcional)</span>
+          </div>
+          <div class="ace-row">
+            <div class="ace-field ace-field--full">
+              <StayImagePicker
+                v-model="form.attachments"
+                label="Imágenes de retorno"
+                hint="Puedes tomar varias fotos antes de confirmar el retorno."
+              />
             </div>
           </div>
         </div>
