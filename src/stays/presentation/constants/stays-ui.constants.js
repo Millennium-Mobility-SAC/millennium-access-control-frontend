@@ -21,7 +21,7 @@ export const MOTIVOS_INGRESO = [
   { label: 'Siniestro',     value: 'SINIESTRO'     },
   { label: 'Mantenimiento', value: 'MANTENIMIENTO' },
   { label: 'Custodia',      value: 'CUSTODIA'      },
-  { label: '0KM',           value: 'KM_0'          },
+  { label: '0KM',           value: '0KM'           },
   { label: 'GPS',           value: 'GPS'           },
   { label: 'Otro',          value: 'OTRO'          },
 ]
@@ -31,6 +31,7 @@ export const MOTIVO_SEVERITY = {
   SINIESTRO:     'danger',
   MANTENIMIENTO: 'info',
   CUSTODIA:      'secondary',
+  '0KM':         'success',
   'KM_0':        'success',
   GPS:           'contrast',
   OTRO:          'secondary',
@@ -52,11 +53,11 @@ export const MOTIVOS_SALIDA_TEMPORAL = [
 /**
  * Columnas para importar ingresos de VEHÍCULOS desde Excel/CSV.
  * Todos los campos del formulario de ingreso tipo VEHICULO son obligatorios.
- * Motivo: MECANICA | AREA_VENTAS | SINIESTRO | MANTENIMIENTO | CUSTODIA | KM_0 | GPS | OTRO
+ * Motivo: MECANICA | AREA_VENTAS | SINIESTRO | MANTENIMIENTO | CUSTODIA | 0KM | GPS | OTRO
  */
 export const ACCESS_IMPORT_COLUMNS_VEHICULO = [
   { key: 'licensePlate',         header: 'Placa',            required: true  },
-  { key: 'entryReason',          header: 'Motivo',           required: true,  hint: 'MECANICA · AREA_VENTAS · SINIESTRO · MANTENIMIENTO · CUSTODIA · KM_0 · GPS · OTRO' },
+  { key: 'entryReason',          header: 'Motivo',           required: true,  hint: 'MECANICA · AREA_VENTAS · SINIESTRO · MANTENIMIENTO · CUSTODIA · 0KM · GPS · OTRO' },
   { key: 'brand',                header: 'Marca',            required: true  },
   { key: 'model',                header: 'Modelo',           required: true  },
   { key: 'year',                 header: 'Año',              required: true  },
@@ -79,7 +80,7 @@ export const ACCESS_IMPORT_COLUMNS_PERSONA = [
   { key: 'clientDocumentNumber', header: 'Número Documento', required: true  },
   { key: 'firstName',            header: 'Nombre',           required: true  },
   { key: 'lastName',             header: 'Apellido',         required: true  },
-  { key: 'entryReason',          header: 'Motivo',           required: true,  hint: 'MECANICA · AREA_VENTAS · SINIESTRO · MANTENIMIENTO · CUSTODIA · KM_0 · GPS · OTRO' },
+  { key: 'entryReason',          header: 'Motivo',           required: true,  hint: 'MECANICA · AREA_VENTAS · SINIESTRO · MANTENIMIENTO · CUSTODIA · 0KM · GPS · OTRO' },
   { key: 'documentType',         header: 'Tipo Documento',   required: true,  hint: 'DNI · CE · PASAPORTE · OTROS' },
   { key: 'entryDate',            header: 'Fecha Ingreso',    required: false, default: null },
   { key: 'entryTime',            header: 'Hora Ingreso',     required: false, default: null },

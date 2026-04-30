@@ -1,6 +1,47 @@
 import { AccessEntry }   from '../../domain/models/access-entry.entity.js'
 import { TemporalExit }  from '../../domain/models/temporal-exit.entity.js'
 
+const ENTRY_REASON_CANONICAL_VALUES = new Set([
+  'MECANICA',
+  'SINIESTRO',
+  'MANTENIMIENTO',
+  'CUSTODIA',
+  '0KM',
+  'GPS',
+  'AREA_VENTAS',
+  'OTRO',
+])
+
+const ENTRY_REASON_ALIASES = {
+  '0_KM': '0KM',
+  'KM_0': '0KM',
+  'KM0': '0KM',
+  'AREA_DE_VENTAS': 'AREA_VENTAS',
+}
+
+function normalizeToken(value) {
+  if (value == null) return null
+  const normalized = String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return normalized || null
+}
+
+function resolveCanonicalValue(value, aliases, canonicalValues) {
+  const normalized = normalizeToken(value)
+  if (!normalized) return null
+  const canonical = aliases[normalized] ?? normalized
+  return canonicalValues.has(canonical) ? canonical : normalized
+}
+
+function normalizeEntryReason(value) {
+  return resolveCanonicalValue(value, ENTRY_REASON_ALIASES, ENTRY_REASON_CANONICAL_VALUES)
+}
+
 function exitTimeTo24h(value) {
   if (!value) return null
   // HH:MM:SS AM/PM (with seconds)
@@ -73,7 +114,7 @@ export class AccessEntryAssembler {
       status:                resource.status                                                       ?? null,
       entryDate:             resource.entry_date             ?? resource.entryDate              ?? null,
       entryTime:             resource.entry_time             ?? resource.entryTime              ?? '',
-      entryReason:           resource.entry_reason           ?? resource.entryReason            ?? null,
+      entryReason:           normalizeEntryReason(resource.entry_reason ?? resource.entryReason ?? null),
       licensePlate:          resource.license_plate          ?? resource.licensePlate           ?? null,
       brand:                 resource.brand                                                    ?? null,
       model:                 resource.model                                                    ?? null,
@@ -117,7 +158,7 @@ export class AccessEntryAssembler {
       type:                   form.type                 ?? 'VEHICULO',
       entry_date:             entryDate,
       entry_time:             entryTimeTo24h(form.entryTime) ?? null,
-      entry_reason:           form.entryReason          ?? null,
+      entry_reason:           normalizeEntryReason(form.entryReason) ?? null,
       document_type:          form.documentType         ?? null,
       client_document_number: form.clientDocumentNumber || null,
       license_plate:          form.licensePlate         || null,
