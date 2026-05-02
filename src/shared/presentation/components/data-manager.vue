@@ -671,7 +671,7 @@ onMounted(() => initFilters())
  */
 .dm-filters-row .p-select,
 .dm-filters-row .p-dropdown {
-  min-height: 2.125rem !important;
+  min-height: 2.5rem !important;
   border-width: 1px !important;
 }
 
@@ -687,7 +687,7 @@ onMounted(() => initFilters())
   padding: 0.3125rem 0.625rem !important;
   font-size: 0.875rem !important;
   line-height: 1.35 !important;
-  min-height: 2.125rem !important;
+  min-height: 2.5rem !important;
   border-width: 1px !important;
 }
 
@@ -701,7 +701,7 @@ onMounted(() => initFilters())
   padding: 0.3125rem 0.625rem !important;
   font-size: 0.875rem !important;
   line-height: 1.35 !important;
-  min-height: 2.125rem !important;
+  min-height: 2.5rem !important;
   border-width: 1px !important;
 }
 </style>
