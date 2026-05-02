@@ -294,6 +294,9 @@ p:last-child {
    LABELS Y SMALL TEXT
    ======================================== */
 
+/* color: --text-primary es el tinte claro del layout oscuro. En formularios sobre
+   fondo blanco usar modal con `dialog-light` (primevue-overrides fija label a
+   --text-body) o una clase con color explícito (p. ej. .ece-label en empleados). */
 label {
   display: inline-block;
   margin-bottom: var(--spacing-xs);

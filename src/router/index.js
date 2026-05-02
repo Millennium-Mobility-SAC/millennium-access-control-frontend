@@ -3,6 +3,8 @@ import iamRoutes             from "../iam/presentation/iam.routes.js";
 import staysRoutes           from "../stays/presentation/stays.routes.js";
 import staffManagementRoutes from "../staff-management/presentation/staff-management.routes.js";
 import vehicleCatalogRoutes  from "../vehicle-catalog/presentation/vehicle-catalog.routes.js";
+import employeeManagementRoutes from "../employee-management/presentation/employee-management.routes.js";
+import securityCheckpointRoutes from "../security-checkpoint/presentation/security-checkpoint.routes.js";
 import { authenticationGuard } from "../iam/presentation/guards/authentication.guard.js";
 
 import layout from '../public/presentation/views/layout.vue';
@@ -34,6 +36,18 @@ const routes = [
         component: layout,
         children: vehicleCatalogRoutes,
         meta: { title: 'Catálogo de Vehículos' },
+    },
+    {
+        path: '/employee-management',
+        component: layout,
+        children: employeeManagementRoutes,
+        meta: { title: 'Empleados' },
+    },
+    {
+        path: '/security-checkpoint',
+        component: layout,
+        children: securityCheckpointRoutes,
+        meta: { title: 'Marcación personal' },
     },
 
 ];

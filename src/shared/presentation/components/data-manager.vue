@@ -25,7 +25,7 @@
 // ===========================
 // IMPORTS
 // ===========================
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, useSlots } from 'vue'
 import { FilterMatchMode } from '@primevue/core'
 import { useConfirm } from 'primevue/useconfirm'
 import ImportSpreadsheet from './import-spreadsheet.vue'
@@ -53,11 +53,16 @@ const props = defineProps({
   searchPlaceholder: { type: String, default: 'Busca por ID reporte, ID orden, verificador...' },
   filteredItems: { type: Array, default: null }, // Items pre-filtrados desde padre
   globalFilterValue: { type: String, default: null }, // Control externo del filtro global
-  
+  /** Si es false, se oculta la caja de búsqueda global (solo slot #filters). */
+  showGlobalSearch: { type: Boolean, default: true },
+  /** Si es true, el botón Exportar se muestra al final de la fila de búsqueda / #filters. */
+  exportInline: { type: Boolean, default: false },
+  showExport: { type: Boolean, default: true },
+
+
   // Configuración de visibilidad de componentes
   showActions: { type: Boolean, default: true },
   showSelection: { type: Boolean, default: true },
-  showExport: { type: Boolean, default: true },
   showNew: { type: Boolean, default: true },
   showDelete: { type: Boolean, default: true },
   showActionButtons: { type: Boolean, default: true },
@@ -123,6 +128,25 @@ const emit = defineEmits([
 // COMPOSABLES
 // ===========================
 const confirm = useConfirm() // Servicio de confirmación de PrimeVue
+const slots = useSlots()
+
+const showInlineExport = computed(() => props.showExport && props.exportInline)
+
+/**
+ * Fila inferior de acciones (nuevo, eliminar, importar, exportar “clásico”, extra-actions).
+ * Export queda fuera si va en línea con la búsqueda (exportInline).
+ */
+const showSecondaryToolbar = computed(() => {
+  if (!props.showActionButtons) return false
+  const exportInSecondary = props.showExport && !props.exportInline
+  return (
+    props.showNew
+    || (props.showDelete && props.showSelection)
+    || exportInSecondary
+    || props.showImport
+    || !!slots['extra-actions']
+  )
+})
 
 // ===========================
 // STATE
@@ -281,10 +305,9 @@ onMounted(() => initFilters())
     <div class="flex flex-column mb-2 border-bottom-1 surface-border">
 
       <!-- Custom filters slot -->
-      <div class="flex gap-2 mb-4 flex-wrap">
+      <div class="flex gap-2 mb-4 flex-wrap align-items-end">
         <!-- Global Search Input -->
-        <pv-icon-field class="flex-1">
-      
+        <pv-icon-field v-if="showGlobalSearch" class="flex-1 min-w-12rem">
           <pv-input-icon class="pi pi-search" />
 
           <pv-input-text
@@ -294,14 +317,24 @@ onMounted(() => initFilters())
           />
         </pv-icon-field>
 
-        <slot name="filters" :clear-filters="clearFilters" ></slot>
+        <slot name="filters" :clear-filters="clearFilters" />
 
+        <pv-button
+          v-if="showInlineExport"
+          icon="pi pi-download"
+          :label="exportButtonLabel"
+          severity="secondary"
+          size="small"
+          outlined
+          class="flex-shrink-0 w-full md:w-auto"
+          @click="exportToCsv"
+        />
       </div>
 
     </div>
 
     <!-- Action Buttons Section -->
-    <div v-if="showActionButtons && (showNew || showDelete || showExport || showImport || $slots['extra-actions'])"
+    <div v-if="showSecondaryToolbar"
          class="flex flex-column md:flex-row md:align-items-center gap-2 mb-3">
 
       <div class="flex gap-2 w-full md:w-auto flex-1 flex-column md:flex-row md:align-items-center">
@@ -340,7 +373,7 @@ onMounted(() => initFilters())
           @click="showImportDialog = true"
         />
         <pv-button
-          v-if="showExport"
+          v-if="showExport && !exportInline"
           icon="pi pi-download"
           :label="exportButtonLabel"
           severity="secondary"

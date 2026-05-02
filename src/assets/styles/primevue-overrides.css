@@ -1544,6 +1544,40 @@ button.p-datepicker-dropdown:focus-visible {
   color: var(--text-body) !important;
 }
 
+/*
+ * Form labels: typography.css sets `label { color: var(--text-primary) }` for the
+ * dark shell (--text-primary is a light tint). On white dialogs that yields
+ * illegible labels unless overridden here. Any modal using class="dialog-light"
+ * gets readable labels without per-component hacks.
+ */
+.dialog-light label {
+  color: var(--text-body) !important;
+}
+
+/* pv-message en modales claros: el texto global usa --text-primary (tinte claro del shell oscuro). */
+.dialog-light .p-message {
+  background-color: #f9fafb;
+  border: 1px solid var(--border-ui);
+  color: var(--text-body);
+}
+
+.dialog-light .p-message .p-message-text,
+.dialog-light .p-message .p-message-summary,
+.dialog-light .p-message .p-message-detail {
+  color: var(--text-body) !important;
+}
+
+.dialog-light .p-message.p-message-warn {
+  background-color: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-left-width: 4px;
+  border-left-color: var(--color-warning);
+}
+
+.dialog-light .p-message.p-message-warn .p-message-icon {
+  color: #b45309;
+}
+
 .dialog-light .p-dialog-header {
   border-bottom: 1px solid var(--border-ui);
 }

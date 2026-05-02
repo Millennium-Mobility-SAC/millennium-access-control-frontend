@@ -23,9 +23,9 @@ export function useNotification() {
             ? { message, type: 'business' }
             : (message?.type && message?.message ? message : normalizeApiError(message))
         const typedTitle = normalized.type === 'validation'
-            ? 'Error de validacion'
+            ? 'Error de validación'
             : normalized.type === 'auth'
-                ? 'Error de autenticacion'
+                ? 'Error de autenticación'
                 : normalized.type === 'infrastructure'
                     ? 'Error de infraestructura'
                     : title

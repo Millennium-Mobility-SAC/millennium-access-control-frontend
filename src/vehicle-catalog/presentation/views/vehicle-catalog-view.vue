@@ -170,7 +170,7 @@ function daysBadgeClass(days) {
       :columns="columns"
       :dynamic="true"
       :loading="isLoading"
-      search-placeholder="Busca por placa, marca, modelo..."
+      :show-global-search="false"
       :show-view-action="false"
       :view-action-icon-only="true"
       view-button-label="Ver detalle"
@@ -187,10 +187,18 @@ function daysBadgeClass(days) {
       @delete-selected-items-requested-manager="handleDeleteSelected"
       @import-data-requested-manager="handleImport"
       @history-item-requested-manager="openHistory"
-      @global-filter-change="(v) => searchText = v"
       @clear-filters="clearAllFilters"
     >
       <template #filters>
+        <pv-icon-field class="flex-1 min-w-16rem w-full">
+          <pv-input-icon class="pi pi-search" />
+          <pv-input-text
+            v-model="searchText"
+            placeholder="Buscar por placa, marca, modelo o color"
+            class="w-full"
+            autocomplete="off"
+          />
+        </pv-icon-field>
         <pv-select
           v-model="filterStatus"
           :options="ACCESS_STATUS"

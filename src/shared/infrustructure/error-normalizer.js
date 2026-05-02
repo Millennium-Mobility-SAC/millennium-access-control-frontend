@@ -1,15 +1,31 @@
 const DEFAULT_MESSAGES_BY_TYPE = {
-  validation: 'Hay errores de validacion en los datos ingresados.',
-  business: 'No se pudo completar la operacion por una regla de negocio.',
-  auth: 'Tu sesion no es valida o no tienes permisos para esta accion.',
-  infrastructure: 'Ocurrio un error interno. Intenta nuevamente en unos segundos.',
+  validation: 'Hay errores de validación en los datos ingresados.',
+  business: 'No se pudo completar la operación por una regla de negocio.',
+  auth: 'Tu sesión no es válida o no tienes permisos para esta acción.',
+  infrastructure: 'Ocurrió un error interno. Intenta nuevamente en unos segundos.',
 }
 
 function translateBusinessMessage(message) {
   if (!message) return message
 
   if (/Vehicle with ID \d+ already has an active stay/i.test(message)) {
-    return 'Este vehiculo ya cuenta con un ingreso activo. Registra primero su salida o selecciona otro vehiculo.'
+    return 'Este vehículo ya cuenta con un ingreso activo. Registra primero su salida o selecciona otro vehículo.'
+  }
+
+  if (/Cannot register attendance for an inactive employee/i.test(message)) {
+    return 'No se puede registrar asistencia para un empleado inactivo.'
+  }
+
+  if (/Check-in is already registered for this employee on/i.test(message)) {
+    return 'El ingreso de este empleado ya fue registrado hoy.'
+  }
+
+  if (/Cannot register check-out without a prior check-in/i.test(message)) {
+    return 'No se puede registrar salida sin un ingreso previo el mismo día.'
+  }
+
+  if (/Check-out is already registered for this employee on/i.test(message)) {
+    return 'La salida de este empleado ya fue registrada hoy.'
   }
 
   return message
@@ -24,7 +40,7 @@ function inferTypeFromStatus(status) {
   return 'business'
 }
 
-export function normalizeApiError(error, fallbackMessage = 'Ha ocurrido un error') {
+export function normalizeApiError(error, fallbackMessage = 'No se pudo completar la solicitud. Intenta de nuevo.') {
   const responseData = error?.response?.data ?? {}
   const status = error?.response?.status ?? responseData?.status ?? null
   const type = responseData?.type ?? inferTypeFromStatus(status)
@@ -44,6 +60,6 @@ export function normalizeApiError(error, fallbackMessage = 'Ha ocurrido un error
 }
 
 export function toUserMessage(normalizedError) {
-  if (!normalizedError) return 'Ha ocurrido un error'
-  return normalizedError.message ?? DEFAULT_MESSAGES_BY_TYPE[normalizedError.type] ?? 'Ha ocurrido un error'
+  if (!normalizedError) return 'No se pudo completar la solicitud.'
+  return normalizedError.message ?? DEFAULT_MESSAGES_BY_TYPE[normalizedError.type] ?? 'No se pudo completar la solicitud.'
 }

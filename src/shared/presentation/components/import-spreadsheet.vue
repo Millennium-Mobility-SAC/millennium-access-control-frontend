@@ -14,6 +14,12 @@ const props = defineProps({
   importColumns: { type: Array,   default: () => [] },
   title:         { type: String,  default: 'Importar datos' },
   previewRows:   { type: Number,  default: 5 },
+  /** Nombre del .xlsx al descargar la plantilla (debe incluir .xlsx o se añade solo). */
+  templateDownloadFileName: { type: String, default: 'plantilla-importacion.xlsx' },
+  /** Nombre de la hoja en el Excel de plantilla. */
+  templateSheetName: { type: String, default: 'Plantilla' },
+  /** Filas de ejemplo: objetos con claves = `key` de cada columna en importColumns. */
+  templateSampleRows: { type: Array, default: () => [] },
 })
 
 // ===========================
@@ -70,33 +76,56 @@ const confirmImport = () => {
 const closeDialog = () => emit('update:visible', false)
 
 /**
- * Genera y descarga un archivo Excel de plantilla con los encabezados
- * configurados. Incluye dos filas orientativas:
- *  - Fila 2 (referencia): valores permitidos para campos con opciones fijas,
- *    formato esperado para los demás. El usuario debe reemplazarla con datos reales.
- *  - Fila 3: fila vacía para empezar a ingresar datos.
+ * Genera y descarga un archivo Excel de plantilla con los encabezados configurados.
+ * - Sin filas de ejemplo: fila de referencia (hints) + fila vacía (solo orientación; al importar conviene borrar esas filas).
+ * - Con templateSampleRows: encabezados + filas de ejemplo importables (sin fila de hints, para que sheet_to_json sea válido).
  */
 const downloadTemplate = () => {
-  const headers      = props.importColumns.map(col => col.header)
+  const headers = props.importColumns.map(col => col.header)
   const referenceRow = props.importColumns.map(col => {
-    if (col.hint)                                                   return col.hint.replaceAll(' · ', ' | ')
+    if (col.hint) return col.hint.replaceAll(' · ', ' | ')
     if (col.default !== undefined && col.default !== null && col.default !== '') return `Ej: ${col.default}`
     return `Ej: ${col.header}`
   })
-  const emptyRow = props.importColumns.map(() => '')
 
-  const ws = XLSX.utils.aoa_to_sheet([headers, referenceRow, emptyRow])
+  const aoa = [headers]
 
-  // Ancho de columna: suficiente para mostrar los valores permitidos completos
-  ws['!cols'] = props.importColumns.map(col => {
+  if (props.templateSampleRows?.length) {
+    for (const sample of props.templateSampleRows) {
+      aoa.push(props.importColumns.map((col) => {
+        const raw = sample[col.key]
+        if (raw != null && raw !== '') return String(raw)
+        if (col.default !== undefined && col.default !== null && col.default !== '') return String(col.default)
+        return ''
+      }))
+    }
+  } else {
+    aoa.push(referenceRow, props.importColumns.map(() => ''))
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+
+  // Ancho de columna: encabezado, hints o celdas de ejemplo
+  ws['!cols'] = props.importColumns.map((col) => {
     const base = col.header.length + 4
     const hint = col.hint ? col.hint.length + 4 : 0
-    return { wch: Math.max(base, hint, 14) }
+    let sampleLen = 0
+    if (props.templateSampleRows?.length) {
+      for (const sample of props.templateSampleRows) {
+        const cell = sample[col.key]
+        if (cell != null && cell !== '') sampleLen = Math.max(sampleLen, String(cell).length + 2)
+      }
+    }
+    return { wch: Math.max(base, hint, sampleLen, 14) }
   })
 
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Plantilla')
-  XLSX.writeFile(wb, 'plantilla-importacion.xlsx')
+  const sheetName = (props.templateSheetName || 'Plantilla').slice(0, 31)
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+
+  let outName = (props.templateDownloadFileName || 'plantilla-importacion.xlsx').trim()
+  if (!outName.toLowerCase().endsWith('.xlsx')) outName = `${outName}.xlsx`
+  XLSX.writeFile(wb, outName)
 }
 
 // ===========================

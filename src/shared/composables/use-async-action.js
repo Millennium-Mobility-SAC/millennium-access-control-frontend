@@ -41,7 +41,7 @@ export function useAsyncAction(sharedLoading, sharedError) {
      * @returns {Promise<any>} El resultado de la action, o undefined si falló.
      */
     async function run(action, options = {}) {
-        const { errorMessage = 'Ha ocurrido un error', rethrow = false } = options;
+        const { errorMessage = 'No se pudo completar la operación. Intenta de nuevo.', rethrow = false } = options;
         isLoading.value = true;
         error.value     = null;
         try {

@@ -28,7 +28,16 @@ export const useIamStore = defineStore('iam', () => {
     const currentToken = computed(() =>
         isSignedIn.value ? localStorage.getItem(TOKEN_KEY) : null
     );
-    const userRole = computed(() => currentUserRoles.value[0] ?? '');
+    /**
+     * Rol efectivo para rutas y menú: con varios roles en el token, prevalecen
+     * ROLE_ADMIN y luego ROLE_SUPPORT_ADMIN (acceso completo a todas las opciones).
+     */
+    const userRole = computed(() => {
+        const roles = currentUserRoles.value ?? [];
+        if (roles.includes('ROLE_ADMIN')) return 'ROLE_ADMIN';
+        if (roles.includes('ROLE_SUPPORT_ADMIN')) return 'ROLE_SUPPORT_ADMIN';
+        return roles[0] ?? '';
+    });
     const isOwner  = computed(() => currentUserRoles.value.includes('ROLE_OWNER'));
 
     // ── Helpers ───────────────────────────────────────────────────────────

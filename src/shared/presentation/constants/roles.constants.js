@@ -26,14 +26,19 @@ export const ROLE_ALLOWED_ROUTES = Object.freeze({
         '/stays',
         '/staff-management',
         '/vehicle-catalog',
+        '/employee-management',
+        '/security-checkpoint',
     ],
     [ROLES.ROLE_SECURITY_GUARD]: [
         '/stays',
+        '/security-checkpoint',
     ],
     [ROLES.ROLE_SUPPORT_ADMIN]: [
         '/stays',
         '/staff-management',
         '/vehicle-catalog',
+        '/employee-management',
+        '/security-checkpoint',
     ],
 });
 

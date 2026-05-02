@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted }                               from 'vue'
+import * as XLSX from 'xlsx'
 import { useStaffManagementStore }          from '../../application/staff-management.store.js'
 import { useAsyncAction }                   from '@/shared/composables/use-async-action.js'
 import { useNotification }                  from '@/shared/composables/use-notification.js'
@@ -77,6 +78,34 @@ function getDepartmentLabel(value) {
 
 function getDocumentTypeLabel(value) {
   return TIPOS_DOCUMENTO.find(t => t.value === value)?.label ?? value ?? 'DNI'
+}
+
+function staffStatusLabel(active) {
+  return active ? 'Activo' : 'Inactivo'
+}
+
+/** Excel en cliente: respeta filtros de la tabla. */
+function exportStaffExcel() {
+  const list = filteredItems.value
+  if (!list.length) {
+    showError('No hay colaboradores para exportar con los filtros actuales.')
+    return
+  }
+  const rows = list.map((e) => ({
+    Colaborador: (e.fullName ?? '').trim() || '—',
+    'Tipo de documento': getDocumentTypeLabel(e.documentType),
+    Documento: e.documentNumber ?? '',
+    Cargo: (e.position ?? '').trim() || '—',
+    Área: getDepartmentLabel(e.department) || '—',
+    Correo: (e.email ?? '').trim() || '—',
+    Usuario: (e.username ?? '').trim() || '—',
+    Estado: staffStatusLabel(e.active),
+  }))
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores')
+  const date = new Date().toISOString().slice(0, 10)
+  XLSX.writeFile(wb, `colaboradores-${date}.xlsx`)
 }
 
 function openNewDialog() {
@@ -157,7 +186,8 @@ onMounted(async () => {
       :columns="columns"
       :dynamic="true"
       :loading="isLoading"
-      search-placeholder="Busca por nombre, cargo, correo..."
+      :show-global-search="false"
+      :show-export="false"
       :show-view-action="true"
       :view-action-icon-only="true"
       view-button-label="Ver detalle"
@@ -168,7 +198,6 @@ onMounted(async () => {
       @edit-item-requested-manager="openEditDialog"
       @delete-item-requested-manager="handleDelete"
       @delete-selected-items-requested-manager="handleDeleteSelected"
-      @global-filter-change="(v) => searchText = v"
       @clear-filters="clearAllFilters"
     >
       <template #extra-actions>
@@ -180,9 +209,26 @@ onMounted(async () => {
           outlined
           @click="importVisible = true"
         />
+        <pv-button
+          label="Exportar"
+          icon="pi pi-download"
+          severity="secondary"
+          size="small"
+          outlined
+          @click="exportStaffExcel"
+        />
       </template>
 
       <template #filters>
+        <pv-icon-field class="flex-1 min-w-16rem w-full">
+          <pv-input-icon class="pi pi-search" />
+          <pv-input-text
+            v-model="searchText"
+            placeholder="Buscar por nombre, documento, correo o cargo"
+            class="w-full"
+            autocomplete="off"
+          />
+        </pv-icon-field>
         <pv-select
           v-model="filterActive"
           :options="ESTADO_OPTIONS"

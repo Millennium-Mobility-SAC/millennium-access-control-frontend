@@ -22,6 +22,11 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  /** Si se define, reemplaza por completo el título del encabezado (sin prefijo «Nuevo»/«Editar»). */
+  headerTitleOverride: {
+    type: String,
+    default: null,
+  },
   edit: {
     type: Boolean,
     default: false
@@ -57,6 +62,9 @@ const emit = defineEmits(['canceled-shared', 'saved-shared'])
 // ===========================
 // Propiedades computadas para títulos, labels y estilos dinámicos del diálogo
 const headerTitle = computed(() => {
+  if (props.headerTitleOverride != null && props.headerTitleOverride !== '') {
+    return props.headerTitleOverride
+  }
   return `${props.edit ? 'Editar' : 'Nuevo'} ${props.entityName}`
 })
 

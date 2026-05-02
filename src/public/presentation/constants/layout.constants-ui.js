@@ -12,6 +12,12 @@ const ALL_MENU_ITEMS = [
         title: 'Control de acceso',
     },
     {
+        label: 'Marcación personal',
+        icon: 'pi pi-fw pi-clock',
+        to: '/security-checkpoint',
+        title: 'Marcación de personal',
+    },
+    {
         label: 'Colaboradores',
         icon: 'pi pi-fw pi-users',
         to: '/staff-management',
@@ -22,6 +28,12 @@ const ALL_MENU_ITEMS = [
         icon: 'pi pi-fw pi-car',
         to: '/vehicle-catalog',
         title: 'Catálogo de Vehículos',
+    },
+    {
+        label: 'Empleados',
+        icon: 'pi pi-fw pi-id-card',
+        to: '/employee-management',
+        title: 'Empleados',
     },
 ];
 
