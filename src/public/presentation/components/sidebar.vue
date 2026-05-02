@@ -116,11 +116,12 @@ const handleSignOut = async () => {
     <!-- Toggle button: solo visible en desktop -->
     <div class="hidden md:flex justify-content-center py-3 border-top-1 brand-border">
       <button
-        class="toggle-btn flex align-items-center justify-content-center border-round cursor-pointer"
-        :title="collapsed ? 'Expandir menú' : 'Colapsar menú'"
+        class="toggle-btn flex align-items-center justify-content-center gap-2 border-round cursor-pointer"
+        :title="collapsed ? 'Expandir menú' : 'Ocultar menú'"
         @click="emit('toggle')"
       >
-        <i :class="['pi', collapsed ? 'pi-chevron-right' : 'pi-chevron-left']"></i>
+        <i v-if="collapsed" class="pi pi-chevron-right flex-shrink-0"></i>
+        <span v-else class="white-space-nowrap">Ocultar Menú</span>
       </button>
     </div>
 
@@ -256,9 +257,23 @@ const handleSignOut = async () => {
 }
 
 /* ── Toggle button ────────────────────────────────────────────── */
-.toggle-btn,
+.toggle-btn {
+  height: 32px;
+  padding: 0 0.75rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  transition: background-color 0.15s ease, color 0.15s ease;
+  font-size: var(--font-size-sm);
+}
+
+.sidebar--collapsed .toggle-btn {
+  width: 36px;
+  padding: 0;
+}
+
 .logout-btn {
-  width: 32px;
+  width: 160px;
   height: 32px;
   background: transparent;
   border: 1px solid var(--border-color);
