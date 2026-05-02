@@ -288,7 +288,7 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
           @global-filter-change="onAttendanceSearchChange"
         >
           <template #filters="{ clearFilters }">
-            <div class="app-filters-row app-filters-row--stack-sm ed-att-filters w-full">
+            <div class="app-filters-row app-filters-row--stack-sm ed-att-filters w-full min-w-0 flex-1">
               <pv-calendar
                 v-model="filterDateFrom"
                 date-format="dd/mm/yy"

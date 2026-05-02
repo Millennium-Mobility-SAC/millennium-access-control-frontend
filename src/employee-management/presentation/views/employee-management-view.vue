@@ -177,7 +177,7 @@ onMounted(async () => {
       </template>
       <template #filters>
         <div class="app-filters-row app-filters-row--stack-sm em-filters w-full">
-          <pv-icon-field class="em-filter-search flex-1 min-w-0 w-full">
+          <pv-icon-field class="em-filter-search">
             <pv-input-icon class="pi pi-search" />
             <pv-input-text
               v-model="searchText"
@@ -237,19 +237,39 @@ onMounted(async () => {
 
 .em-filters {
   align-items: stretch;
+  width: 100%;
 }
 
 @media (min-width: 768px) {
   .em-filters {
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: minmax(10rem, 1.75fr) minmax(9rem, 1fr);
+    gap: 0.75rem;
     align-items: center;
   }
+}
 
-  .em-filter-select {
-    width: 10rem;
-    max-width: 100%;
-    flex-shrink: 0;
-  }
+.em-filter-select,
+.em-filter-select :deep(.p-select) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.em-filter-search {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.em-filter-search :deep(.p-iconfield),
+.em-filter-search :deep(.p-inputtext) {
+  width: 100%;
 }
 
 .doc-badge {

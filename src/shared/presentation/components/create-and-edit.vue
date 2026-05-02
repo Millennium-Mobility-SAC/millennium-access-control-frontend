@@ -148,26 +148,44 @@ const onSaveRequested = () => {
 <style>
 /* Background/color ahora los provee .dialog-light (primevue-overrides.css).
    Ce-dialog solo mantiene padding y estilos propios. */
-.ce-dialog .p-dialog-header {
-  padding: 1rem 1.5rem;
+.ce-dialog.p-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 1rem);
 }
 
+@supports not (height: 100dvh) {
+  .ce-dialog.p-dialog {
+    max-height: calc(100vh - 1rem);
+  }
+}
+
+.ce-dialog .p-dialog-header {
+  padding: 1rem 1.5rem;
+  flex-shrink: 0;
+}
+
+/* Área de formulario: siempre scroll si supera el viewport (móvil y escritorio) */
 .ce-dialog .p-dialog-content {
   padding: 1rem 1.5rem;
-  max-height: min(70vh, 32rem);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(calc(100dvh - 10.5rem), 52rem);
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-@media (min-width: 768px) {
+@supports not (height: 100dvh) {
   .ce-dialog .p-dialog-content {
-    max-height: none;
-    overflow-y: visible;
+    max-height: min(calc(100vh - 10.5rem), 52rem);
   }
 }
 
 .ce-dialog .p-dialog-footer {
   padding: 0.6rem 1.5rem;
+  flex-shrink: 0;
 }
 
 /* Botón de cerrar personalizado — reemplaza el Button de Aura vía slot #closebutton */

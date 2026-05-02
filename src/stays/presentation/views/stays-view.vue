@@ -405,11 +405,11 @@ function handleExport() {
 </script>
 
 <template>
-  <div class="p-3">
-
+  <div class="stays-page app-page-view flex flex-column flex-1 min-h-0 min-w-0">
     <DataManager
       :items="store.items"
       :filtered-items="filteredItems"
+      :global-filter-value="searchText"
       :title="{ singular: 'registro', plural: 'registros' }"
       :columns="columns"
       :dynamic="true"
@@ -600,25 +600,38 @@ function handleExport() {
   white-space: nowrap;
 }
 
-/* ── Filters bar ─────────────────────────────────────────── */
+/* ── Filtros Control de acceso: ocupan todo el ancho junto a la búsqueda global ── */
+.stays-page {
+  flex: 1 1 auto;
+}
+
 .ac-filters {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  box-sizing: border-box;
 }
 
 .ac-filters :deep(.p-select) {
-  width: 10rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .ac-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
   .ac-filters {
-    width: 100%;
-  }
-  .ac-filters :deep(.p-select) {
-    flex: 1 1 100%;
-    min-width: 0;
+    grid-template-columns: 1fr;
   }
 }
 

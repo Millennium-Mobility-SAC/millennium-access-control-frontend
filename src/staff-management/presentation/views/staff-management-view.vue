@@ -223,7 +223,7 @@ onMounted(async () => {
 
       <template #filters>
         <div class="app-filters-row app-filters-row--stack-sm sm-filters w-full">
-          <pv-icon-field class="sm-filter-search flex-1 min-w-0 w-full">
+          <pv-icon-field class="sm-filter-search">
             <pv-input-icon class="pi pi-search" />
             <pv-input-text
               v-model="searchText"
@@ -312,25 +312,39 @@ onMounted(async () => {
 
 .sm-filters {
   align-items: stretch;
+  width: 100%;
 }
 
 @media (min-width: 768px) {
   .sm-filters {
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: minmax(10rem, 1.6fr) minmax(8rem, 1fr) minmax(8rem, 1fr);
+    gap: 0.75rem;
     align-items: center;
   }
+}
 
-  .sm-filter-select--estado {
-    width: 9rem;
-    max-width: 100%;
-    flex-shrink: 0;
-  }
+.sm-filter-select,
+.sm-filter-select :deep(.p-select) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
 
-  .sm-filter-select--area {
-    width: 11rem;
-    max-width: 100%;
-    flex-shrink: 0;
-  }
+.sm-filter-search {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.sm-filter-search :deep(.p-iconfield),
+.sm-filter-search :deep(.p-inputtext) {
+  width: 100%;
 }
 
 .collab-name-cell {

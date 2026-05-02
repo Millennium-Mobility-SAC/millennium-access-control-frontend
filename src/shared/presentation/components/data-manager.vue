@@ -314,10 +314,13 @@ onMounted(() => initFilters())
     <!-- Search and Filter Section -->
     <div class="flex flex-column mb-2 border-bottom-1 surface-border">
 
-      <!-- Fila de filtros: columna en viewport estrecho (app-filters-row--stack-sm) -->
-      <div class="app-filters-row app-filters-row--stack-sm dm-filters-row mb-4 w-full">
+      <!-- Fila de filtros: stack-sm solo dentro del slot del padre; aquí alineación inferior (IconField + Select) -->
+      <div class="app-filters-row dm-filters-row mb-4 w-full">
         <!-- Global Search Input -->
-        <pv-icon-field v-if="showGlobalSearch" class="flex-1 min-w-0 w-full">
+        <pv-icon-field
+          v-if="showGlobalSearch"
+          class="dm-global-search min-w-0"
+        >
           <pv-input-icon class="pi pi-search" />
 
           <pv-input-text
@@ -327,7 +330,9 @@ onMounted(() => initFilters())
           />
         </pv-icon-field>
 
-        <slot name="filters" :clear-filters="clearFilters" />
+        <div class="dm-filters-slot min-w-0 w-full">
+          <slot name="filters" :clear-filters="clearFilters" />
+        </div>
 
         <pv-button
           v-if="showInlineExport"
@@ -343,52 +348,56 @@ onMounted(() => initFilters())
 
     </div>
 
-    <!-- Action Buttons Section: rejilla 2×2 en viewport muy estrecho -->
+    <!-- Action Buttons: izquierda CRUD principal, derecha import/export (+ slot) -->
     <div v-if="showSecondaryToolbar" class="dm-secondary-toolbar mb-3">
       <div class="dm-secondary-toolbar__inner">
-        <pv-button
-          v-if="showNew"
-          icon="pi pi-plus"
-          :label="newButtonLabel"
-          severity="success"
-          size="small"
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="newItem"
-        />
+        <div class="dm-secondary-toolbar__primary">
+          <pv-button
+            v-if="showNew"
+            icon="pi pi-plus"
+            :label="newButtonLabel"
+            severity="success"
+            size="small"
+            class="dm-stoolbar-btn w-full sm:w-auto"
+            @click="newItem"
+          />
 
-        <pv-button
-          v-if="showDelete && showSelection"
-          :disabled="!selectedItems || !selectedItems.length"
-          icon="pi pi-trash"
-          :label="deleteButtonLabel"
-          severity="danger"
-          size="small"
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="confirmDeleteSelected"
-        />
+          <pv-button
+            v-if="showDelete && showSelection"
+            :disabled="!selectedItems || !selectedItems.length"
+            icon="pi pi-trash"
+            :label="deleteButtonLabel"
+            severity="danger"
+            size="small"
+            class="dm-stoolbar-btn w-full sm:w-auto"
+            @click="confirmDeleteSelected"
+          />
+        </div>
 
-        <slot name="extra-actions" />
+        <div class="dm-secondary-toolbar__secondary">
+          <slot name="extra-actions" />
 
-        <pv-button
-          v-if="showImport"
-          icon="pi pi-upload"
-          :label="importButtonLabel"
-          severity="info"
-          size="small"
-          outlined
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="showImportDialog = true"
-        />
-        <pv-button
-          v-if="showExport && !exportInline"
-          icon="pi pi-download"
-          :label="exportButtonLabel"
-          severity="secondary"
-          size="small"
-          outlined
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="exportToCsv"
-        />
+          <pv-button
+            v-if="showImport"
+            icon="pi pi-upload"
+            :label="importButtonLabel"
+            severity="info"
+            size="small"
+            outlined
+            class="dm-stoolbar-btn w-full sm:w-auto"
+            @click="showImportDialog = true"
+          />
+          <pv-button
+            v-if="showExport && !exportInline"
+            icon="pi pi-download"
+            :label="exportButtonLabel"
+            severity="secondary"
+            size="small"
+            outlined
+            class="dm-stoolbar-btn w-full sm:w-auto"
+            @click="exportToCsv"
+          />
+        </div>
       </div>
     </div>
 
@@ -546,33 +555,153 @@ onMounted(() => initFilters())
 </template>
 
 <style>
-.dm-filters-row {
-  align-items: stretch;
+/*
+ * Fila de filtros DataManager:
+ * - Con búsqueda global: CSS Grid reparte columnas (evita solape flex IconField + Select).
+ * - Sin búsqueda: solo slot a ancho completo.
+ */
+.app-filters-row.dm-filters-row {
+  align-items: center;
 }
 
-/* ≤575px: rejilla 2 columnas para no apilar 4 botones a ancho completo */
+.app-filters-row.dm-filters-row:has(> .dm-global-search) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+}
+
+/* Export en línea con filtros (poco usado) */
+.app-filters-row.dm-filters-row:has(> .dm-global-search):has(> .pv-button) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+}
+
+@media (max-width: 767px) {
+  .app-filters-row.dm-filters-row:has(> .dm-global-search) {
+    grid-template-columns: 1fr;
+  }
+
+  .app-filters-row.dm-filters-row:has(> .dm-global-search):has(> .pv-button) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dm-global-search {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.dm-global-search :deep(.p-iconfield),
+.dm-global-search :deep(.p-inputtext) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.dm-filters-slot {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+}
+
+.dm-filters-slot > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dm-secondary-toolbar__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.dm-secondary-toolbar__primary,
+.dm-secondary-toolbar__secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dm-secondary-toolbar__secondary {
+  margin-left: auto;
+}
+
+/* Móvil: grupos en rejilla 2 columnas, secundario debajo del primario */
 @media (max-width: 575px) {
   .dm-secondary-toolbar__inner {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .dm-secondary-toolbar__secondary {
+    margin-left: 0;
+  }
+
+  .dm-secondary-toolbar__primary,
+  .dm-secondary-toolbar__secondary {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
     width: 100%;
   }
 
-  .dm-secondary-toolbar__inner .dm-stoolbar-btn.p-button,
-  .dm-secondary-toolbar__inner .p-button {
+  .dm-secondary-toolbar__primary .p-button,
+  .dm-secondary-toolbar__secondary .p-button {
     width: 100%;
     justify-content: center;
     min-height: 2.75rem;
   }
 }
 
-@media (min-width: 576px) {
-  .dm-secondary-toolbar__inner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-  }
+/*
+ * Barra de filtros DataManager: controles más bajos y tipografía acorde (no el tamaño “formulario principal”).
+ */
+.dm-filters-row .p-select,
+.dm-filters-row .p-dropdown {
+  min-height: 2.125rem !important;
+  border-width: 1px !important;
+}
+
+.dm-filters-row .p-select .p-select-label,
+.dm-filters-row .p-dropdown .p-dropdown-label {
+  padding: 0.3125rem 0.625rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.35 !important;
+}
+
+.dm-filters-row .p-inputtext,
+.dm-filters-row input.p-inputtext {
+  padding: 0.3125rem 0.625rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.35 !important;
+  min-height: 2.125rem !important;
+  border-width: 1px !important;
+}
+
+.dm-filters-row .p-iconfield .p-inputtext:not(:first-child),
+.dm-filters-row .p-iconfield input.p-inputtext:not(:first-child) {
+  padding-inline-start: 1.85rem !important;
+}
+
+.dm-filters-row .p-datepicker-input,
+.dm-filters-row input.p-datepicker-input {
+  padding: 0.3125rem 0.625rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.35 !important;
+  min-height: 2.125rem !important;
+  border-width: 1px !important;
 }
 </style>

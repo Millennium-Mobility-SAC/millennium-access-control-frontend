@@ -189,7 +189,7 @@ function formatUbicacionCatalog(row) {
     >
       <template #filters>
         <div class="app-filters-row app-filters-row--stack-sm vc-filters w-full">
-          <pv-icon-field class="vc-filter-search flex-1 min-w-0 w-full">
+          <pv-icon-field class="vc-filter-search">
             <pv-input-icon class="pi pi-search" />
             <pv-input-text
               v-model="searchText"
@@ -269,19 +269,40 @@ function formatUbicacionCatalog(row) {
 
 .vc-filters {
   align-items: stretch;
+  width: 100%;
 }
 
+/* Escritorio: búsqueda flexible + columna Estado que crece con el espacio */
 @media (min-width: 768px) {
   .vc-filters {
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: minmax(10rem, 1.75fr) minmax(9rem, 1fr);
+    gap: 0.75rem;
     align-items: center;
   }
+}
 
-  .vc-filter-select {
-    width: 12rem;
-    max-width: 100%;
-    flex-shrink: 0;
-  }
+.vc-filter-select,
+.vc-filter-select :deep(.p-select) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.vc-filter-search {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.vc-filter-search :deep(.p-iconfield),
+.vc-filter-search :deep(.p-inputtext) {
+  width: 100%;
 }
 
 /* Placa: una línea; scroll horizontal de la tabla si hace falta */
