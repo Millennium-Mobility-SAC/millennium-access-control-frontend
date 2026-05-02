@@ -630,24 +630,41 @@ button.p-password-toggle-button:hover,
 }
 
 /* Checkbox "seleccionar todos" en el header del MultiSelect — fondo claro */
-.p-multiselect-header .p-checkbox .p-checkbox-box,
-.p-multiselect-header .p-checkbox-box {
+/* Override CSS variables del tema Aura para todos los checkboxes dentro del panel */
+.p-multiselect-panel {
+  --p-checkbox-background: #ffffff;
+  --p-checkbox-border-color: var(--color-primary, #1a6bc2);
+  --p-checkbox-hover-border-color: var(--color-primary, #1a6bc2);
+  --p-checkbox-checked-background: var(--color-primary, #1a6bc2);
+  --p-checkbox-checked-border-color: var(--color-primary, #1a6bc2);
+  --p-checkbox-icon-checked-color: #ffffff;
+  --p-checkbox-checked-hover-background: var(--color-primary, #1a6bc2);
+  --p-checkbox-checked-hover-border-color: var(--color-primary, #1a6bc2);
+}
+
+/* Checkboxes en MultiSelect — header y opciones — estado claro */
+/* Sin seleccionar: fondo blanco */
+.p-multiselect-header .p-checkbox:not(.p-checkbox-checked) .p-checkbox-box,
+.p-multiselect-option .p-checkbox:not(.p-checkbox-checked) .p-checkbox-box {
   background: #ffffff !important;
-  background-color: #ffffff !important;
-  border: 2px solid var(--color-primary, #1a6bc2) !important;
-  --p-checkbox-background: #ffffff !important;
-  --p-checkbox-border-color: var(--color-primary, #1a6bc2) !important;
+  border-color: var(--color-primary, #1a6bc2) !important;
+}
+/* Seleccionado: fondo azul primario */
+.p-multiselect-header .p-checkbox.p-checkbox-checked .p-checkbox-box,
+.p-multiselect-option .p-checkbox.p-checkbox-checked .p-checkbox-box {
+  background: var(--color-primary, #1a6bc2) !important;
+  border-color: var(--color-primary, #1a6bc2) !important;
+}
+/* Icono de check en blanco */
+.p-multiselect-header .p-checkbox.p-checkbox-checked .p-checkbox-icon,
+.p-multiselect-option .p-checkbox.p-checkbox-checked .p-checkbox-icon {
+  color: #ffffff !important;
 }
 
-/* Etiqueta "Seleccionar todos" al lado del checkbox */
-.p-multiselect-header .p-checkbox {
-  display: flex;
-  align-items: center;
-}
-
-.p-multiselect-header .p-checkbox::after {
+/* Etiqueta "Seleccionar todos" — en el header flex, no dentro del .p-checkbox */
+/* .p-checkbox tiene width/height fijo de 1.25rem; ::after ahí aplasta el cuadro */
+.p-multiselect-header::after {
   content: 'Seleccionar todos';
-  margin-left: 0.5rem;
   font-size: 0.875rem;
   color: var(--color-gray-700, #374151);
   white-space: nowrap;
@@ -1485,12 +1502,10 @@ button.p-datepicker-dropdown:focus-visible {
   transition: all var(--transition-fast);
 }
 
-/* Override Aura theme dark defaults — force light checkbox */
-.p-multiselect-option .p-checkbox-box,
-.p-multiselect-option .p-checkbox .p-checkbox-box {
+/* Override Aura theme dark defaults — opción individual sin seleccionar */
+.p-multiselect-option .p-checkbox:not(.p-checkbox-checked) .p-checkbox-box {
   background-color: #ffffff !important;
   border-color: var(--color-primary, #1a6bc2) !important;
-  color: #ffffff !important;
 }
 
 .p-checkbox .p-checkbox-box:not(.p-disabled):hover {
