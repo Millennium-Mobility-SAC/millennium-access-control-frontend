@@ -630,8 +630,9 @@ button.p-password-toggle-button:hover,
 }
 
 /* Checkbox "seleccionar todos" en el header del MultiSelect — fondo claro */
-/* Override CSS variables del tema Aura para todos los checkboxes dentro del panel */
-.p-multiselect-panel {
+/* Override CSS variables del tema Aura para todos los checkboxes dentro del panel/tabla */
+.p-multiselect-panel,
+.p-datatable {
   --p-checkbox-background: #ffffff;
   --p-checkbox-border-color: var(--color-primary, #1a6bc2);
   --p-checkbox-hover-border-color: var(--color-primary, #1a6bc2);
@@ -645,19 +646,22 @@ button.p-password-toggle-button:hover,
 /* Checkboxes en MultiSelect — header y opciones — estado claro */
 /* Sin seleccionar: fondo blanco */
 .p-multiselect-header .p-checkbox:not(.p-checkbox-checked) .p-checkbox-box,
-.p-multiselect-option .p-checkbox:not(.p-checkbox-checked) .p-checkbox-box {
+.p-multiselect-option .p-checkbox:not(.p-checkbox-checked) .p-checkbox-box,
+.p-datatable .p-checkbox:not(.p-checkbox-checked) .p-checkbox-box {
   background: #ffffff !important;
   border-color: var(--color-primary, #1a6bc2) !important;
 }
 /* Seleccionado: fondo azul primario */
 .p-multiselect-header .p-checkbox.p-checkbox-checked .p-checkbox-box,
-.p-multiselect-option .p-checkbox.p-checkbox-checked .p-checkbox-box {
+.p-multiselect-option .p-checkbox.p-checkbox-checked .p-checkbox-box,
+.p-datatable .p-checkbox.p-checkbox-checked .p-checkbox-box {
   background: var(--color-primary, #1a6bc2) !important;
   border-color: var(--color-primary, #1a6bc2) !important;
 }
 /* Icono de check en blanco */
 .p-multiselect-header .p-checkbox.p-checkbox-checked .p-checkbox-icon,
-.p-multiselect-option .p-checkbox.p-checkbox-checked .p-checkbox-icon {
+.p-multiselect-option .p-checkbox.p-checkbox-checked .p-checkbox-icon,
+.p-datatable .p-checkbox.p-checkbox-checked .p-checkbox-icon {
   color: #ffffff !important;
 }
 
