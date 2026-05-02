@@ -40,6 +40,17 @@ export class EmployeesSharedApi extends BaseApi {
     return this.http.post(`${this.#endpoint.endpointPath}/${employeeId}/attendance/check-out`, payload)
   }
 
+  updateAttendance(employeeId, attendanceId, payload) {
+    return this.http.put(
+      `${this.#endpoint.endpointPath}/${employeeId}/attendance/${attendanceId}`,
+      payload
+    )
+  }
+
+  deleteAttendance(employeeId, attendanceId) {
+    return this.http.delete(`${this.#endpoint.endpointPath}/${employeeId}/attendance/${attendanceId}`)
+  }
+
   /**
    * Sin `query` / sin filtros de fechas: GET sin parámetros (toda la data en servidor).
    * Con `dateFrom` y `dateTo` (y `search` opcional): listado filtrado.

@@ -13,6 +13,13 @@ import AccessImportDialog                        from '../components/access-impo
 import AccessDetailDrawer                        from '../components/access-detail-drawer.vue'
 import { MOTIVOS_INGRESO, MOTIVO_SEVERITY, TIPOS_INGRESO, TIPOS_DOCUMENTO, ACCESS_STATUS, ACCESS_STATUS_SEVERITY, MOTIVOS_SALIDA_TEMPORAL } from '../constants/stays-ui.constants.js'
 import * as XLSX from 'xlsx'
+import { todayIsoLocal, toIsoDateString } from '@/shared/domain/employee-attendance-day.js'
+import {
+  formatCalendarDateForUi,
+  formatTimeHmAmPmForUi,
+  calendarDateToExcelLocalDate,
+  formatWallClockTimeForExcel,
+} from '@/shared/domain/format-datetime-ui.js'
 
 const store              = useStaysStore()
 const iamStore           = useIamStore()
@@ -83,7 +90,7 @@ async function openDrawer(item) {
 }
 
 const columns = [
-  { field: 'status',      header: 'Estado',        sortable: true, style: 'min-width: 150px', template: 'status-template'   },
+  { field: 'status',      header: 'Estado',        sortable: true, style: 'min-width: 100px', template: 'status-template'   },
   { field: 'type',        header: 'Tipo',           sortable: true, style: 'min-width: 100px', template: 'tipo-template'     },
   { field: 'licensePlate', header: 'Placa / Nombre', sortable: true, style: 'min-width: 150px', template: 'identidad-template' },
   { field: 'entryReason', header: 'Motivo',          sortable: true, style: 'min-width: 140px', template: 'motivo-template'   },
@@ -91,26 +98,8 @@ const columns = [
   { field: 'exitDate',    header: 'Salida',          sortable: true, style: 'min-width: 160px', template: 'salida-template'   },
 ]
 
-function formatDate(value) {
-  if (!value) return '-'
-  const d = value instanceof Date ? value : new Date(value)
-  return isNaN(d) ? '-' : d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-function formatTime(value) {
-  if (!value) return null
-  const parts = value.split(':')
-  const h = Number(parts[0])
-  const m = Number(parts[1])
-  const s = parts[2] !== undefined ? Number(parts[2]) : null
-  if (isNaN(h) || isNaN(m)) return value
-  const period = h >= 12 ? 'PM' : 'AM'
-  const h12    = h % 12 === 0 ? 12 : h % 12
-  const base   = `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  return s !== null && !isNaN(s)
-    ? `${base}:${String(s).padStart(2, '0')} ${period}`
-    : `${base} ${period}`
-}
+const formatDate = (value) => formatCalendarDateForUi(value, '-')
+const formatTime = (value) => formatTimeHmAmPmForUi(value, { seconds: 'auto' })
 
 function getEntryReasonLabel(value) {
   return MOTIVOS_INGRESO.find(m => m.value === value)?.label ?? value ?? '-'
@@ -167,7 +156,7 @@ async function handleSave(entity) {
       plate: subjectIdentifier,
       accessType: entity.type,
       stayType: 'INGRESO',
-      operationDate: toIsoDate(entity.entryDate),
+      operationDate: toIsoDateString(entity.entryDate),
     })
     const payload = { ...entity, attachmentIds }
     if (isEditing.value) {
@@ -241,7 +230,7 @@ async function handleExit(exitData) {
       plate: subjectIdentifier,
       accessType: exitData.type,
       stayType: exitData.exitType === 'TEMPORAL' ? 'SALIDA_TEMPORAL' : 'SALIDA_PERMANENTE',
-      operationDate: toIsoDate(exitData.exitDate),
+      operationDate: toIsoDateString(exitData.exitDate),
     })
     await store.registerExit(exitData.id, { ...exitData, attachmentIds })
     showSuccess('Salida registrada correctamente.')
@@ -258,7 +247,7 @@ async function handleReturn(returnData) {
       plate: subjectIdentifier,
       accessType: returnData.type,
       stayType: 'RETORNO',
-      operationDate: toIsoDate(returnData.returnDate),
+      operationDate: toIsoDateString(returnData.returnDate),
     })
     await store.registerReturn(returnData.id, { ...returnData, attachmentIds })
     showSuccess('Retorno registrado correctamente.')
@@ -306,23 +295,9 @@ async function uploadAttachments(files, naming = {}) {
   return response.data.map(file => file.id).filter(Boolean)
 }
 
-function toIsoDate(value) {
-  if (!value) return null
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
-  const date = value instanceof Date ? value : new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10)
-}
-
 // Exportación a Excel
 function label(list, value, fallback = value ?? '—') {
   return list.find(i => i.value === value)?.label ?? fallback
-}
-
-function fmtDateExport(value) {
-  if (!value) return ''
-  const str = String(value)
-  const d = /^\d{4}-\d{2}-\d{2}$/.test(str) ? new Date(str + 'T00:00:00') : new Date(str)
-  return isNaN(d) ? str : d
 }
 
 function applySheetStyles(ws, colWidths) {
@@ -336,32 +311,17 @@ function applySheetStyles(ws, colWidths) {
   }
 }
 
-function fmtTimeExport(value) {
-  if (!value) return ''
-  const parts = value.split(':')
-  const h = Number(parts[0])
-  const m = Number(parts[1])
-  const s = parts[2] !== undefined ? Number(parts[2]) : null
-  if (isNaN(h) || isNaN(m)) return value
-  const period = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  const base = `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  return s !== null && !isNaN(s)
-    ? `${base}:${String(s).padStart(2, '0')} ${period}`
-    : `${base} ${period}`
-}
-
 // Columnas compartidas (ingreso, registrado por, salida permanente, salida temporal)
 function sharedExitCols(exit, exitIndex) {
   return {
     'Nro. Salida Temporal':   exitIndex !== null ? exitIndex + 1 : '',
     'Estado Salida Temporal': exit ? label(ACCESS_STATUS, exit.status) : '',
     'Motivo Salida Temporal': exit ? label(MOTIVOS_SALIDA_TEMPORAL, exit.exitReason) : '',
-    'Fecha Salida Temporal':  exit ? fmtDateExport(exit.exitDate) : '',
-    'Hora Salida Temporal':   exit ? fmtTimeExport(exit.exitTime) : '',
+    'Fecha Salida Temporal':  exit ? calendarDateToExcelLocalDate(exit.exitDate) : '',
+    'Hora Salida Temporal':   exit ? formatWallClockTimeForExcel(exit.exitTime) : '',
     'Placa Reemplazo':        exit ? (exit.replacementLicensePlate ?? '') : '',
-    'Fecha Retorno':          exit ? fmtDateExport(exit.returnDate) : '',
-    'Hora Retorno':           exit ? fmtTimeExport(exit.returnTime) : '',
+    'Fecha Retorno':          exit ? calendarDateToExcelLocalDate(exit.returnDate) : '',
+    'Hora Retorno':           exit ? formatWallClockTimeForExcel(exit.returnTime) : '',
   }
 }
 
@@ -370,11 +330,11 @@ function sharedEntryCols(entry) {
     'ID':                      entry.id ?? '',
     'Estado':                  label(ACCESS_STATUS, entry.status),
     'Motivo Ingreso':          label(MOTIVOS_INGRESO, entry.entryReason),
-    'Fecha Ingreso':           fmtDateExport(entry.entryDate),
-    'Hora Ingreso':            fmtTimeExport(entry.entryTime),
+    'Fecha Ingreso':           calendarDateToExcelLocalDate(entry.entryDate),
+    'Hora Ingreso':            formatWallClockTimeForExcel(entry.entryTime),
     'Registrado por':          [entry.registeredByFirstName, entry.registeredByLastName].filter(Boolean).join(' ') || '',
-    'Fecha Salida Permanente': fmtDateExport(entry.permanentExitDate),
-    'Hora Salida Permanente':  fmtTimeExport(entry.permanentExitTime),
+    'Fecha Salida Permanente': calendarDateToExcelLocalDate(entry.permanentExitDate),
+    'Hora Salida Permanente':  formatWallClockTimeForExcel(entry.permanentExitTime),
     'Tipo Doc. Cliente':       entry.permanentExitDate ? label(TIPOS_DOCUMENTO, entry.customerDocumentType) : '',
     'Nro. Doc. Cliente':       entry.permanentExitDate ? (entry.customerDni ?? '') : '',
     'Nombre Cliente':          entry.permanentExitDate ? (entry.customerFirstName ?? '') : '',
@@ -439,7 +399,7 @@ function handleExport() {
     XLSX.utils.book_append_sheet(wb, ws, 'Personas')
   }
 
-  const date = new Date().toISOString().slice(0, 10)
+  const date = todayIsoLocal()
   XLSX.writeFile(wb, `control-acceso-${date}.xlsx`)
 }
 </script>
@@ -460,7 +420,7 @@ function handleExport() {
       :view-action-icon-only="true"
       view-button-label="Ver detalle"
       :show-edit-action="false"
-      :show-delete-action="true"
+      :show-delete-action="iamStore.hasFullActionAccess"
       :show-exit-action="true"
       exit-button-label="Registrar salida"
       :exit-action-condition="(item) => item.status === 'EN_PLANTA' || item.status === 'EN_PLANTA_CUSTODIA'"

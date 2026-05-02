@@ -11,6 +11,24 @@ export const ROLES = Object.freeze({
     ROLE_SUPPORT_ADMIN: 'ROLE_SUPPORT_ADMIN',
 });
 
+/**
+ * Roles con permisos equivalentes a “administración completa” en API y UI destructiva.
+ * Debe coincidir con {@code hasAnyRole('ADMIN','SUPPORT_ADMIN')} en el backend.
+ */
+export const FULL_ACTION_ROLES = Object.freeze([
+    ROLES.ROLE_ADMIN,
+    ROLES.ROLE_SUPPORT_ADMIN,
+]);
+
+/**
+ * @param {string[]|null|undefined} roleNames
+ * @returns {boolean}
+ */
+export function hasFullActionRoles(roleNames) {
+    if (!roleNames?.length) return false;
+    return FULL_ACTION_ROLES.some(r => roleNames.includes(r));
+}
+
 export const ROLE_LABELS = Object.freeze({
     [ROLES.ROLE_ADMIN]:          'Administrador',
     [ROLES.ROLE_SECURITY_GUARD]: 'Agente de Seguridad',

@@ -1,3 +1,5 @@
+import { toIsoDateString } from '../../../shared/domain/employee-attendance-day.js'
+
 export class Vehicle {
   constructor({
     id            = null,
@@ -9,6 +11,8 @@ export class Vehicle {
     currentStatus = null,
     lastEntryDate = null,
     lastEntryTime = null,
+    catalogFlowEntryReason = null,
+    catalogActiveTemporalExitReason = null,
   } = {}) {
     this.id            = id
     this.licensePlate  = licensePlate
@@ -19,6 +23,8 @@ export class Vehicle {
     this.currentStatus = currentStatus
     this.lastEntryDate = lastEntryDate
     this.lastEntryTime = lastEntryTime
+    this.catalogFlowEntryReason = catalogFlowEntryReason
+    this.catalogActiveTemporalExitReason = catalogActiveTemporalExitReason
   }
 
   get displayName() {
@@ -31,11 +37,18 @@ export class Vehicle {
    */
   get daysInPlant() {
     if (!this.lastEntryDate) return null
-    const [y, m, d] = this.lastEntryDate.split('-').map(Number)
+    const iso = toIsoDateString(this.lastEntryDate)
+    if (!iso) return null
+    const [y, m, d] = iso.split('-').map(Number)
     const entry = new Date(y, m - 1, d)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const diff = Math.floor((today - entry) / (1000 * 60 * 60 * 24))
     return diff >= 0 ? diff : null
+  }
+
+  /** Código de motivo para ordenar/filtrar: salida temporal activa si existe, si no el de ingreso. */
+  get catalogUbicacion() {
+    return this.catalogActiveTemporalExitReason || this.catalogFlowEntryReason || ''
   }
 }

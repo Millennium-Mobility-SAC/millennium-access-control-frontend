@@ -13,6 +13,12 @@ export function todayIsoLocal(date = new Date()) {
  */
 export function toIsoDateString(value) {
   if (value == null || value === '') return null
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getFullYear()
+    const m = String(value.getMonth() + 1).padStart(2, '0')
+    const d = String(value.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
   if (Array.isArray(value) && value.length >= 3) {
     const y = value[0]
     const mo = Number(value[1])

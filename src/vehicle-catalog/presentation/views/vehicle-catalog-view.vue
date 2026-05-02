@@ -2,26 +2,30 @@
 import { ref, computed, onMounted }  from 'vue'
 import { useRouter }                   from 'vue-router'
 import { useVehicleCatalogStore }      from '../../application/vehicle-catalog.store.js'
+import { useIamStore }                 from '@/iam/application/iam.store.js'
 import { useAsyncAction }              from '@/shared/composables/use-async-action.js'
 import { useNotification }             from '@/shared/composables/use-notification.js'
 import DataManager                     from '@/shared/presentation/components/data-manager.vue'
 import VehicleCreateAndEdit            from '../components/vehicle-create-and-edit.vue'
-import VehicleDetailDrawer             from '../components/vehicle-detail-drawer.vue'
 import { VEHICLE_COLUMNS, VEHICLE_IMPORT_COLUMNS } from '../constants/vehicle-catalog-ui.constants.js'
+import {
+  formatCalendarDateForUi,
+  formatTimeHmAmPmForUi,
+} from '@/shared/domain/format-datetime-ui.js'
+import { VEHICLE_ROUTE_NAMES }         from '../vehicle-catalog.routes.js'
+import { MOTIVOS_INGRESO, MOTIVOS_SALIDA_TEMPORAL } from '@/stays/presentation/constants/stays-ui.constants.js'
 
 import { getAccessStatusLabel as VEHICLE_STATUS_LABEL_FN, getAccessStatusSeverity, ACCESS_STATUS } from '@/shared/presentation/constants/access-status.constants.js'
 
 const router             = useRouter()
 const store              = useVehicleCatalogStore()
+const iamStore           = useIamStore()
 const { isLoading, error, run } = useAsyncAction()
 const { showSuccess, showError } = useNotification()
 
 const dialogVisible = ref(false)
 const isEditing     = ref(false)
 const editEntity    = ref(null)
-
-const drawerVisible = ref(false)
-const drawerItem    = ref(null)
 
 // Filtros
 const filterStatus = ref(null)
@@ -32,7 +36,7 @@ const filteredItems = computed(() => {
   return store.vehicles.filter(v => {
     if (filterStatus.value && v.currentStatus !== filterStatus.value) return false
     if (q) {
-      const searchable = [v.licensePlate, v.brand, v.model, v.color, String(v.year ?? '')]
+      const searchable = [v.licensePlate, v.brand, v.model, String(v.year ?? '')]
         .filter(Boolean).join(' ').toLowerCase()
       if (!searchable.includes(q)) return false
     }
@@ -45,12 +49,17 @@ function clearAllFilters() {
   searchText.value   = ''
 }
 
-function openDrawer(item) {
-  drawerItem.value    = item
-  drawerVisible.value = true
-}
-
 const columns = VEHICLE_COLUMNS
+
+/** Misma idea que empleados: ir a la pantalla de detalle del registro (aquí: historial de accesos). */
+function goToVehicleDetail(item) {
+  if (item?.id == null) return
+  router.push({
+    name: VEHICLE_ROUTE_NAMES.ACCESS_HISTORY,
+    params: { vehicleId: String(item.id) },
+    query: { plate: item.licensePlate, brand: item.brand, model: item.model },
+  })
+}
 
 function openNewDialog() {
   isEditing.value     = false
@@ -119,36 +128,9 @@ onMounted(async () => {
   await run(() => store.fetchAll())
 })
 
-function openHistory(vehicle) {
-  router.push({
-    name: 'vehicle-access-history',
-    params: { vehicleId: vehicle.id },
-    query: { plate: vehicle.licensePlate, brand: vehicle.brand, model: vehicle.model },
-  })
-}
-
-// ── Date/time formatters ──────────────────────────────────────────────────────
-function fmtDate(value) {
-  if (!value) return '—'
-  const [y, m, d] = value.split('-')
-  if (!y || !m || !d) return value
-  return `${d}/${m}/${y}`
-}
-
-function fmtTime(value) {
-  if (!value) return ''
-  const parts = value.split(':')
-  const h   = Number(parts[0])
-  const min = Number(parts[1])
-  const sec = parts[2] !== undefined ? Number(parts[2]) : null
-  if (isNaN(h) || isNaN(min)) return value
-  const period = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  const base = `${String(h12).padStart(2, '0')}:${String(min).padStart(2, '0')}`
-  return sec !== null && !isNaN(sec)
-    ? `${base}:${String(sec).padStart(2, '0')} ${period}`
-    : `${base} ${period}`
-}
+// ── Date/time (compartido: `format-datetime-ui.js`) ──────────────────────────
+const fmtDate = (v) => formatCalendarDateForUi(v)
+const fmtTime = (v) => formatTimeHmAmPmForUi(v, { seconds: 'always' }) ?? ''
 
 // ── Days badge class (colores por rango) ──────────────────────────────────────
 // 0-3 días → verde | 4-7 → amarillo | 8-14 → naranja | 15+ → rojo
@@ -158,6 +140,24 @@ function daysBadgeClass(days) {
   if (days <= 14) return 'vc-days--alert'
   return 'vc-days--danger'
 }
+
+function labelMotivoIngreso(value) {
+  if (value == null || value === '') return '—'
+  return MOTIVOS_INGRESO.find(m => m.value === value)?.label ?? value
+}
+
+function labelMotivoSalidaTemporal(value) {
+  if (value == null || value === '') return '—'
+  return MOTIVOS_SALIDA_TEMPORAL.find(m => m.value === value)?.label ?? value
+}
+
+/** Ubicación: motivo de salida temporal si hay una activa; si no, el motivo de ingreso del flujo. */
+function formatUbicacionCatalog(row) {
+  if (row.catalogActiveTemporalExitReason) {
+    return labelMotivoSalidaTemporal(row.catalogActiveTemporalExitReason)
+  }
+  return labelMotivoIngreso(row.catalogFlowEntryReason)
+}
 </script>
 
 <template>
@@ -166,27 +166,26 @@ function daysBadgeClass(days) {
     <DataManager
       :items="store.vehicles"
       :filtered-items="filteredItems"
+      delete-confirm-extra="También se eliminará todo el historial de accesos asociado (ingresos, salidas temporales y permanentes)."
       :title="{ singular: 'vehículo', plural: 'vehículos' }"
       :columns="columns"
       :dynamic="true"
       :loading="isLoading"
       :show-global-search="false"
-      :show-view-action="false"
+      :show-view-action="true"
       :view-action-icon-only="true"
-      view-button-label="Ver detalle"
+      view-button-label="Ver detalles"
       :show-edit-action="true"
-      :show-delete-action="true"
-      :show-history-action="true"
-      history-button-label="Ver historial de accesos"
+      :show-delete-action="iamStore.hasFullActionAccess"
+      :show-history-action="false"
       :show-import="false"
       :import-columns="VEHICLE_IMPORT_COLUMNS"
       @new-item-requested-manager="openNewDialog"
-      @view-item-requested-manager="openDrawer"
+      @view-item-requested-manager="goToVehicleDetail"
       @edit-item-requested-manager="openEditDialog"
       @delete-item-requested-manager="handleDelete"
       @delete-selected-items-requested-manager="handleDeleteSelected"
       @import-data-requested-manager="handleImport"
-      @history-item-requested-manager="openHistory"
       @clear-filters="clearAllFilters"
     >
       <template #filters>
@@ -194,7 +193,7 @@ function daysBadgeClass(days) {
           <pv-input-icon class="pi pi-search" />
           <pv-input-text
             v-model="searchText"
-            placeholder="Buscar por placa, marca, modelo o color"
+            placeholder="Buscar por placa, marca, modelo o año"
             class="w-full"
             autocomplete="off"
           />
@@ -217,6 +216,14 @@ function daysBadgeClass(days) {
         />
       </template>
 
+      <template #vehicle-flow-motivo="{ value }">
+        <span class="vc-motivo">{{ labelMotivoIngreso(value) }}</span>
+      </template>
+
+      <template #vehicle-ubicacion="{ data }">
+        <span class="vc-motivo">{{ formatUbicacionCatalog(data) }}</span>
+      </template>
+
       <!-- Último ingreso: fecha DD/MM/YYYY + hora -->
       <template #vehicle-entry="{ data }">
         <template v-if="data.lastEntryDate">
@@ -236,13 +243,6 @@ function daysBadgeClass(days) {
         <span v-else class="vc-dash">—</span>
       </template>
     </DataManager>
-
-    <!-- Detail Drawer -->
-    <VehicleDetailDrawer
-      v-model:visible="drawerVisible"
-      :item="drawerItem"
-      @edit-requested="openEditDialog"
-    />
 
     <!-- Create / Edit dialog -->
     <VehicleCreateAndEdit
@@ -274,6 +274,13 @@ function daysBadgeClass(days) {
 
 .vc-dash {
   color: var(--text-body-secondary);
+}
+
+.vc-motivo {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--text-body);
+  word-break: break-word;
 }
 
 /* ── Days-in-plant badge ─────────────────────────────────────────────────── */

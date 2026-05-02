@@ -12,6 +12,9 @@ export class VehicleAssembler {
       currentStatus: resource.current_status ?? resource.currentStatus   ?? null,
       lastEntryDate: resource.last_entry_date ?? resource.lastEntryDate   ?? null,
       lastEntryTime: resource.last_entry_time ?? resource.lastEntryTime   ?? null,
+      catalogFlowEntryReason: resource.catalog_flow_entry_reason ?? resource.catalogFlowEntryReason ?? null,
+      catalogActiveTemporalExitReason:
+        resource.catalog_active_temporal_exit_reason ?? resource.catalogActiveTemporalExitReason ?? null,
     })
   }
 

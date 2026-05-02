@@ -96,7 +96,9 @@ const props = defineProps({
   returnButtonLabel: { type: String, default: 'Registrar retorno' },
   exitActionCondition: { type: Function, default: null },
   returnActionCondition: { type: Function, default: null },
-  viewActionIconOnly: { type: Boolean, default: false }
+  viewActionIconOnly: { type: Boolean, default: false },
+  /** Texto adicional en el diálogo de confirmación al eliminar (p. ej. efectos en cascada). */
+  deleteConfirmExtra: { type: String, default: '' },
 })
 
 // ===========================
@@ -222,10 +224,17 @@ const newItem = () => emit('new-item-requested-manager')
  * Muestra confirmación y elimina items seleccionados
  * Maneja plural/singular según cantidad de items
  */
+function appendDeleteConfirmExtra(baseMessage) {
+  const extra = (props.deleteConfirmExtra ?? '').trim()
+  if (!extra) return baseMessage
+  return `${baseMessage}\n\n${extra}`
+}
+
 const confirmDeleteSelected = () => {
   const count = selectedItems.value.length
+  const base = `¿Está seguro de que desea eliminar ${count} ${count === 1 ? props.title.singular : props.title.plural}?`
   confirm.require({
-    message: `¿Está seguro de que desea eliminar ${count} ${count === 1 ? props.title.singular : props.title.plural}?`,
+    message: appendDeleteConfirmExtra(base),
     header: 'Confirmación',
     icon: 'pi pi-exclamation-triangle',
     rejectProps: {
@@ -251,8 +260,9 @@ const confirmDeleteItem = (item) => {
 
   const itemIdentifier = item.licensePlate || item.fullName || item.firstName || item.name || item.id || ''
   
+  const base = `¿Está seguro de eliminar ${itemIdentifier ? `"${itemIdentifier}"` : `esta ${props.title.singular}`}?`
   confirm.require({
-    message: `¿Está seguro de eliminar ${itemIdentifier ? `"${itemIdentifier}"` : `esta ${props.title.singular}`}?`,
+    message: appendDeleteConfirmExtra(base),
     header: 'Confirmación',
     icon: 'pi pi-exclamation-triangle',
     rejectProps: {

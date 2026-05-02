@@ -113,6 +113,16 @@ export const useSecurityCheckpointStore = defineStore('security-checkpoint', () 
     await refreshLastQuery()
   }
 
+  async function updateAttendanceRecord(employeeId, attendanceId, payload) {
+    await api.updateAttendance(employeeId, attendanceId, payload)
+    await refreshLastQuery()
+  }
+
+  async function removeAttendanceRecord(employeeId, attendanceId) {
+    await api.deleteAttendance(employeeId, attendanceId)
+    await refreshLastQuery()
+  }
+
   return {
     attendanceRecords,
     lastQuery: computed(() => _lastQuery.value),
@@ -123,5 +133,7 @@ export const useSecurityCheckpointStore = defineStore('security-checkpoint', () 
     getPendingActionForEmployee,
     registerCheckIn,
     registerCheckOut,
+    updateAttendanceRecord,
+    removeAttendanceRecord,
   }
 })

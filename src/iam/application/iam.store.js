@@ -3,6 +3,7 @@ import { ref, computed, onScopeDispose } from 'vue';
 import { IamApi } from '../infrastructure/api/iam.api.js';
 import { UserAssembler } from '../infrastructure/assemblers/user.assembler.js';
 import { normalizeApiError } from '@/shared/infrustructure/error-normalizer.js';
+import { hasFullActionRoles } from '@/shared/presentation/constants/roles.constants.js';
 
 const TOKEN_KEY = 'gs_token';
 const USER_KEY  = 'gs_user';
@@ -39,6 +40,8 @@ export const useIamStore = defineStore('iam', () => {
         return roles[0] ?? '';
     });
     const isOwner  = computed(() => currentUserRoles.value.includes('ROLE_OWNER'));
+    /** Alineado con backend: ADMIN y SUPPORT_ADMIN (borrados, IAM, estadías, etc.). */
+    const hasFullActionAccess = computed(() => hasFullActionRoles(currentUserRoles.value));
 
     // ── Helpers ───────────────────────────────────────────────────────────
     function _setSession(loginResult) {
@@ -178,7 +181,7 @@ export const useIamStore = defineStore('iam', () => {
     return {
         isSignedIn, currentUserId, currentUsername, currentUserRoles, currentProfile,
         isLoading, error,
-        currentToken, userRole, isOwner,
+        currentToken, userRole, isOwner, hasFullActionAccess,
         login, logout, register, forgotPassword, fetchProfile,
     };
 });

@@ -7,9 +7,20 @@ import { useAsyncAction }           from '@/shared/composables/use-async-action.
 import { ACCESS_STATUS, ACCESS_STATUS_SEVERITY } from '@/shared/presentation/constants/access-status.constants.js'
 import { MOTIVOS_INGRESO, MOTIVOS_SALIDA_TEMPORAL, TIPOS_DOCUMENTO } from '@/stays/presentation/constants/stays-ui.constants.js'
 import * as XLSX from 'xlsx'
+import {
+  formatCalendarDateForUiNullable,
+  formatTimeHmAmPmForUi,
+  calendarDateToExcelLocalDate,
+  formatWallClockTimeForExcel,
+} from '@/shared/domain/format-datetime-ui.js'
+import { todayIsoLocal } from '@/shared/domain/employee-attendance-day.js'
 
 const route        = useRoute()
 const vehicleStore = useVehicleCatalogStore()
+
+/** Tooltip: el chip de km es odómetro al ingreso, no el motivo (0KM es motivo de ingreso en catálogo). */
+const MILEAGE_INGRESO_TOOLTIP =
+  'Kilometraje del odómetro declarado al registrar ese ingreso. No es el motivo de ingreso (0KM, Mecánica, etc. van arriba).'
 const accessStore  = useStaysStore()
 const { isLoading, run } = useAsyncAction()
 
@@ -28,6 +39,20 @@ const vehicle = computed(() =>
 // ── History items (sorted most-recent first) ──────────────────────────────────
 const historyItems = ref([])
 
+/** IDs de estadías con la tabla de flujo visible (por defecto solo la más reciente). */
+const expandedStayIds = ref(new Set())
+
+function isStayExpanded(entryId) {
+  return expandedStayIds.value.has(entryId)
+}
+
+function toggleStayExpanded(entryId) {
+  const next = new Set(expandedStayIds.value)
+  if (next.has(entryId)) next.delete(entryId)
+  else next.add(entryId)
+  expandedStayIds.value = next
+}
+
 onMounted(async () => {
   await run(async () => {
     const items = await accessStore.fetchByVehicleId(vehicleId)
@@ -36,6 +61,8 @@ onMounted(async () => {
       const db = (b.entryDate ?? '') + (b.entryTime ?? '')
       return db.localeCompare(da)
     })
+    const list = historyItems.value
+    expandedStayIds.value = list.length ? new Set([list[0].id]) : new Set()
   })
   if (!vehicleStore.vehicles.length) {
     vehicleStore.fetchAll().catch(() => {})
@@ -48,23 +75,9 @@ function getStatusSeverity(v)   { return ACCESS_STATUS_SEVERITY[v] ?? 'secondary
 function getEntryReasonLabel(v) { return MOTIVOS_INGRESO.find(m => m.value === v)?.label ?? v ?? '—' }
 function getExitReasonLabel(v)  { return MOTIVOS_SALIDA_TEMPORAL.find(m => m.value === v)?.label ?? v ?? '—' }
 
-// ── Date/time formatters ──────────────────────────────────────────────────────
-function fmtDate(value) {
-  if (!value) return null
-  const [y, m, d] = value.split('-')
-  if (!y || !m || !d) return value
-  return `${d}/${m}/${y}`
-}
-
-function fmtTime(value) {
-  if (!value) return null
-  const [hStr, mStr] = value.split(':')
-  const h = Number(hStr), min = Number(mStr)
-  if (isNaN(h) || isNaN(min)) return value
-  const period = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${String(h12).padStart(2, '0')}:${String(min).padStart(2, '0')} ${period}`
-}
+// ── Date/time (compartido: `format-datetime-ui.js`) ──────────────────────────
+const fmtDate = formatCalendarDateForUiNullable
+const fmtTime = (v) => formatTimeHmAmPmForUi(v, { seconds: 'never' })
 
 // ── Timeline builder ──────────────────────────────────────────────────────────
 const EVENT_ICON = {
@@ -151,6 +164,11 @@ function buildTimeline(entry) {
   return events
 }
 
+/** Filas para tabla (mismo orden que la timeline anterior). */
+function buildFlowRows(entry) {
+  return buildTimeline(entry).map((ev, i) => ({ ...ev, rowIndex: i + 1 }))
+}
+
 /** Effective exit date for the range display header */
 function getExitInfo(entry) {
   if (entry.permanentExitDate) {
@@ -168,14 +186,7 @@ function lbl(list, value, fallback = value ?? '—') {
   return list.find(i => i.value === value)?.label ?? fallback
 }
 
-function fmtDateExport(value) {
-  if (!value) return ''
-  const str = String(value)
-  const d = /^\d{4}-\d{2}-\d{2}$/.test(str) ? new Date(str + 'T00:00:00') : new Date(str)
-  return isNaN(d) ? str : d
-}
-
-const HISTORY_COL_WIDTHS = [6, 18, 18, 14, 12, 22, 12, 14, 16, 6, 14, 12, 24, 22, 18, 18, 18, 18, 20, 22, 22, 20, 18, 18, 14, 12]
+const HISTORY_COL_WIDTHS = [6, 18, 18, 14, 12, 22, 12, 14, 16, 6, 14, 24, 22, 18, 18, 18, 18, 20, 22, 22, 20, 18, 18, 14, 12]
 
 function applySheetStyles(ws, colWidths) {
   ws['!cols'] = colWidths.map(wch => ({ wch }))
@@ -188,21 +199,6 @@ function applySheetStyles(ws, colWidths) {
   }
 }
 
-function fmtTimeExport(value) {
-  if (!value) return ''
-  const parts = value.split(':')
-  const h = Number(parts[0])
-  const min = Number(parts[1])
-  const sec = parts[2] !== undefined ? Number(parts[2]) : null
-  if (isNaN(h) || isNaN(min)) return value
-  const period = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  const base = `${String(h12).padStart(2, '0')}:${String(min).padStart(2, '0')}`
-  return sec !== null && !isNaN(sec)
-    ? `${base}:${String(sec).padStart(2, '0')} ${period}`
-    : `${base} ${period}`
-}
-
 function handleExport() {
   const rows = []
   for (const entry of historyItems.value) {
@@ -210,17 +206,16 @@ function handleExport() {
       'ID':                      entry.id ?? '',
       'Estado':                  lbl(ACCESS_STATUS, entry.status),
       'Motivo Ingreso':          lbl(MOTIVOS_INGRESO, entry.entryReason),
-      'Fecha Ingreso':           fmtDateExport(entry.entryDate),
-      'Hora Ingreso':            fmtTimeExport(entry.entryTime),
+      'Fecha Ingreso':           calendarDateToExcelLocalDate(entry.entryDate),
+      'Hora Ingreso':            formatWallClockTimeForExcel(entry.entryTime),
       'Registrado por':          [entry.registeredByFirstName, entry.registeredByLastName].filter(Boolean).join(' ') || '',
       'Placa':                   entry.licensePlate ?? '',
       'Marca':                   entry.brand        ?? '',
       'Modelo':                  entry.model        ?? '',
       'Año':                     entry.year         ?? '',
       'Kilometraje':             entry.mileage      ?? '',
-      'Color':                   entry.color        ?? '',
-      'Fecha Salida Permanente': fmtDateExport(entry.permanentExitDate),
-      'Hora Salida Permanente':  fmtTimeExport(entry.permanentExitTime),
+      'Fecha Salida Permanente': calendarDateToExcelLocalDate(entry.permanentExitDate),
+      'Hora Salida Permanente':  formatWallClockTimeForExcel(entry.permanentExitTime),
       'Tipo Doc. Cliente':       entry.permanentExitDate ? lbl(TIPOS_DOCUMENTO, entry.customerDocumentType) : '',
       'Nro. Doc. Cliente':       entry.permanentExitDate ? (entry.customerDni ?? '') : '',
       'Nombre Cliente':          entry.permanentExitDate ? (entry.customerFirstName ?? '') : '',
@@ -233,11 +228,11 @@ function handleExport() {
           'Nro. Salida Temporal':   i + 1,
           'Estado Salida Temporal': lbl(ACCESS_STATUS, te.status),
           'Motivo Salida Temporal': lbl(MOTIVOS_SALIDA_TEMPORAL, te.exitReason),
-          'Fecha Salida Temporal':  fmtDateExport(te.exitDate),
-          'Hora Salida Temporal':   fmtTimeExport(te.exitTime),
+          'Fecha Salida Temporal':  calendarDateToExcelLocalDate(te.exitDate),
+          'Hora Salida Temporal':   formatWallClockTimeForExcel(te.exitTime),
           'Placa Reemplazo':        te.replacementLicensePlate ?? '',
-          'Fecha Retorno':          fmtDateExport(te.returnDate),
-          'Hora Retorno':           fmtTimeExport(te.returnTime),
+          'Fecha Retorno':          calendarDateToExcelLocalDate(te.returnDate),
+          'Hora Retorno':           formatWallClockTimeForExcel(te.returnTime),
         })
       })
     } else {
@@ -260,7 +255,7 @@ function handleExport() {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Historial')
   const plate = vehicle.value.licensePlate?.replace(/[^A-Z0-9]/gi, '') ?? 'vehiculo'
-  const date  = new Date().toISOString().slice(0, 10)
+  const date = todayIsoLocal()
   XLSX.writeFile(wb, `historial-${plate}-${date}.xlsx`)
 }
 
@@ -269,7 +264,7 @@ const processedHistory = computed(() =>
   historyItems.value.map(entry => ({
     entry,
     exitInfo:  getExitInfo(entry),
-    timeline:  buildTimeline(entry),
+    flowRows:  buildFlowRows(entry),
     registeredBy: [entry.registeredByFirstName, entry.registeredByLastName].filter(Boolean).join(' ') || '—',
   }))
 )
@@ -321,88 +316,163 @@ const processedHistory = computed(() =>
 
     <!-- ── History cards ────────────────────────────────────────────────────── -->
     <div v-else class="vh-list">
+      <p
+        v-if="processedHistory.length > 1"
+        class="vh-multi-hint"
+      >
+        Solo la visita más reciente muestra el flujo completo. Usa la flecha al final de cada fila
+        <i class="pi pi-chevron-down vh-multi-hint-ic" /> para ver u ocultar el detalle de esa estadía.
+      </p>
       <div
-        v-for="{ entry, exitInfo, timeline, registeredBy } in processedHistory"
+        v-for="{ entry, exitInfo, flowRows, registeredBy } in processedHistory"
         :key="entry.id"
         class="vh-entry-card"
       >
 
-        <!-- ── Range header: Ingreso → Salida ──────────────────────────────── -->
+        <!-- ── Range header: motivo ingreso + Ingreso → Salida + chips ───────── -->
         <div class="vh-range-header">
-          <!-- Status badge -->
-          <pv-tag
-            :value="getStatusLabel(entry.status)"
-            :severity="getStatusSeverity(entry.status)"
-            class="flex-shrink-0"
-          />
+          <div class="vh-range-header-main">
+            <!-- Status badge -->
+            <pv-tag
+              :value="getStatusLabel(entry.status)"
+              :severity="getStatusSeverity(entry.status)"
+              class="flex-shrink-0"
+            />
 
-          <!-- Ingreso date -->
-          <div class="vh-range-date">
-            <span class="vh-range-lbl">Ingreso</span>
-            <span class="vh-range-val vh-range-val--entry">{{ fmtDate(entry.entryDate) ?? '—' }}</span>
-            <span class="vh-range-time">{{ fmtTime(entry.entryTime) ?? '' }}</span>
-          </div>
+            <!-- Motivo de ingreso (dato de negocio entryReason; ej. 0KM, Mecánica) -->
+            <div class="vh-range-motivo">
+              <span class="vh-range-motivo-k">Motivo de ingreso</span>
+              <span class="vh-range-motivo-v">{{ getEntryReasonLabel(entry.entryReason) }}</span>
+            </div>
 
-          <!-- Arrow connector -->
-          <div class="vh-range-connector">
-            <div class="vh-range-line" />
-            <i class="pi pi-arrow-right vh-range-arrow-icon" />
-          </div>
+            <!-- Ingreso date -->
+            <div class="vh-range-date">
+              <span class="vh-range-lbl">Ingreso</span>
+              <span class="vh-range-val vh-range-val--entry">{{ fmtDate(entry.entryDate) ?? '—' }}</span>
+              <span class="vh-range-time">{{ fmtTime(entry.entryTime) ?? '' }}</span>
+            </div>
 
-          <!-- Salida date -->
-          <div class="vh-range-date">
-            <span class="vh-range-lbl">Salida</span>
-            <template v-if="exitInfo">
-              <span class="vh-range-val vh-range-val--exit">{{ fmtDate(exitInfo.date) ?? '—' }}</span>
-              <span class="vh-range-time">{{ fmtTime(exitInfo.time) ?? '' }}</span>
-            </template>
-            <span v-else class="vh-range-en-curso">En curso</span>
-          </div>
+            <!-- Arrow connector -->
+            <div class="vh-range-connector">
+              <div class="vh-range-line" />
+              <i class="pi pi-arrow-right vh-range-arrow-icon" />
+            </div>
 
-          <!-- Meta chips -->
-          <div class="vh-meta-chips">
-            <span class="vh-chip">
-              <i class="pi pi-wrench" />{{ getEntryReasonLabel(entry.entryReason) }}
-            </span>
-            <span v-if="entry.mileage != null" class="vh-chip">
-              <i class="pi pi-gauge" />{{ entry.mileage.toLocaleString('es-PE') }} km
-            </span>
-            <span class="vh-chip">
-              <i class="pi pi-user" />{{ registeredBy }}
-            </span>
+            <!-- Salida date -->
+            <div class="vh-range-date">
+              <span class="vh-range-lbl">Salida</span>
+              <template v-if="exitInfo">
+                <span class="vh-range-val vh-range-val--exit">{{ fmtDate(exitInfo.date) ?? '—' }}</span>
+                <span class="vh-range-time">{{ fmtTime(exitInfo.time) ?? '' }}</span>
+              </template>
+              <span v-else class="vh-range-en-curso">En curso</span>
+            </div>
+
+            <!-- Chips + flecha al final de la fila -->
+            <div class="vh-range-trail">
+              <div class="vh-meta-chips">
+                <span
+                  v-if="entry.mileage != null"
+                  v-tooltip.top="MILEAGE_INGRESO_TOOLTIP"
+                  class="vh-chip"
+                >
+                  <i class="pi pi-gauge" /><span class="vh-chip-k">Km ingreso</span>{{ entry.mileage.toLocaleString('es-PE') }} km
+                </span>
+                <span class="vh-chip">
+                  <i class="pi pi-user" /><span class="vh-chip-k">Registró</span>{{ registeredBy }}
+                </span>
+              </div>
+              <pv-button
+                v-if="processedHistory.length > 1"
+                :icon="isStayExpanded(entry.id) ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+                :aria-label="isStayExpanded(entry.id) ? 'Ocultar flujo de la estadía' : 'Ver flujo de la estadía'"
+                v-tooltip.top="isStayExpanded(entry.id) ? 'Ocultar tabla de pasos' : 'Ver tabla de pasos'"
+                text
+                rounded
+                size="small"
+                class="vh-expand-trail-btn flex-shrink-0"
+                @click="toggleStayExpanded(entry.id)"
+              />
+            </div>
           </div>
         </div>
 
-        <!-- ── Timeline of movements ─────────────────────────────────────────── -->
-        <div class="vh-timeline">
-          <div
-            v-for="(ev, idx) in timeline"
-            :key="idx"
-            class="vh-tl-row"
+        <!-- ── Flujo ingreso → salida (tabla) ─────────────────────────────────── -->
+        <div v-show="isStayExpanded(entry.id)" class="vh-flow-table-wrap">
+          <pv-data-table
+            :value="flowRows"
+            data-key="rowIndex"
+            size="small"
+            striped-rows
+            class="vh-flow-table"
+            :pt="{ table: { class: 'vh-flow-table-inner' } }"
           >
-            <!-- Track: dot + connecting line -->
-            <div class="vh-tl-track">
-              <div class="vh-tl-dot" :style="{ background: EVENT_BG[ev.type] }">
-                <i :class="`pi ${EVENT_ICON[ev.type]}`" />
-              </div>
-              <div v-if="idx < timeline.length - 1" class="vh-tl-line" />
-            </div>
-
-            <!-- Content -->
-            <div class="vh-tl-content" :class="{ 'vh-tl-content--pending': ev.type === 'retorno-pendiente' }">
-              <div class="vh-tl-top">
-                <span class="vh-tl-label">{{ ev.label }}</span>
-                <span v-if="ev.date" class="vh-tl-datetime">
-                  {{ fmtDate(ev.date) }}
-                  <span class="vh-tl-time">{{ fmtTime(ev.time) }}</span>
-                </span>
-              </div>
-              <div v-if="ev.detail || ev.extra" class="vh-tl-sub">
-                <span v-if="ev.detail" class="vh-tl-detail">{{ ev.detail }}</span>
-                <span v-if="ev.extra" class="vh-tl-extra">· {{ ev.extra }}</span>
-              </div>
-            </div>
-          </div>
+            <pv-column
+              field="rowIndex"
+              header="#"
+              style="width: 2.75rem"
+              :header-style="{ textAlign: 'center' }"
+              :body-style="{ textAlign: 'center', verticalAlign: 'middle' }"
+            />
+            <pv-column
+              header="Paso"
+              style="min-width: 11rem"
+              :header-style="{ textAlign: 'center' }"
+              :body-style="{ textAlign: 'center', verticalAlign: 'middle' }"
+            >
+              <template #body="{ data }">
+                <div
+                  class="vh-step-cell"
+                  :class="{ 'vh-step-cell--pending': data.type === 'retorno-pendiente' }"
+                >
+                  <span class="vh-step-badge" :style="{ background: EVENT_BG[data.type] }">
+                    <i :class="`pi ${EVENT_ICON[data.type]}`" />
+                  </span>
+                  <span class="vh-step-label">{{ data.label }}</span>
+                </div>
+              </template>
+            </pv-column>
+            <pv-column
+              header="Fecha"
+              style="min-width: 6.5rem"
+              :header-style="{ textAlign: 'center' }"
+              :body-style="{ textAlign: 'center', verticalAlign: 'middle' }"
+            >
+              <template #body="{ data }">
+                <span class="vh-cell-muted">{{ data.date ? fmtDate(data.date) : '—' }}</span>
+              </template>
+            </pv-column>
+            <pv-column
+              header="Hora"
+              style="min-width: 5.5rem"
+              :header-style="{ textAlign: 'center' }"
+              :body-style="{ textAlign: 'center', verticalAlign: 'middle' }"
+            >
+              <template #body="{ data }">
+                <span class="vh-cell-muted">{{ data.time ? fmtTime(data.time) : '—' }}</span>
+              </template>
+            </pv-column>
+            <pv-column
+              header="Detalle"
+              style="min-width: 10rem"
+              :header-style="{ textAlign: 'center' }"
+              :body-style="{ textAlign: 'center', verticalAlign: 'middle' }"
+            >
+              <template #body="{ data }">
+                <span class="vh-cell-detail">{{ data.detail || '—' }}</span>
+              </template>
+            </pv-column>
+            <pv-column
+              header="Notas"
+              style="min-width: 8rem"
+              :header-style="{ textAlign: 'center' }"
+              :body-style="{ textAlign: 'center', verticalAlign: 'middle' }"
+            >
+              <template #body="{ data }">
+                <span class="vh-cell-notes">{{ data.extra || '—' }}</span>
+              </template>
+            </pv-column>
+          </pv-data-table>
         </div>
 
       </div>
@@ -444,6 +514,23 @@ const processedHistory = computed(() =>
   padding-bottom: 1rem;
 }
 
+.vh-multi-hint {
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-body-secondary);
+  background: var(--surface-50, #f4f4f5);
+  border: 1px solid var(--border-ui);
+  border-radius: 8px;
+}
+
+.vh-multi-hint-ic {
+  font-size: 0.7rem;
+  margin: 0 0.15rem;
+  vertical-align: -0.05em;
+}
+
 /* ── Entry card ──────────────────────────────────────────────────────────── */
 .vh-entry-card {
   background: var(--surface-white);
@@ -454,13 +541,41 @@ const processedHistory = computed(() =>
 
 /* ── Range header ────────────────────────────────────────────────────────── */
 .vh-range-header {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem 1rem;
   padding: 0.75rem 1rem;
   background: var(--surface-0, #f8f9fa);
   border-bottom: 1px solid var(--border-ui);
+}
+
+.vh-range-header-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem 0.85rem;
+  width: 100%;
+}
+
+.vh-range-motivo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  min-width: 7.5rem;
+  max-width: 14rem;
+}
+
+.vh-range-motivo-k {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-body-secondary);
+}
+
+.vh-range-motivo-v {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-body);
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .vh-range-date {
@@ -519,13 +634,26 @@ const processedHistory = computed(() =>
   font-size: 0.65rem;
 }
 
-/* Meta chips pushed to the right */
+/* Bloque final: chips + flecha mostrar/ocultar */
+.vh-range-trail {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.vh-expand-trail-btn {
+  margin-left: 0.15rem;
+}
+
 .vh-meta-chips {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.3rem;
-  margin-left: auto;
 }
 
 .vh-chip {
@@ -537,106 +665,100 @@ const processedHistory = computed(() =>
   background: var(--surface-100, #e9ecef);
   border-radius: 5px;
   padding: 0.18rem 0.45rem;
+  cursor: default;
+}
+
+.vh-chip-k {
+  font-weight: 700;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-body-secondary);
+  margin-right: 0.15rem;
 }
 
 .vh-chip .pi {
   font-size: 0.62rem;
 }
 
-/* ── Timeline ────────────────────────────────────────────────────────────── */
-.vh-timeline {
-  display: flex;
-  flex-direction: column;
-  padding: 0.6rem 1rem 0.4rem;
+/* ── Tabla de flujo por estadía ─────────────────────────────────────────── */
+.vh-flow-table-wrap {
+  padding: 0.35rem 0.5rem 0.6rem;
+  overflow-x: auto;
 }
 
-.vh-tl-row {
-  display: flex;
-  gap: 0.75rem;
+.vh-flow-table :deep(.p-datatable-wrapper) {
+  border-radius: 0 0 8px 8px;
 }
 
-/* Track column */
-.vh-tl-track {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex-shrink: 0;
-  width: 26px;
+.vh-flow-table :deep(.p-datatable-thead > tr > th) {
+  text-align: center;
+  vertical-align: middle;
 }
 
-.vh-tl-dot {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
+.vh-flow-table :deep(.p-datatable-tbody > tr > td) {
+  vertical-align: middle;
+}
+
+.vh-flow-table-inner {
+  font-size: 0.8rem;
+}
+
+.vh-step-cell {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: center;
+}
+
+.vh-step-cell--pending {
+  opacity: 0.72;
+}
+
+.vh-step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
   flex-shrink: 0;
   color: #fff;
-  font-size: 0.6rem;
+  font-size: 0.62rem;
 }
 
-.vh-tl-line {
-  width: 2px;
-  flex: 1;
-  min-height: 10px;
-  background: var(--border-ui);
-  margin: 3px 0;
-}
-
-/* Content column */
-.vh-tl-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.2rem 0 0.6rem;
-  flex: 1;
-}
-
-.vh-tl-content--pending {
-  opacity: 0.6;
-}
-
-.vh-tl-top {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.vh-tl-label {
-  font-size: 0.82rem;
+.vh-step-label {
   font-weight: 600;
   color: var(--text-body);
+  line-height: 1.25;
 }
 
-.vh-tl-datetime {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-body);
-}
-
-.vh-tl-time {
-  font-size: 0.72rem;
-  font-weight: 400;
+.vh-cell-muted {
+  display: inline-block;
+  width: 100%;
   color: var(--text-body-secondary);
-  margin-left: 0.1rem;
+  font-size: 0.78rem;
+  text-align: center;
 }
 
-.vh-tl-sub {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
+.vh-cell-detail {
+  display: inline-block;
+  width: 100%;
+  font-size: 0.78rem;
+  color: var(--text-body);
+  text-align: center;
+  word-break: break-word;
 }
 
-.vh-tl-detail {
+.vh-cell-notes {
+  display: inline-block;
+  width: 100%;
   font-size: 0.74rem;
   color: var(--text-body-secondary);
-}
-
-.vh-tl-extra {
-  font-size: 0.72rem;
-  color: var(--text-body-secondary);
   font-style: italic;
+  text-align: center;
+  word-break: break-word;
 }
 </style>

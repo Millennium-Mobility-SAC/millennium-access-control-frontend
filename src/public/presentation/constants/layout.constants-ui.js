@@ -18,12 +18,6 @@ const ALL_MENU_ITEMS = [
         title: 'Marcación de personal',
     },
     {
-        label: 'Colaboradores',
-        icon: 'pi pi-fw pi-users',
-        to: '/staff-management',
-        title: 'Colaboradores',
-    },
-    {
         label: 'Vehículos',
         icon: 'pi pi-fw pi-car',
         to: '/vehicle-catalog',
@@ -35,6 +29,12 @@ const ALL_MENU_ITEMS = [
         to: '/employee-management',
         title: 'Empleados',
     },
+    {
+        label: 'Colaboradores',
+        icon: 'pi pi-fw pi-users',
+        to: '/staff-management',
+        title: 'Colaboradores',
+    }
 ];
 
 /**

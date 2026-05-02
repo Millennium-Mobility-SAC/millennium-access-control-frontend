@@ -6,6 +6,12 @@ export const VEHICLE_CATALOG_ROUTES = {
   VEHICLE_HISTORY: '/vehicle-catalog/:vehicleId/history',
 }
 
+/** Nombres de ruta para `router.push` (mismo patrón que `EMPLOYEE_ROUTE_NAMES`). */
+export const VEHICLE_ROUTE_NAMES = {
+  CATALOG: 'vehicle-catalog',
+  ACCESS_HISTORY: 'vehicle-access-history',
+}
+
 const vehicleCatalogRoutes = [
   {
     path: VEHICLE_CATALOG_ROUTES.VEHICLE_CATALOG,

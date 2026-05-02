@@ -2,6 +2,7 @@
 import { ref, computed, onMounted }                               from 'vue'
 import * as XLSX from 'xlsx'
 import { useStaffManagementStore }          from '../../application/staff-management.store.js'
+import { useIamStore }                      from '@/iam/application/iam.store.js'
 import { useAsyncAction }                   from '@/shared/composables/use-async-action.js'
 import { useNotification }                  from '@/shared/composables/use-notification.js'
 import DataManager                          from '@/shared/presentation/components/data-manager.vue'
@@ -9,8 +10,10 @@ import StaffCreateAndEdit                   from '../components/staff-create-and
 import ImportSpreadsheet                    from '@/shared/presentation/components/import-spreadsheet.vue'
 import StaffDetailDrawer                    from '../components/staff-detail-drawer.vue'
 import { TIPOS_DOCUMENTO, DEPARTAMENTOS, STAFF_IMPORT_COLUMNS, ROLES_OPTIONS } from '../constants/staff-management-ui.constants.js'
+import { todayIsoLocal } from '@/shared/domain/employee-attendance-day.js'
 
 const store              = useStaffManagementStore()
+const iamStore           = useIamStore()
 const { isLoading, error, run } = useAsyncAction()
 const { showSuccess, showError } = useNotification()
 
@@ -104,7 +107,7 @@ function exportStaffExcel() {
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores')
-  const date = new Date().toISOString().slice(0, 10)
+  const date = todayIsoLocal()
   XLSX.writeFile(wb, `colaboradores-${date}.xlsx`)
 }
 
@@ -192,7 +195,7 @@ onMounted(async () => {
       :view-action-icon-only="true"
       view-button-label="Ver detalle"
       :show-edit-action="true"
-      :show-delete-action="true"
+      :show-delete-action="iamStore.hasFullActionAccess"
       @new-item-requested-manager="openNewDialog"
       @view-item-requested-manager="openDrawer"
       @edit-item-requested-manager="openEditDialog"

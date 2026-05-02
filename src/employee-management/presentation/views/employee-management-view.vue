@@ -7,6 +7,7 @@ import ImportSpreadsheet from '@/shared/presentation/components/import-spreadshe
 import { useAsyncAction } from '@/shared/composables/use-async-action.js'
 import { useNotification } from '@/shared/composables/use-notification.js'
 import { useEmployeeManagementStore } from '../../application/employee-management.store.js'
+import { useIamStore } from '@/iam/application/iam.store.js'
 import EmployeeCreateAndEdit from '../components/employee-create-and-edit.vue'
 import { EMPLOYEE_ROUTE_NAMES } from '../employee-management.routes.js'
 import {
@@ -16,9 +17,11 @@ import {
   EMPLOYEE_IMPORT_TEMPLATE_SAMPLE_ROWS,
   EMPLOYEE_STATUS_OPTIONS,
 } from '../constants/employee-management-ui.constants.js'
+import { todayIsoLocal } from '@/shared/domain/employee-attendance-day.js'
 
 const router = useRouter()
 const store = useEmployeeManagementStore()
+const iamStore = useIamStore()
 const { isLoading, error, run } = useAsyncAction()
 const { showSuccess, showError, showInfo } = useNotification()
 
@@ -72,7 +75,7 @@ function exportEmployeesExcel() {
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Empleados')
-  const date = new Date().toISOString().slice(0, 10)
+  const date = todayIsoLocal()
   XLSX.writeFile(wb, `empleados-${date}.xlsx`)
 }
 
@@ -152,7 +155,7 @@ onMounted(async () => {
       :view-action-icon-only="true"
       view-button-label="Ver detalles"
       :show-edit-action="true"
-      :show-delete-action="true"
+      :show-delete-action="iamStore.hasFullActionAccess"
       :show-history-action="false"
       @new-item-requested-manager="openNewDialog"
       @edit-item-requested-manager="openEditDialog"

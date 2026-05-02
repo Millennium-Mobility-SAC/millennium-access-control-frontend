@@ -5,20 +5,59 @@ import DataManager from '@/shared/presentation/components/data-manager.vue'
 import { useAsyncAction } from '@/shared/composables/use-async-action.js'
 import { useNotification } from '@/shared/composables/use-notification.js'
 import { useSecurityCheckpointStore } from '../../application/security-checkpoint.store.js'
+import { useIamStore } from '@/iam/application/iam.store.js'
 import PersonnelAttendanceCreateEdit from '../components/personnel-attendance-create-edit.vue'
 import { DOCUMENT_TYPES } from '@/employee-management/presentation/constants/employee-management-ui.constants.js'
+import {
+  formatCalendarDateForUi,
+  formatTimeOfDayForUi,
+} from '@/shared/domain/format-datetime-ui.js'
 import { sortAttendanceRecordsByRecencyDesc } from '../../domain/sort-attendance-records.js'
+import { todayIsoLocal, toIsoDateString } from '@/shared/domain/employee-attendance-day.js'
 
 const store = useSecurityCheckpointStore()
+const iamStore = useIamStore()
 
 /** Vista Marcación de personal: siempre muestra el historial del más reciente al más antiguo. */
 const attendanceHistoryRows = computed(() =>
   sortAttendanceRecordsByRecencyDesc(store.attendanceRecords),
 )
 const { isLoading, error, run } = useAsyncAction()
-const { showError } = useNotification()
+const { showError, showSuccess } = useNotification()
 
-const attendanceDialogVisible = ref(false)
+const personnelDialogVisible = ref(false)
+const personnelDialogMode = ref('create')
+const personnelRecordToEdit = ref(null)
+
+function closePersonnelDialog() {
+  personnelDialogVisible.value = false
+  personnelDialogMode.value = 'create'
+  personnelRecordToEdit.value = null
+}
+
+function openCreatePersonnelDialog() {
+  personnelDialogMode.value = 'create'
+  personnelRecordToEdit.value = null
+  personnelDialogVisible.value = true
+}
+
+function openEditPersonnelDialog(row) {
+  personnelDialogMode.value = 'edit'
+  personnelRecordToEdit.value = row
+  personnelDialogVisible.value = true
+}
+
+async function deleteAttendanceRow(item) {
+  if (!item?.id || item.employeeId == null) return
+  await run(async () => {
+    await store.removeAttendanceRecord(item.employeeId, item.id)
+  }, { errorMessage: 'No se pudo eliminar el registro de marcación.' })
+  if (error.value) {
+    showError(error.value)
+    return
+  }
+  showSuccess('Registro eliminado.')
+}
 
 const filterDateFrom = ref(null)
 const filterDateTo = ref(null)
@@ -32,7 +71,8 @@ const FETCH_DEBOUNCE_MS = 380
 function isoFromDate(d) {
   if (!d) return null
   const dt = d instanceof Date ? d : new Date(d)
-  return dt.toISOString().slice(0, 10)
+  if (Number.isNaN(dt.getTime())) return null
+  return toIsoDateString(dt)
 }
 
 /** Fecha local de hoy (mediodía) para calendarios PrimeVue. */
@@ -90,34 +130,10 @@ function getDocTypeLabel(value) {
   return DOCUMENT_TYPES.find(t => t.value === value)?.label ?? value
 }
 
-function formatDateCell(value) {
-  if (!value) return '—'
-  const s = typeof value === 'string' ? value.slice(0, 10) : String(value)
-  const parts = s.split('-').map(Number)
-  if (parts.length >= 3 && !parts.some(Number.isNaN)) {
-    const [y, m, d] = parts
-    return new Date(y, m - 1, d).toLocaleDateString('es-PE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })
-  }
-  return s
-}
+const formatDateCell = (value) => formatCalendarDateForUi(value)
 
 function formatTimeCell(value) {
-  if (!value) return '—'
-  const parts = String(value).split(':')
-  const h = Number(parts[0])
-  const m = Number(parts[1])
-  const s = parts[2] !== undefined ? Number(parts[2]) : null
-  if (Number.isNaN(h) || Number.isNaN(m)) return String(value)
-  const period = h >= 12 ? 'p. m.' : 'a. m.'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  const base = `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  return s !== null && !Number.isNaN(s)
-    ? `${base}:${String(s).padStart(2, '0')} ${period}`
-    : `${base} ${period}`
+  return formatTimeOfDayForUi(value)
 }
 
 /** Excel en cliente: mismos registros que la tabla (filtros actuales del API). */
@@ -139,7 +155,7 @@ function exportAttendanceExcel() {
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Marcación')
-  const date = new Date().toISOString().slice(0, 10)
+  const date = todayIsoLocal()
   XLSX.writeFile(wb, `marcacion-personal-${date}.xlsx`)
 }
 
@@ -226,12 +242,17 @@ onMounted(async () => {
       search-placeholder="Buscar…"
       :show-new="true"
       new-button-label="Registrar asistencia"
-      :show-delete="false"
-      :show-selection="false"
+      :show-delete="true"
+      :show-selection="true"
       :show-export="false"
-      :show-actions="false"
+      :show-actions="iamStore.hasFullActionAccess"
+      :show-view-action="false"
+      :show-edit-action="iamStore.hasFullActionAccess"
+      :show-delete-action="iamStore.hasFullActionAccess"
       :show-action-buttons="true"
-      @new-item-requested-manager="attendanceDialogVisible = true"
+      @new-item-requested-manager="openCreatePersonnelDialog"
+      @edit-item-requested-manager="openEditPersonnelDialog"
+      @delete-item-requested-manager="deleteAttendanceRow"
     >
       <template #extra-actions>
         <pv-button
@@ -292,8 +313,10 @@ onMounted(async () => {
     </DataManager>
 
     <PersonnelAttendanceCreateEdit
-      :visible="attendanceDialogVisible"
-      @canceled-shared="attendanceDialogVisible = false"
+      :visible="personnelDialogVisible"
+      :mode="personnelDialogMode"
+      :record-to-edit="personnelRecordToEdit"
+      @canceled-shared="closePersonnelDialog"
     />
   </div>
 </template>

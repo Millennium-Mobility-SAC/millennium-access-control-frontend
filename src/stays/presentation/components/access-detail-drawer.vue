@@ -9,6 +9,10 @@ import {
   ACCESS_STATUS_SEVERITY,
   MOTIVOS_SALIDA_TEMPORAL,
 } from '../constants/stays-ui.constants.js'
+import {
+  formatCalendarDateForUi,
+  formatTimeHmAmPmForUi,
+} from '@/shared/domain/format-datetime-ui.js'
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -205,27 +209,9 @@ function confirmRemoveAttachment() {
   cancelRemoveAttachment()
 }
 
-// ── Formatters ────────────────────────────────────────────────────────────────
-function formatDate(value) {
-  if (!value) return '-'
-  const d = value instanceof Date ? value : new Date(value)
-  return isNaN(d) ? '-' : d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-function formatTime(value) {
-  if (!value) return null
-  const parts = value.split(':')
-  const h = Number(parts[0])
-  const m = Number(parts[1])
-  const s = parts[2] !== undefined ? Number(parts[2]) : null
-  if (isNaN(h) || isNaN(m)) return value
-  const period = h >= 12 ? 'PM' : 'AM'
-  const h12    = h % 12 === 0 ? 12 : h % 12
-  const base   = `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  return s !== null && !isNaN(s)
-    ? `${base}:${String(s).padStart(2, '0')} ${period}`
-    : `${base} ${period}`
-}
+// ── Formatters (compartido: `format-datetime-ui.js`) ───────────────────────────
+const formatDate = (value) => formatCalendarDateForUi(value, '-')
+const formatTime = (value) => formatTimeHmAmPmForUi(value, { seconds: 'auto' })
 
 function getEntryReasonLabel(value) {
   return MOTIVOS_INGRESO.find(m => m.value === value)?.label ?? value ?? '-'

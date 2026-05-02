@@ -1,5 +1,6 @@
 import { AccessEntry }   from '../../domain/models/access-entry.entity.js'
 import { TemporalExit }  from '../../domain/models/temporal-exit.entity.js'
+import { toIsoDateString } from '@/shared/domain/employee-attendance-day.js'
 
 const ENTRY_REASON_CANONICAL_VALUES = new Set([
   'MECANICA',
@@ -82,10 +83,12 @@ function entryTimeTo24h(value) {
   return value || null
 }
 
-function toISODate(value) {
+/** Día civil local del calendario PrimeVue / `Date` — nunca `toISOString()` (UTC) para `entry_date`. */
+function toBackendCalendarDate(value) {
   if (!value) return null
   const d = value instanceof Date ? value : new Date(value)
-  return isNaN(d) ? null : d.toISOString().slice(0, 10)
+  if (Number.isNaN(d.getTime())) return null
+  return toIsoDateString(d)
 }
 
 export class AccessEntryAssembler {
@@ -148,11 +151,7 @@ export class AccessEntryAssembler {
    * @returns {Object}
    */
   static toResource(form) {
-    const entryDate = (() => {
-      if (!form.entryDate) return null
-      const d = form.entryDate instanceof Date ? form.entryDate : new Date(form.entryDate)
-      return isNaN(d) ? null : d.toISOString().slice(0, 10)
-    })()
+    const entryDate = toBackendCalendarDate(form.entryDate)
 
     return {
       type:                   form.type                 ?? 'VEHICULO',
@@ -182,7 +181,7 @@ export class AccessEntryAssembler {
    */
   static toExitResource(form) {
     return {
-      exit_date:                toISODate(form.exitDate),
+      exit_date:                toBackendCalendarDate(form.exitDate),
       exit_time:                exitTimeTo24h(form.exitTime),
       customer_document_type:   form.customerDocumentType ?? null,
       customer_document_number: form.customerDni          ?? null,
@@ -200,7 +199,7 @@ export class AccessEntryAssembler {
    */
   static toTemporalExitResource(form) {
     const resource = {
-      exit_date:   toISODate(form.exitDate),
+      exit_date:   toBackendCalendarDate(form.exitDate),
       exit_time:   exitTimeTo24h(form.exitTime),
       exit_reason: form.temporaryExitReason ?? null,
       attachment_ids: Array.isArray(form.attachmentIds) ? form.attachmentIds : [],
@@ -221,7 +220,7 @@ export class AccessEntryAssembler {
    */
   static toReturnResource(form) {
     return {
-      return_date: toISODate(form.returnDate),
+      return_date: toBackendCalendarDate(form.returnDate),
       return_time: exitTimeTo24h(form.returnTime),
       attachment_ids: Array.isArray(form.attachmentIds) ? form.attachmentIds : [],
     }

@@ -7,6 +7,11 @@ import { useAsyncAction } from '@/shared/composables/use-async-action.js'
 import { useNotification } from '@/shared/composables/use-notification.js'
 import { useEmployeeManagementStore } from '../../application/employee-management.store.js'
 import { DOCUMENT_TYPES } from '../constants/employee-management-ui.constants.js'
+import {
+  formatCalendarDateForUi,
+  formatTimeOfDayForUi,
+} from '@/shared/domain/format-datetime-ui.js'
+import { todayIsoLocal, toIsoDateString } from '@/shared/domain/employee-attendance-day.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -46,7 +51,7 @@ function isoFromCalendar(d) {
   if (!d) return null
   const dt = d instanceof Date ? d : new Date(d)
   if (Number.isNaN(dt.getTime())) return null
-  return dt.toISOString().slice(0, 10)
+  return toIsoDateString(dt)
 }
 
 function todayCalendarDate() {
@@ -165,7 +170,7 @@ function exportAttendanceExcel() {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Asistencia')
   const slug = sanitizeFilePart(e.fullName) || 'empleado'
-  const date = new Date().toISOString().slice(0, 10)
+  const date = todayIsoLocal()
   XLSX.writeFile(wb, `asistencia-${slug}-${date}.xlsx`)
 }
 
@@ -173,29 +178,10 @@ function getDocTypeLabel(value) {
   return DOCUMENT_TYPES.find(t => t.value === value)?.label ?? value
 }
 
-function formatAttendanceDate(val) {
-  if (val == null || val === '') return '—'
-  const iso = String(val).trim().slice(0, 10)
-  const d = new Date(`${iso}T12:00:00`)
-  return Number.isNaN(d.getTime()) ? String(val) : d.toLocaleDateString('es-PE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
-}
+const formatAttendanceDate = (val) => formatCalendarDateForUi(val)
 
 function formatAttendanceTime(timeVal) {
-  if (timeVal == null || timeVal === '') return '—'
-  let s = String(timeVal).trim()
-  if (s.length === 5 && s[2] === ':') s = `${s}:00`
-  const d = new Date(`2000-01-01T${s}`)
-  if (Number.isNaN(d.getTime())) return String(timeVal)
-  return new Intl.DateTimeFormat('es-PE', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  }).format(d)
+  return formatTimeOfDayForUi(timeVal)
 }
 
 async function loadDetail() {
@@ -279,7 +265,7 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
       <h2 class="ed-history__title m-0 text-base text-color">
         <span class="font-bold">Historial de ingreso y salida</span>
         <span class="ed-history__title-sub font-normal text-sm text-color-secondary">
-          — Registros de asistencia asociados a este empleado.
+          — Solo lectura. Las correcciones de registros erróneos se hacen en «Marcación personal» (administradores).
         </span>
       </h2>
       <div class="ed-history__table flex-1 min-h-0 surface-card border-round-lg border-1 surface-border p-3">
