@@ -262,6 +262,13 @@ async function toggleFullHistoryMode() {
   await runAttendanceFetch({ warnIncompleteDates: false })
 }
 
+async function clearAllSearchFilters() {
+  filterSearch.value = ''
+  filterDateFrom.value = null
+  filterDateTo.value = null
+  await runAttendanceFetch()
+}
+
 onMounted(async () => {
   fullHistoryMode.value = false
   filterDateFrom.value = null
@@ -365,6 +372,14 @@ onMounted(async () => {
               Pulse <strong>Historial completo</strong> (arriba) para consultar fechas anteriores.
             </p>
           </div>
+          <pv-button
+            type="button"
+            label="Limpiar filtros"
+            text
+            size="small"
+            class="flex-shrink-0"
+            @click="clearAllSearchFilters"
+          />
         </div>
       </template>
       <template #fecha-template="{ data }">

@@ -221,7 +221,7 @@ onMounted(async () => {
         />
       </template>
 
-      <template #filters>
+      <template #filters="{ clearFilters }">
         <div class="app-filters-row app-filters-row--stack-sm sm-filters w-full">
           <pv-icon-field class="sm-filter-search">
             <pv-input-icon class="pi pi-search" />
@@ -249,6 +249,14 @@ onMounted(async () => {
             placeholder="Área"
             show-clear
             class="sm-filter-select sm-filter-select--area w-full"
+          />
+          <pv-button
+            type="button"
+            label="Limpiar filtros"
+            text
+            size="small"
+            class="w-full sm:w-auto"
+            @click="clearFilters"
           />
         </div>
       </template>
@@ -318,7 +326,7 @@ onMounted(async () => {
 @media (min-width: 768px) {
   .sm-filters {
     display: grid;
-    grid-template-columns: minmax(10rem, 1.6fr) minmax(8rem, 1fr) minmax(8rem, 1fr);
+    grid-template-columns: minmax(10rem, 1.75fr) minmax(9rem, 13rem) minmax(9rem, 13rem) auto;
     gap: 0.75rem;
     align-items: center;
   }
@@ -327,7 +335,6 @@ onMounted(async () => {
 .sm-filter-select,
 .sm-filter-select :deep(.p-select) {
   width: 100%;
-  max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
 }

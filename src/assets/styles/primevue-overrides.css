@@ -555,6 +555,104 @@ button.p-password-toggle-button:hover,
   box-shadow: var(--shadow-lg) !important;
 }
 
+/* Scrollbar del panel: clara y discreta — apunta al contenedor real de scroll */
+.p-multiselect-panel,
+.p-multiselect-panel *,
+.p-select-panel,
+.p-select-panel *,
+.p-dropdown-panel,
+.p-dropdown-panel * {
+  scrollbar-color: #d1d5db #f3f4f6;
+  scrollbar-width: thin;
+}
+
+/* PrimeVue 4: el scroll real está en .p-multiselect-list-container */
+.p-multiselect-list-container {
+  scrollbar-color: #d1d5db #f3f4f6 !important;
+  scrollbar-width: thin !important;
+}
+
+.p-multiselect-list-container::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.p-multiselect-list-container::-webkit-scrollbar-track {
+  background: #f3f4f6 !important;
+  border-radius: 3px;
+}
+
+.p-multiselect-list-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 3px;
+}
+
+.p-multiselect-list-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
+.p-multiselect-panel::-webkit-scrollbar,
+.p-multiselect-panel *::-webkit-scrollbar,
+.p-select-panel::-webkit-scrollbar,
+.p-select-panel *::-webkit-scrollbar,
+.p-dropdown-panel::-webkit-scrollbar,
+.p-dropdown-panel *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.p-multiselect-panel::-webkit-scrollbar-track,
+.p-multiselect-panel *::-webkit-scrollbar-track,
+.p-select-panel::-webkit-scrollbar-track,
+.p-select-panel *::-webkit-scrollbar-track,
+.p-dropdown-panel::-webkit-scrollbar-track,
+.p-dropdown-panel *::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 3px;
+}
+
+.p-multiselect-panel::-webkit-scrollbar-thumb,
+.p-multiselect-panel *::-webkit-scrollbar-thumb,
+.p-select-panel::-webkit-scrollbar-thumb,
+.p-select-panel *::-webkit-scrollbar-thumb,
+.p-dropdown-panel::-webkit-scrollbar-thumb,
+.p-dropdown-panel *::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.p-multiselect-panel::-webkit-scrollbar-thumb:hover,
+.p-multiselect-panel *::-webkit-scrollbar-thumb:hover,
+.p-select-panel::-webkit-scrollbar-thumb:hover,
+.p-select-panel *::-webkit-scrollbar-thumb:hover,
+.p-dropdown-panel::-webkit-scrollbar-thumb:hover,
+.p-dropdown-panel *::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Checkbox "seleccionar todos" en el header del MultiSelect — fondo claro */
+.p-multiselect-header .p-checkbox .p-checkbox-box,
+.p-multiselect-header .p-checkbox-box {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border: 2px solid var(--color-primary, #1a6bc2) !important;
+  --p-checkbox-background: #ffffff !important;
+  --p-checkbox-border-color: var(--color-primary, #1a6bc2) !important;
+}
+
+/* Etiqueta "Seleccionar todos" al lado del checkbox */
+.p-multiselect-header .p-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.p-multiselect-header .p-checkbox::after {
+  content: 'Seleccionar todos';
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-gray-700, #374151);
+  white-space: nowrap;
+}
+
 .p-dropdown-items,
 .p-select-items,
 .p-multiselect-items {
@@ -1385,6 +1483,14 @@ button.p-datepicker-dropdown:focus-visible {
   width: 1.25rem;
   height: 1.25rem;
   transition: all var(--transition-fast);
+}
+
+/* Override Aura theme dark defaults — force light checkbox */
+.p-multiselect-option .p-checkbox-box,
+.p-multiselect-option .p-checkbox .p-checkbox-box {
+  background-color: #ffffff !important;
+  border-color: var(--color-primary, #1a6bc2) !important;
+  color: #ffffff !important;
 }
 
 .p-checkbox .p-checkbox-box:not(.p-disabled):hover {

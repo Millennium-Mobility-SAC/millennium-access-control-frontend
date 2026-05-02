@@ -672,23 +672,30 @@ onMounted(() => initFilters())
 .dm-filters-row .p-select,
 .dm-filters-row .p-dropdown {
   min-height: 2.5rem !important;
+  height: 2.5rem !important;
+  display: flex !important;
+  align-items: center !important;
   border-width: 1px !important;
 }
 
 .dm-filters-row .p-select .p-select-label,
 .dm-filters-row .p-dropdown .p-dropdown-label {
-  padding: 0.3125rem 0.625rem !important;
+  padding: 0 0.625rem !important;
   font-size: 0.875rem !important;
-  line-height: 1.35 !important;
+  line-height: 1 !important;
+  display: flex !important;
+  align-items: center !important;
 }
 
 .dm-filters-row .p-inputtext,
 .dm-filters-row input.p-inputtext {
-  padding: 0.3125rem 0.625rem !important;
+  padding: 0 0.625rem !important;
   font-size: 0.875rem !important;
-  line-height: 1.35 !important;
+  line-height: 2.5rem !important;
+  height: 2.5rem !important;
   min-height: 2.5rem !important;
   border-width: 1px !important;
+  box-sizing: border-box !important;
 }
 
 .dm-filters-row .p-iconfield .p-inputtext:not(:first-child),
@@ -696,12 +703,34 @@ onMounted(() => initFilters())
   padding-inline-start: 1.85rem !important;
 }
 
+.dm-filters-row .p-datepicker,
+.dm-filters-row .p-calendar {
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+
 .dm-filters-row .p-datepicker-input,
 .dm-filters-row input.p-datepicker-input {
-  padding: 0.3125rem 0.625rem !important;
+  padding: 0 0.625rem !important;
   font-size: 0.875rem !important;
-  line-height: 1.35 !important;
+  line-height: 2.5rem !important;
+  height: 2.5rem !important;
   min-height: 2.5rem !important;
   border-width: 1px !important;
+  box-sizing: border-box !important;
+  flex: 1 1 0 !important;
+}
+
+.dm-filters-row .p-datepicker .p-datepicker-input-icon-container,
+.dm-filters-row .p-calendar .p-datepicker-input-icon-container {
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  display: flex !important;
+  align-items: center !important;
 }
 </style>

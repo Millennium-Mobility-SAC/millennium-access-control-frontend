@@ -44,18 +44,18 @@ const exitEntity          = ref(null)
 const returnDialogVisible = ref(false)
 const returnEntity        = ref(null)
 
-// Filtros
-const filterStatus = ref(null)
-const filterType   = ref(null)
-const filterMotivo = ref(null)
+// Filtros (multi-selección — arrays vacíos = sin filtro)
+const filterStatus = ref([])
+const filterType   = ref([])
+const filterMotivo = ref([])
 const searchText   = ref('')
 
 const filteredItems = computed(() => {
   const q = searchText.value.trim().toLowerCase()
   return store.items.filter(item => {
-    if (filterStatus.value && item.status !== filterStatus.value) return false
-    if (filterType.value   && item.type   !== filterType.value)   return false
-    if (filterMotivo.value && item.entryReason !== filterMotivo.value) return false
+    if (filterStatus.value.length && !filterStatus.value.includes(item.status))      return false
+    if (filterType.value.length   && !filterType.value.includes(item.type))          return false
+    if (filterMotivo.value.length && !filterMotivo.value.includes(item.entryReason)) return false
     if (q) {
       const searchable = [
         item.licensePlate,
@@ -73,9 +73,9 @@ const filteredItems = computed(() => {
 })
 
 function clearAllFilters() {
-  filterStatus.value = null
-  filterType.value   = null
-  filterMotivo.value = null
+  filterStatus.value = []
+  filterType.value   = []
+  filterMotivo.value = []
   searchText.value   = ''
 }
 
@@ -459,31 +459,42 @@ function handleExport() {
         />
       </template>
 
-      <template #filters>
+      <template #filters="{ clearFilters }">
         <div class="ac-filters">
-          <pv-select
+          <pv-multi-select
             v-model="filterStatus"
             :options="ACCESS_STATUS"
             option-label="label"
             option-value="value"
             placeholder="Estado"
-            show-clear
+            :max-selected-labels="1"
+            selected-items-label="{0} estados"
           />
-          <pv-select
+          <pv-multi-select
             v-model="filterType"
             :options="TIPOS_INGRESO"
             option-label="label"
             option-value="value"
             placeholder="Tipo"
-            show-clear
+            :max-selected-labels="1"
+            selected-items-label="{0} tipos"
           />
-          <pv-select
+          <pv-multi-select
             v-model="filterMotivo"
             :options="MOTIVOS_INGRESO"
             option-label="label"
             option-value="value"
             placeholder="Motivo"
-            show-clear
+            :max-selected-labels="1"
+            selected-items-label="{0} motivos"
+          />
+          <pv-button
+            type="button"
+            label="Limpiar filtros"
+            text
+            size="small"
+            class="flex-shrink-0"
+            @click="clearFilters"
           />
         </div>
       </template>
@@ -607,32 +618,58 @@ function handleExport() {
 
 .ac-filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, 1fr) auto;
   gap: 0.75rem;
-  align-items: stretch;
+  align-items: center;
   width: 100%;
   min-width: 0;
-  flex: 1 1 auto;
   box-sizing: border-box;
 }
 
-.ac-filters :deep(.p-select) {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-@media (max-width: 900px) {
-  .ac-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .ac-filters {
     grid-template-columns: 1fr;
   }
+}
+
+.ac-filters :deep(.p-select),
+.ac-filters :deep(.p-multiselect) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.ac-filters :deep(.p-multiselect-label) {
+  padding: 0 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Checkboxes del MultiSelect: usar color primario del tema */
+.ac-filters :deep(.p-multiselect-option .p-checkbox .p-checkbox-box) {
+  border-color: var(--p-primary-color, #1a6bc2);
+  background: #fff;
+}
+
+.ac-filters :deep(.p-multiselect-option.p-multiselect-option-selected .p-checkbox .p-checkbox-box) {
+  background: var(--p-primary-color, #1a6bc2);
+  border-color: var(--p-primary-color, #1a6bc2);
+  color: #fff;
+}
+
+.ac-filters :deep(.p-checkbox-icon) {
+  color: #fff;
 }
 
 /* ── Drawer detail panel ─────────────────────────────────── */

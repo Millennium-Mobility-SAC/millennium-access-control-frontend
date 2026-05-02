@@ -135,6 +135,11 @@ async function handleImport(rows) {
   } else if (error.value) showError(error.value)
 }
 
+function clearAllFilters() {
+  searchText.value = ''
+  filterStatus.value = null
+}
+
 onMounted(async () => {
   await run(() => store.fetchAll(), { errorMessage: 'No se pudo cargar el listado de empleados.' })
   if (error.value) showError(error.value)
@@ -163,6 +168,7 @@ onMounted(async () => {
       @view-item-requested-manager="goToEmployeeDetail"
       @delete-item-requested-manager="handleDelete"
       @delete-selected-items-requested-manager="handleDeleteSelected"
+      @clear-filters="clearAllFilters"
     >
       <template #extra-actions>
         <pv-button label="Importar" icon="pi pi-upload" severity="info" size="small" outlined @click="importVisible = true" />
@@ -175,7 +181,7 @@ onMounted(async () => {
           @click="exportEmployeesExcel"
         />
       </template>
-      <template #filters>
+      <template #filters="{ clearFilters }">
         <div class="app-filters-row app-filters-row--stack-sm em-filters w-full">
           <pv-icon-field class="em-filter-search">
             <pv-input-icon class="pi pi-search" />
@@ -194,6 +200,14 @@ onMounted(async () => {
             placeholder="Estado"
             show-clear
             class="em-filter-select w-full"
+          />
+          <pv-button
+            type="button"
+            label="Limpiar filtros"
+            text
+            size="small"
+            class="w-full sm:w-auto"
+            @click="clearFilters"
           />
         </div>
       </template>
@@ -243,16 +257,16 @@ onMounted(async () => {
 @media (min-width: 768px) {
   .em-filters {
     display: grid;
-    grid-template-columns: minmax(10rem, 1.75fr) minmax(9rem, 1fr);
+    grid-template-columns: minmax(10rem, 1.75fr) minmax(9rem, 13rem) auto;
     gap: 0.75rem;
     align-items: center;
   }
 }
 
 .em-filter-select,
+
 .em-filter-select :deep(.p-select) {
   width: 100%;
-  max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
 }

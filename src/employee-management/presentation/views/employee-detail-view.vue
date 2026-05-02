@@ -296,7 +296,7 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
                 show-icon
                 icon-display="input"
                 input-id="ed-att-from"
-                class="ed-att-filters__cal w-full md:w-14rem"
+                class="ed-att-filters__cal w-full"
               />
               <pv-calendar
                 v-model="filterDateTo"
@@ -305,9 +305,9 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
                 show-icon
                 icon-display="input"
                 input-id="ed-att-to"
-                class="ed-att-filters__cal w-full md:w-14rem"
+                class="ed-att-filters__cal w-full"
               />
-              <div class="ed-att-filters__actions flex flex-column sm:flex-row gap-2 w-full md:w-auto md:ml-auto">
+              <div class="ed-att-filters__actions flex flex-column sm:flex-row gap-2 w-full md:w-auto">
                 <pv-button
                   type="button"
                   icon="pi pi-download"
@@ -552,13 +552,15 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
 
 @media (min-width: 768px) {
   .ed-att-filters {
-    flex-wrap: nowrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.75rem;
     align-items: center;
+    flex-wrap: unset;
   }
 
   .ed-att-filters__actions {
     flex-shrink: 0;
-    margin-left: auto;
   }
 }
 

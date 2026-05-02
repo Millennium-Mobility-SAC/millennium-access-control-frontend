@@ -28,13 +28,31 @@ const isEditing     = ref(false)
 const editEntity    = ref(null)
 
 // Filtros
-const filterStatus = ref(null)
+const filterStatus = ref([])
+const filterMotivo = ref([])
+const filterDays   = ref(null)
 const searchText   = ref('')
+
+const DAYS_RANGES = [
+  { label: '0 – 3 días',   value: '0-3'  },
+  { label: '4 – 7 días',   value: '4-7'  },
+  { label: '8 – 14 días',  value: '8-14' },
+  { label: '+ 15 días',    value: '15+'  },
+]
 
 const filteredItems = computed(() => {
   const q = searchText.value.trim().toLowerCase()
   return store.vehicles.filter(v => {
-    if (filterStatus.value && v.currentStatus !== filterStatus.value) return false
+    if (filterStatus.value.length && !filterStatus.value.includes(v.currentStatus)) return false
+    if (filterMotivo.value.length && !filterMotivo.value.includes(v.catalogFlowEntryReason)) return false
+    if (filterDays.value) {
+      const d = v.daysInPlant ?? null
+      if (d == null) return false
+      if (filterDays.value === '0-3'  && d > 3)           return false
+      if (filterDays.value === '4-7'  && (d < 4 || d > 7))  return false
+      if (filterDays.value === '8-14' && (d < 8 || d > 14)) return false
+      if (filterDays.value === '15+'  && d < 15)          return false
+    }
     if (q) {
       const searchable = [v.licensePlate, v.brand, v.model, String(v.year ?? '')]
         .filter(Boolean).join(' ').toLowerCase()
@@ -45,7 +63,9 @@ const filteredItems = computed(() => {
 })
 
 function clearAllFilters() {
-  filterStatus.value = null
+  filterStatus.value = []
+  filterMotivo.value = []
+  filterDays.value   = null
   searchText.value   = ''
 }
 
@@ -187,7 +207,7 @@ function formatUbicacionCatalog(row) {
       @import-data-requested-manager="handleImport"
       @clear-filters="clearAllFilters"
     >
-      <template #filters>
+      <template #filters="{ clearFilters }">
         <div class="app-filters-row app-filters-row--stack-sm vc-filters w-full">
           <pv-icon-field class="vc-filter-search">
             <pv-input-icon class="pi pi-search" />
@@ -198,14 +218,42 @@ function formatUbicacionCatalog(row) {
               autocomplete="off"
             />
           </pv-icon-field>
-          <pv-select
+          <pv-multi-select
             v-model="filterStatus"
             :options="ACCESS_STATUS"
             option-label="label"
             option-value="value"
             placeholder="Estado"
+            :max-selected-labels="1"
+            selected-items-label="{0} estados"
+            class="vc-filter-select w-full"
+          />
+          <pv-multi-select
+            v-model="filterMotivo"
+            :options="MOTIVOS_INGRESO"
+            option-label="label"
+            option-value="value"
+            placeholder="Motivo / Ubicación"
+            :max-selected-labels="1"
+            selected-items-label="{0} motivos"
+            class="vc-filter-select w-full"
+          />
+          <pv-select
+            v-model="filterDays"
+            :options="DAYS_RANGES"
+            option-label="label"
+            option-value="value"
+            placeholder="Días en planta"
             show-clear
             class="vc-filter-select w-full"
+          />
+          <pv-button
+            type="button"
+            label="Limpiar filtros"
+            text
+            size="small"
+            class="w-full sm:w-auto"
+            @click="clearFilters"
           />
         </div>
       </template>
@@ -272,22 +320,38 @@ function formatUbicacionCatalog(row) {
   width: 100%;
 }
 
-/* Escritorio: búsqueda flexible + columna Estado que crece con el espacio */
+/* Escritorio: búsqueda flexible + Estado + Motivo + Días + botón */
 @media (min-width: 768px) {
   .vc-filters {
     display: grid;
-    grid-template-columns: minmax(10rem, 1.75fr) minmax(9rem, 1fr);
+    grid-template-columns: minmax(10rem, 1.75fr) minmax(9rem, 11rem) minmax(9rem, 11rem) minmax(9rem, 11rem) auto;
     gap: 0.75rem;
     align-items: center;
   }
 }
 
-.vc-filter-select,
-.vc-filter-select :deep(.p-select) {
+.vc-filter-select :deep(.p-select),
+.vc-filter-select :deep(.p-multiselect) {
   width: 100%;
-  max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.vc-filter-select :deep(.p-multiselect-label) {
+  padding: 0 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .vc-filter-search {
