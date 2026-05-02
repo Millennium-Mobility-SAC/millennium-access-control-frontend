@@ -161,8 +161,7 @@ function formatUbicacionCatalog(row) {
 </script>
 
 <template>
-  <div class="p-3">
-
+  <div class="vc-page app-page-view flex flex-column flex-1 min-h-0 min-w-0">
     <DataManager
       :items="store.vehicles"
       :filtered-items="filteredItems"
@@ -189,24 +188,30 @@ function formatUbicacionCatalog(row) {
       @clear-filters="clearAllFilters"
     >
       <template #filters>
-        <pv-icon-field class="flex-1 min-w-16rem w-full">
-          <pv-input-icon class="pi pi-search" />
-          <pv-input-text
-            v-model="searchText"
-            placeholder="Buscar por placa, marca, modelo o año"
-            class="w-full"
-            autocomplete="off"
+        <div class="app-filters-row app-filters-row--stack-sm vc-filters w-full">
+          <pv-icon-field class="vc-filter-search flex-1 min-w-0 w-full">
+            <pv-input-icon class="pi pi-search" />
+            <pv-input-text
+              v-model="searchText"
+              placeholder="Buscar por placa, marca, modelo o año"
+              class="w-full"
+              autocomplete="off"
+            />
+          </pv-icon-field>
+          <pv-select
+            v-model="filterStatus"
+            :options="ACCESS_STATUS"
+            option-label="label"
+            option-value="value"
+            placeholder="Estado"
+            show-clear
+            class="vc-filter-select w-full"
           />
-        </pv-icon-field>
-        <pv-select
-          v-model="filterStatus"
-          :options="ACCESS_STATUS"
-          option-label="label"
-          option-value="value"
-          placeholder="Estado"
-          show-clear
-          style="width: 12rem"
-        />
+        </div>
+      </template>
+
+      <template #vehicle-plate-template="{ data }">
+        <span class="vc-plate" :title="data.licensePlate || undefined">{{ data.licensePlate || '—' }}</span>
       </template>
 
       <template #vehicle-status="{ value }">
@@ -258,6 +263,38 @@ function formatUbicacionCatalog(row) {
 </template>
 
 <style scoped>
+.vc-page {
+  flex: 1 1 auto;
+}
+
+.vc-filters {
+  align-items: stretch;
+}
+
+@media (min-width: 768px) {
+  .vc-filters {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .vc-filter-select {
+    width: 12rem;
+    max-width: 100%;
+    flex-shrink: 0;
+  }
+}
+
+/* Placa: una línea; scroll horizontal de la tabla si hace falta */
+.vc-plate {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 /* ── Entry date/time cell ────────────────────────────────────────────────── */
 .vc-entry-date {
   display: block;

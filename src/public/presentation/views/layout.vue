@@ -84,6 +84,8 @@ const filteredMenuItems = computed(() => getMenuItemsByRole(iamStore.userRole))
 
 .content-area {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   background-color: whitesmoke;

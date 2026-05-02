@@ -43,11 +43,12 @@ const filteredItems = computed(() => {
   })
 })
 
+/** Anchos mínimos moderados: scroll horizontal suave en móvil/tablet. */
 const columns = [
-  { field: 'fullName', header: 'Empleado', style: 'min-width: 180px' },
-  { field: 'position', header: 'Cargo', style: 'min-width: 140px' },
-  { field: 'documentNumber', header: 'Documento', style: 'min-width: 140px', template: 'document-template' },
-  { field: 'status', header: 'Estado', style: 'min-width: 110px', template: 'status-template' },
+  { field: 'fullName', header: 'Empleado', style: 'min-width: 9rem' },
+  { field: 'position', header: 'Cargo', style: 'min-width: 6.5rem' },
+  { field: 'documentNumber', header: 'Documento', style: 'min-width: 7.5rem', template: 'document-template' },
+  { field: 'status', header: 'Estado', style: 'min-width: 5.5rem', template: 'status-template' },
 ]
 
 function getDocTypeLabel(value) {
@@ -141,7 +142,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="p-3">
+  <div class="em-page app-page-view flex flex-column flex-1 min-h-0 min-w-0">
     <DataManager
       :items="store.employees"
       :filtered-items="filteredItems"
@@ -175,29 +176,32 @@ onMounted(async () => {
         />
       </template>
       <template #filters>
-        <pv-icon-field class="em-filter-search flex-1 min-w-16rem w-full">
-          <pv-input-icon class="pi pi-search" />
-          <pv-input-text
-            v-model="searchText"
-            placeholder="Buscar por nombre, cargo o documento"
-            class="w-full"
-            autocomplete="off"
+        <div class="app-filters-row app-filters-row--stack-sm em-filters w-full">
+          <pv-icon-field class="em-filter-search flex-1 min-w-0 w-full">
+            <pv-input-icon class="pi pi-search" />
+            <pv-input-text
+              v-model="searchText"
+              placeholder="Buscar por nombre, cargo o documento"
+              class="w-full"
+              autocomplete="off"
+            />
+          </pv-icon-field>
+          <pv-select
+            v-model="filterStatus"
+            :options="EMPLOYEE_STATUS_OPTIONS"
+            option-label="label"
+            option-value="value"
+            placeholder="Estado"
+            show-clear
+            class="em-filter-select w-full"
           />
-        </pv-icon-field>
-        <pv-select
-          v-model="filterStatus"
-          :options="EMPLOYEE_STATUS_OPTIONS"
-          option-label="label"
-          option-value="value"
-          placeholder="Estado"
-          show-clear
-          class="em-filter-select"
-          style="width: 10rem"
-        />
+        </div>
       </template>
       <template #document-template="{ data }">
-        <span class="doc-badge">{{ getDocTypeLabel(data.documentType) }}</span>
-        <span class="ml-1">{{ data.documentNumber }}</span>
+        <span class="em-doc-cell">
+          <span class="doc-badge">{{ getDocTypeLabel(data.documentType) }}</span>
+          <span class="em-doc-num">{{ data.documentNumber }}</span>
+        </span>
       </template>
       <template #status-template="{ value }">
         <pv-tag :value="value === 'ACTIVE' ? 'Activo' : 'Inactivo'" :severity="value === 'ACTIVE' ? 'success' : 'secondary'" />
@@ -226,12 +230,57 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.em-page {
+  /* Ocupa alto útil bajo el toolbar en layout flex */
+  flex: 1 1 auto;
+}
+
+.em-filters {
+  align-items: stretch;
+}
+
+@media (min-width: 768px) {
+  .em-filters {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .em-filter-select {
+    width: 10rem;
+    max-width: 100%;
+    flex-shrink: 0;
+  }
+}
+
 .doc-badge {
   display: inline-block;
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
   font-size: 0.7rem;
   background: #f3f4f6;
+  vertical-align: middle;
+}
+
+.em-doc-cell {
+  display: block;
+  max-width: 100%;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.em-doc-num {
+  display: inline;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 768px) {
+  .em-doc-cell {
+    display: inline;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
 }
 </style>
 

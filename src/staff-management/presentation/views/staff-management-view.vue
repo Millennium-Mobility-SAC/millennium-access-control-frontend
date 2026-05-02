@@ -67,12 +67,12 @@ function openDrawer(item) {
 }
 
 const columns = [
-  { field: 'fullName',       header: 'Colaborador', sortable: true, style: 'min-width: 160px; font-weight: 600;', template: 'nombre-template'    },
-  { field: 'documentNumber', header: 'Documento',   sortable: true, style: 'min-width: 130px',                   template: 'documento-template' },
-  { field: 'position',       header: 'Cargo',       sortable: true, style: 'min-width: 140px'                                                   },
-  { field: 'department',     header: 'Área',        sortable: true, style: 'min-width: 130px',                   template: 'area-template'      },
-  { field: 'email',          header: 'Correo',      sortable: true, style: 'min-width: 180px'                                                   },
-  { field: 'active',         header: 'Estado',      sortable: true, style: 'min-width: 100px',                   template: 'estado-template'    },
+  { field: 'fullName',       header: 'Colaborador', sortable: true, style: 'min-width: 9rem; font-weight: 600;', template: 'nombre-template'    },
+  { field: 'documentNumber', header: 'Documento',   sortable: true, style: 'min-width: 7rem',                   template: 'documento-template' },
+  { field: 'position',       header: 'Cargo',       sortable: true, style: 'min-width: 6.5rem'                                                   },
+  { field: 'department',     header: 'Área',        sortable: true, style: 'min-width: 6rem',                   template: 'area-template'      },
+  { field: 'email',          header: 'Correo',      sortable: true, style: 'min-width: 9rem'                                                   },
+  { field: 'active',         header: 'Estado',      sortable: true, style: 'min-width: 5.5rem',                   template: 'estado-template'    },
 ]
 
 function getDepartmentLabel(value) {
@@ -180,8 +180,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="p-3">
-
+  <div class="sm-page app-page-view flex flex-column flex-1 min-h-0 min-w-0">
     <DataManager
       :items="store.employees"
       :filtered-items="filteredItems"
@@ -223,33 +222,35 @@ onMounted(async () => {
       </template>
 
       <template #filters>
-        <pv-icon-field class="flex-1 min-w-16rem w-full">
-          <pv-input-icon class="pi pi-search" />
-          <pv-input-text
-            v-model="searchText"
-            placeholder="Buscar por nombre, documento, correo o cargo"
-            class="w-full"
-            autocomplete="off"
+        <div class="app-filters-row app-filters-row--stack-sm sm-filters w-full">
+          <pv-icon-field class="sm-filter-search flex-1 min-w-0 w-full">
+            <pv-input-icon class="pi pi-search" />
+            <pv-input-text
+              v-model="searchText"
+              placeholder="Buscar por nombre, documento, correo o cargo"
+              class="w-full"
+              autocomplete="off"
+            />
+          </pv-icon-field>
+          <pv-select
+            v-model="filterActive"
+            :options="ESTADO_OPTIONS"
+            option-label="label"
+            option-value="value"
+            placeholder="Estado"
+            show-clear
+            class="sm-filter-select sm-filter-select--estado w-full"
           />
-        </pv-icon-field>
-        <pv-select
-          v-model="filterActive"
-          :options="ESTADO_OPTIONS"
-          option-label="label"
-          option-value="value"
-          placeholder="Estado"
-          show-clear
-          style="width: 9rem"
-        />
-        <pv-select
-          v-model="filterDepartment"
-          :options="DEPARTAMENTOS"
-          option-label="label"
-          option-value="value"
-          placeholder="Área"
-          show-clear
-          style="width: 11rem"
-        />
+          <pv-select
+            v-model="filterDepartment"
+            :options="DEPARTAMENTOS"
+            option-label="label"
+            option-value="value"
+            placeholder="Área"
+            show-clear
+            class="sm-filter-select sm-filter-select--area w-full"
+          />
+        </div>
       </template>
       <template #nombre-template="{ data }">
         <div class="collab-name-cell">
@@ -259,8 +260,10 @@ onMounted(async () => {
       </template>
 
       <template #documento-template="{ data }">
-        <span class="doc-type-badge">{{ getDocumentTypeLabel(data.documentType) }}</span>
-        <span class="ml-1">{{ data.documentNumber || '—' }}</span>
+        <span class="sm-doc-cell">
+          <span class="doc-type-badge">{{ getDocumentTypeLabel(data.documentType) }}</span>
+          <span class="sm-doc-num">{{ data.documentNumber || '—' }}</span>
+        </span>
       </template>
 
       <template #area-template="{ value }">
@@ -303,6 +306,33 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.sm-page {
+  flex: 1 1 auto;
+}
+
+.sm-filters {
+  align-items: stretch;
+}
+
+@media (min-width: 768px) {
+  .sm-filters {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .sm-filter-select--estado {
+    width: 9rem;
+    max-width: 100%;
+    flex-shrink: 0;
+  }
+
+  .sm-filter-select--area {
+    width: 11rem;
+    max-width: 100%;
+    flex-shrink: 0;
+  }
+}
+
 .collab-name-cell {
   display: flex;
   align-items: center;
@@ -337,5 +367,27 @@ onMounted(async () => {
   color: #6b7280;
   font-size: 0.7rem;
   font-weight: 600;
+}
+
+.sm-doc-cell {
+  display: block;
+  max-width: 100%;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.sm-doc-num {
+  display: inline;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 768px) {
+  .sm-doc-cell {
+    display: inline;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
 }
 </style>

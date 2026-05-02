@@ -366,4 +366,30 @@ const toggleUserMenu = (event) => {
     color: var(--text-secondary);
     transform: translateY(2px);
 }
+
+@media (max-width: 767px) {
+    .toolbar {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        gap: 0.5rem;
+    }
+
+    .toolbar__title {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        word-break: break-word;
+    }
+
+    .toolbar__description {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        word-break: break-word;
+    }
+}
 </style>

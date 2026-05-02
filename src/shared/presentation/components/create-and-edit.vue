@@ -120,18 +120,22 @@ const onSaveRequested = () => {
     <slot name="content"></slot>
 
     <template #footer>
-      <div class="flex justify-content-end align-items-center gap-2 w-full">
+      <div
+        class="ce-footer flex flex-column-reverse sm:flex-row justify-content-stretch sm:justify-content-end align-items-stretch sm:align-items-center gap-2 w-full"
+      >
         <pv-button
           type="button"
           label="Cancelar"
           text
           size="small"
+          class="w-full sm:w-auto"
           @click="onCancelRequested"
         />
         <pv-button
           type="button"
           :label="submitLabel"
           size="small"
+          class="w-full sm:w-auto"
           :loading="submitLoading"
           :disabled="submitDisabled"
           @click="onSaveRequested"
@@ -150,6 +154,16 @@ const onSaveRequested = () => {
 
 .ce-dialog .p-dialog-content {
   padding: 1rem 1.5rem;
+  max-height: min(70vh, 32rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 768px) {
+  .ce-dialog .p-dialog-content {
+    max-height: none;
+    overflow-y: visible;
+  }
 }
 
 .ce-dialog .p-dialog-footer {

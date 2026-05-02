@@ -1148,4 +1148,27 @@ const shellLoading = computed(() => props.submitLoading || isLoading.value)
   user-select: none;
   line-height: 1;
 }
+
+@media (max-width: 480px) {
+  .pa-edit-shell {
+    max-width: 100%;
+  }
+
+  .pa-time-quick__row {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+  }
+
+  .pa-faux-input__value {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 767px) {
+  .pa-edit-date-col {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+}
 </style>

@@ -18,10 +18,16 @@ import { todayIsoLocal, toIsoDateString } from '@/shared/domain/employee-attenda
 const store = useSecurityCheckpointStore()
 const iamStore = useIamStore()
 
-/** Vista Marcación de personal: siempre muestra el historial del más reciente al más antiguo. */
+/**
+ * Vista Marcación de personal: por defecto solo el día de hoy; con «Historial completo»
+ * se consultan todas las marcaciones (y filtros por fecha como antes).
+ */
 const attendanceHistoryRows = computed(() =>
   sortAttendanceRecordsByRecencyDesc(store.attendanceRecords),
 )
+
+/** false = solo marcaciones de hoy; true = historial completo con filtros de fecha opcionales. */
+const fullHistoryMode = ref(false)
 const { isLoading, error, run } = useAsyncAction()
 const { showError, showSuccess } = useNotification()
 
@@ -116,14 +122,14 @@ function syncDateHastaWithSoloDesde() {
 /** Evita que el watch dispare petición duplicada durante el montaje inicial. */
 const filtersWatchReady = ref(false)
 
+/** Anchos mínimos moderados: en móvil la tabla hace scroll horizontal si hace falta. */
 const columns = [
-  { field: 'fullName', header: 'Empleado', style: 'min-width: 11rem' },
-  { field: 'position', header: 'Cargo', style: 'min-width: 9rem' },
-  { field: 'documentNumber', header: 'Documento', style: 'min-width: 10rem', template: 'doc-template' },
-  { field: 'attendanceDate', header: 'Fecha', style: 'min-width: 9rem', template: 'fecha-template' },
-
-  { field: 'checkInTime', header: 'Ingreso', style: 'min-width: 8rem', template: 'hora-ingreso-template' },
-  { field: 'checkOutTime', header: 'Salida', style: 'min-width: 8rem', template: 'hora-salida-template' },
+  { field: 'fullName', header: 'Empleado', style: 'min-width: 9rem' },
+  { field: 'position', header: 'Cargo', style: 'min-width: 7.5rem' },
+  { field: 'documentNumber', header: 'Documento', style: 'min-width: 8.5rem', template: 'doc-template' },
+  { field: 'attendanceDate', header: 'Fecha', style: 'min-width: 7.5rem', template: 'fecha-template' },
+  { field: 'checkInTime', header: 'Ingreso', style: 'min-width: 7rem', template: 'hora-ingreso-template' },
+  { field: 'checkOutTime', header: 'Salida', style: 'min-width: 7rem', template: 'hora-salida-template' },
 ]
 
 function getDocTypeLabel(value) {
@@ -134,6 +140,18 @@ const formatDateCell = (value) => formatCalendarDateForUi(value)
 
 function formatTimeCell(value) {
   return formatTimeOfDayForUi(value)
+}
+
+/** Salida aún no registrada (null, vacío o hora no parseable). */
+function isAttendanceCheckOutPending(row) {
+  const v = row?.checkOutTime
+  if (v == null || v === '') return true
+  const formatted = formatTimeOfDayForUi(v, '')
+  return formatted === '' || formatted === '—'
+}
+
+function formatCheckOutForExport(row) {
+  return isAttendanceCheckOutPending(row) ? 'Pendiente' : formatTimeCell(row.checkOutTime)
 }
 
 /** Excel en cliente: mismos registros que la tabla (filtros actuales del API). */
@@ -150,7 +168,7 @@ function exportAttendanceExcel() {
     Documento: r.documentNumber ?? '',
     Fecha: formatDateCell(r.attendanceDate),
     Ingreso: formatTimeCell(r.checkInTime),
-    Salida: formatTimeCell(r.checkOutTime),
+    Salida: formatCheckOutForExport(r),
   }))
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
@@ -162,12 +180,24 @@ function exportAttendanceExcel() {
 /**
  * Rango + texto opcionales: solo texto | todo | rango completo + texto.
  * Si hay una sola fecha, con debounce no se consulta; con warnIncompleteDates (Enter en búsqueda) se muestra aviso.
+ * Sin modo historial: siempre rango [hoy, hoy] + búsqueda opcional.
  */
 async function runAttendanceFetch(options = {}) {
+  clearTimeout(fetchDebounceTimer)
   const { warnIncompleteDates = false } = options
+  const search = filterSearch.value.trim()
+
+  if (!fullHistoryMode.value) {
+    const day = todayIsoLocal()
+    await run(async () => {
+      await store.fetchAttendanceRecords({ dateFrom: day, dateTo: day, search })
+    }, { errorMessage: 'No se pudo cargar el historial de marcación.' })
+    if (error.value) showError(error.value)
+    return
+  }
+
   const from = isoFromDate(filterDateFrom.value)
   const to = isoFromDate(filterDateTo.value)
-  const search = filterSearch.value.trim()
 
   if ((from && !to) || (!from && to)) {
     if (warnIncompleteDates) {
@@ -216,20 +246,34 @@ watch([filterSearch, filterDateFrom, filterDateTo], () => {
   scheduleAttendanceFetch()
 })
 
+/**
+ * Activa o desactiva el listado de todo el historial. Al entrar en historial se limpian
+ * las fechas para empezar en «todas las marcaciones» (mismo criterio que antes al dejar filtros vacíos).
+ */
+async function toggleFullHistoryMode() {
+  clearTimeout(fetchDebounceTimer)
+  if (fullHistoryMode.value) {
+    fullHistoryMode.value = false
+  } else {
+    fullHistoryMode.value = true
+    filterDateFrom.value = null
+    filterDateTo.value = null
+  }
+  await runAttendanceFetch({ warnIncompleteDates: false })
+}
+
 onMounted(async () => {
+  fullHistoryMode.value = false
   filterDateFrom.value = null
   filterDateTo.value = null
   filterSearch.value = ''
-  await run(async () => {
-    await store.fetchAttendanceRecords()
-  }, { errorMessage: 'No se pudo cargar el historial de marcación.' })
-  if (error.value) showError(error.value)
+  await runAttendanceFetch({ warnIncompleteDates: false })
   filtersWatchReady.value = true
 })
 </script>
 
 <template>
-  <div class="p-3">
+  <div class="scp-view">
 
     <DataManager
       :items="attendanceHistoryRows"
@@ -256,6 +300,17 @@ onMounted(async () => {
     >
       <template #extra-actions>
         <pv-button
+          :label="fullHistoryMode ? 'Solo hoy' : 'Historial completo'"
+          :icon="fullHistoryMode ? 'pi pi-calendar' : 'pi pi-history'"
+          :severity="fullHistoryMode ? 'secondary' : 'help'"
+          size="small"
+          outlined
+          :title="fullHistoryMode
+            ? 'Volver a listar únicamente las marcaciones del día de hoy.'
+            : 'Ver todas las marcaciones registradas y filtrar por fechas.'"
+          @click="toggleFullHistoryMode"
+        />
+        <pv-button
           label="Exportar"
           icon="pi pi-download"
           severity="secondary"
@@ -265,37 +320,52 @@ onMounted(async () => {
         />
       </template>
       <template #filters>
-        <pv-icon-field class="scp-filter-field flex-1 min-w-16rem w-full">
-          <pv-input-icon class="pi pi-search" />
-          <pv-input-text
-            id="scp-search"
-            v-model="filterSearch"
-            placeholder="Buscar por documento, nombre o cargo"
-            class="w-full"
-            autocomplete="off"
-            @keyup.enter="flushAttendanceFetch"
-          />
-        </pv-icon-field>
+        <div class="scp-filters-row">
+          <pv-icon-field class="scp-filter-search">
+            <pv-input-icon class="pi pi-search" />
+            <pv-input-text
+              id="scp-search"
+              v-model="filterSearch"
+              placeholder="Buscar por documento, nombre o cargo"
+              class="w-full"
+              autocomplete="off"
+              @keyup.enter="flushAttendanceFetch"
+            />
+          </pv-icon-field>
 
-        <pv-calendar
-          v-model="filterDateFrom"
-          date-format="dd/mm/yy"
-          placeholder="Desde"
-          show-icon
-          icon-display="input"
-          input-id="chk-from"
-          class="scp-filter-field w-full md:w-14rem"
-        />
+          <template v-if="fullHistoryMode">
+            <pv-calendar
+              v-model="filterDateFrom"
+              date-format="dd/mm/yy"
+              placeholder="Desde"
+              show-icon
+              icon-display="input"
+              input-id="chk-from"
+              class="scp-filter-calendar w-full md:w-14rem"
+            />
 
-        <pv-calendar
-          v-model="filterDateTo"
-          date-format="dd/mm/yy"
-          placeholder="Hasta"
-          show-icon
-          icon-display="input"
-          input-id="chk-to"
-          class="scp-filter-field w-full md:w-14rem"
-        />
+            <pv-calendar
+              v-model="filterDateTo"
+              date-format="dd/mm/yy"
+              placeholder="Hasta"
+              show-icon
+              icon-display="input"
+              input-id="chk-to"
+              class="scp-filter-calendar w-full md:w-14rem"
+            />
+          </template>
+          <div
+            v-else
+            class="scp-today-banner"
+            role="status"
+          >
+            <i class="pi pi-info-circle scp-today-banner__icon" aria-hidden="true" />
+            <p class="scp-today-banner__text">
+              Mostrando solo las marcaciones del <strong>hoy</strong>.
+              Pulse <strong>Historial completo</strong> (arriba) para consultar fechas anteriores.
+            </p>
+          </div>
+        </div>
       </template>
       <template #fecha-template="{ data }">
         {{ formatDateCell(data.attendanceDate) }}
@@ -308,7 +378,8 @@ onMounted(async () => {
         {{ formatTimeCell(data.checkInTime) }}
       </template>
       <template #hora-salida-template="{ data }">
-        {{ formatTimeCell(data.checkOutTime) }}
+        <span v-if="isAttendanceCheckOutPending(data)" class="scp-pending">Pendiente</span>
+        <span v-else>{{ formatTimeCell(data.checkOutTime) }}</span>
       </template>
     </DataManager>
 
@@ -322,11 +393,164 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* Contenedor: padding y altura útiles en móvil dentro del layout con scroll */
+.scp-view {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0.5rem;
+}
+
+@media (min-width: 576px) {
+  .scp-view {
+    padding: 0.75rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .scp-view {
+    padding: 1rem;
+  }
+}
+
 .doc-badge {
   display: inline-block;
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
   font-size: 0.7rem;
   background: #f3f4f6;
+}
+
+/**
+ * Fila de filtros: misma altura en cruz (búsqueda, calendarios o banner informativo).
+ * Altura alineada con input estándar PrimeVue (~2.75rem).
+ */
+.scp-filters-row {
+  --scp-filter-control-height: 2.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Móvil / tablet estrecha: apilar filtros a ancho completo */
+@media (max-width: 767px) {
+  .scp-filters-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .scp-filter-search {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .scp-filter-calendar {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .scp-today-banner {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-height: unset;
+    align-items: flex-start;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .scp-today-banner__text {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+}
+
+.scp-filter-search {
+  flex: 1 1 16rem;
+  min-width: min(100%, 16rem);
+  display: flex;
+  align-items: stretch;
+}
+
+.scp-filter-search :deep(.p-iconfield) {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+
+.scp-filter-search :deep(.p-inputtext) {
+  width: 100%;
+  min-height: var(--scp-filter-control-height);
+  box-sizing: border-box;
+}
+
+.scp-filter-calendar {
+  flex: 0 1 14rem;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.scp-filter-calendar :deep(.p-datepicker),
+.scp-filter-calendar :deep(.p-inputwrapper) {
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+.scp-filter-calendar :deep(.p-inputtext) {
+  min-height: var(--scp-filter-control-height);
+  box-sizing: border-box;
+}
+
+.scp-today-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+  min-height: var(--scp-filter-control-height);
+  padding: 0 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #93c5fd;
+  background: #dbeafe;
+  color: #1e3a8a;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+}
+
+.scp-today-banner__icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+  color: #1d4ed8;
+}
+
+.scp-today-banner__text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: #172554;
+}
+
+.scp-today-banner__text strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.scp-pending {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
 }
 </style>

@@ -597,3 +597,57 @@
   font-size: 0.82rem;
   line-height: 1;
 }
+
+/* ========================================
+   APP SHELL — página y filtros responsive
+   Contenedor de ruta bajo el toolbar + filas de filtros en DataManager
+   ======================================== */
+
+.app-page-view {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .app-page-view {
+    padding: 0.75rem 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-page-view {
+    padding: 1rem 1.25rem;
+  }
+}
+
+.app-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.app-filters-row > * {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .app-filters-row--stack-sm {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+
+  .app-filters-row--stack-sm > * {
+    width: 100%;
+    max-width: 100%;
+    flex: 0 0 auto;
+  }
+}

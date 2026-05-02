@@ -196,6 +196,14 @@ function submit() {
 
 .ece-field--flex {
   flex: 1;
+  min-width: min(100%, 12rem);
+}
+
+@media (max-width: 767px) {
+  .ece-field--flex {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
 }
 
 .ece-label {

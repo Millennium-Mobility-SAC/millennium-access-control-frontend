@@ -314,10 +314,10 @@ onMounted(() => initFilters())
     <!-- Search and Filter Section -->
     <div class="flex flex-column mb-2 border-bottom-1 surface-border">
 
-      <!-- Custom filters slot -->
-      <div class="flex gap-2 mb-4 flex-wrap align-items-end">
+      <!-- Fila de filtros: columna en viewport estrecho (app-filters-row--stack-sm) -->
+      <div class="app-filters-row app-filters-row--stack-sm dm-filters-row mb-4 w-full">
         <!-- Global Search Input -->
-        <pv-icon-field v-if="showGlobalSearch" class="flex-1 min-w-12rem">
+        <pv-icon-field v-if="showGlobalSearch" class="flex-1 min-w-0 w-full">
           <pv-input-icon class="pi pi-search" />
 
           <pv-input-text
@@ -343,35 +343,32 @@ onMounted(() => initFilters())
 
     </div>
 
-    <!-- Action Buttons Section -->
-    <div v-if="showSecondaryToolbar"
-         class="flex flex-column md:flex-row md:align-items-center gap-2 mb-3">
-
-      <div class="flex gap-2 w-full md:w-auto flex-1 flex-column md:flex-row md:align-items-center">
+    <!-- Action Buttons Section: rejilla 2×2 en viewport muy estrecho -->
+    <div v-if="showSecondaryToolbar" class="dm-secondary-toolbar mb-3">
+      <div class="dm-secondary-toolbar__inner">
         <pv-button
-            v-if="showNew"
-            icon="pi pi-plus"
-            :label="newButtonLabel"
-            severity="success"
-            size="small"
-            class="w-full md:w-auto"
-            @click="newItem"
+          v-if="showNew"
+          icon="pi pi-plus"
+          :label="newButtonLabel"
+          severity="success"
+          size="small"
+          class="dm-stoolbar-btn w-full sm:w-auto"
+          @click="newItem"
         />
 
         <pv-button
-            v-if="showDelete && showSelection"
-            :disabled="!selectedItems || !selectedItems.length"
-            icon="pi pi-trash"
-            :label="deleteButtonLabel"
-            severity="danger"
-            size="small"
-            class="w-full md:w-auto"
-            @click="confirmDeleteSelected"
+          v-if="showDelete && showSelection"
+          :disabled="!selectedItems || !selectedItems.length"
+          icon="pi pi-trash"
+          :label="deleteButtonLabel"
+          severity="danger"
+          size="small"
+          class="dm-stoolbar-btn w-full sm:w-auto"
+          @click="confirmDeleteSelected"
         />
-      </div>
 
-      <div class="flex gap-2 flex-wrap">
         <slot name="extra-actions" />
+
         <pv-button
           v-if="showImport"
           icon="pi pi-upload"
@@ -379,7 +376,7 @@ onMounted(() => initFilters())
           severity="info"
           size="small"
           outlined
-          class="w-full md:w-auto"
+          class="dm-stoolbar-btn w-full sm:w-auto"
           @click="showImportDialog = true"
         />
         <pv-button
@@ -389,7 +386,7 @@ onMounted(() => initFilters())
           severity="secondary"
           size="small"
           outlined
-          class="w-full md:w-auto"
+          class="dm-stoolbar-btn w-full sm:w-auto"
           @click="exportToCsv"
         />
       </div>
@@ -547,3 +544,35 @@ onMounted(() => initFilters())
     </div>
   </div>
 </template>
+
+<style>
+.dm-filters-row {
+  align-items: stretch;
+}
+
+/* ≤575px: rejilla 2 columnas para no apilar 4 botones a ancho completo */
+@media (max-width: 575px) {
+  .dm-secondary-toolbar__inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .dm-secondary-toolbar__inner .dm-stoolbar-btn.p-button,
+  .dm-secondary-toolbar__inner .p-button {
+    width: 100%;
+    justify-content: center;
+    min-height: 2.75rem;
+  }
+}
+
+@media (min-width: 576px) {
+  .dm-secondary-toolbar__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+</style>

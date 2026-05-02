@@ -38,9 +38,9 @@ const initials = computed(() => {
 })
 
 const attendanceColumns = [
-  { field: 'attendanceDate', header: 'Fecha', style: 'min-width: 8rem', template: 'att-date-template' },
-  { field: 'checkInTime', header: 'Ingreso', style: 'min-width: 8rem', template: 'att-in-template' },
-  { field: 'checkOutTime', header: 'Salida', style: 'min-width: 8rem', template: 'att-out-template' },
+  { field: 'attendanceDate', header: 'Fecha', style: 'min-width: 7rem', template: 'att-date-template' },
+  { field: 'checkInTime', header: 'Ingreso', style: 'min-width: 6.5rem', template: 'att-in-template' },
+  { field: 'checkOutTime', header: 'Salida', style: 'min-width: 6.5rem', template: 'att-out-template' },
 ]
 
 const attendanceSearch = ref('')
@@ -212,8 +212,8 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
 </script>
 
 <template>
-  <div class="ed-root p-3 flex flex-column gap-4">
-    <section v-if="isLoading && !employee" class="ed-card surface-card border-round-lg border-1 surface-border w-full p-4 flex align-items-center gap-3 text-600">
+  <div class="ed-root app-page-view flex flex-column gap-3 md:gap-4">
+    <section v-if="isLoading && !employee" class="ed-card surface-card border-round-lg border-1 surface-border w-full p-3 md:p-4 flex flex-column sm:flex-row align-items-start sm:align-items-center gap-3 text-600">
       <pv-progress-spinner style="width: 2rem; height: 2rem" stroke-width="4" aria-hidden="true" />
       <span>Cargando datos del empleado…</span>
     </section>
@@ -261,14 +261,14 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
       No se encontró información del empleado.
     </section>
 
-    <section class="ed-history flex flex-column gap-2 flex-1 min-h-0">
+    <section class="ed-history flex flex-column gap-2 flex-1 min-h-0 min-w-0">
       <h2 class="ed-history__title m-0 text-base text-color">
-        <span class="font-bold">Historial de ingreso y salida</span>
+        <span class="ed-history__title-main font-bold">Historial de ingreso y salida</span>
         <span class="ed-history__title-sub font-normal text-sm text-color-secondary">
-          — Solo lectura. Las correcciones de registros erróneos se hacen en «Marcación personal» (administradores).
+          Solo lectura. Las correcciones de registros erróneos se hacen en «Marcación personal» (administradores).
         </span>
       </h2>
-      <div class="ed-history__table flex-1 min-h-0 surface-card border-round-lg border-1 surface-border p-3">
+      <div class="ed-history__table flex-1 min-h-0 min-w-0 surface-card border-round-lg border-1 surface-border p-2 md:p-3">
         <DataManager
           :items="store.attendance"
           :filtered-items="filteredAttendance"
@@ -288,42 +288,46 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
           @global-filter-change="onAttendanceSearchChange"
         >
           <template #filters="{ clearFilters }">
-            <pv-calendar
-              v-model="filterDateFrom"
-              date-format="dd/mm/yy"
-              placeholder="Desde"
-              show-icon
-              icon-display="input"
-              input-id="ed-att-from"
-              class="ed-att-filters__cal w-full md:w-14rem"
-            />
-            <pv-calendar
-              v-model="filterDateTo"
-              date-format="dd/mm/yy"
-              placeholder="Hasta"
-              show-icon
-              icon-display="input"
-              input-id="ed-att-to"
-              class="ed-att-filters__cal w-full md:w-14rem"
-            />
-            <pv-button
-              type="button"
-              icon="pi pi-download"
-              label="Exportar"
-              severity="secondary"
-              size="small"
-              outlined
-              class="align-self-center md:align-self-end"
-              @click="exportAttendanceExcel"
-            />
-            <pv-button
-              type="button"
-              label="Limpiar filtros"
-              text
-              size="small"
-              class="align-self-center md:align-self-end"
-              @click="resetAttendanceFilters(clearFilters)"
-            />
+            <div class="app-filters-row app-filters-row--stack-sm ed-att-filters w-full">
+              <pv-calendar
+                v-model="filterDateFrom"
+                date-format="dd/mm/yy"
+                placeholder="Desde"
+                show-icon
+                icon-display="input"
+                input-id="ed-att-from"
+                class="ed-att-filters__cal w-full md:w-14rem"
+              />
+              <pv-calendar
+                v-model="filterDateTo"
+                date-format="dd/mm/yy"
+                placeholder="Hasta"
+                show-icon
+                icon-display="input"
+                input-id="ed-att-to"
+                class="ed-att-filters__cal w-full md:w-14rem"
+              />
+              <div class="ed-att-filters__actions flex flex-column sm:flex-row gap-2 w-full md:w-auto md:ml-auto">
+                <pv-button
+                  type="button"
+                  icon="pi pi-download"
+                  label="Exportar"
+                  severity="secondary"
+                  size="small"
+                  outlined
+                  class="w-full sm:w-auto"
+                  @click="exportAttendanceExcel"
+                />
+                <pv-button
+                  type="button"
+                  label="Limpiar filtros"
+                  text
+                  size="small"
+                  class="w-full sm:w-auto"
+                  @click="resetAttendanceFilters(clearFilters)"
+                />
+              </div>
+            </div>
           </template>
           <template #att-date-template="{ data }">
             {{ formatAttendanceDate(data.attendanceDate) }}
@@ -350,13 +354,13 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
   background: var(--surface-0, #fff);
 }
 
-/* Una sola fila: identidad | documento | cargo */
+/* Móvil: bloques apilados. Tablet/desktop: fila identidad | documento | cargo */
 .ed-profile__row {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
-  gap: 1rem 1.25rem;
-  padding: 1.15rem 1.25rem;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 1rem;
+  padding: 1rem;
   background: linear-gradient(
     135deg,
     color-mix(in srgb, var(--primary-color, #1a6bc2) 8%, var(--surface-0, #fff)) 0%,
@@ -366,8 +370,10 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
 
 @media (min-width: 768px) {
   .ed-profile__row {
-    padding: 1.25rem 1.5rem;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
     gap: 1.25rem 1.5rem;
+    padding: 1.25rem 1.5rem;
   }
 }
 
@@ -377,13 +383,18 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
 
 .ed-profile__col--doc,
 .ed-profile__col--cargo {
-  border-left: 1px solid var(--surface-border, #e2e8f0);
-  padding-left: 1rem;
+  border-left: none;
+  border-top: 1px solid var(--surface-border, #e2e8f0);
+  padding-left: 0;
+  padding-top: 1rem;
 }
 
 @media (min-width: 768px) {
   .ed-profile__col--doc,
   .ed-profile__col--cargo {
+    border-top: none;
+    border-left: 1px solid var(--surface-border, #e2e8f0);
+    padding-top: 0;
     padding-left: 1.25rem;
   }
 }
@@ -391,8 +402,15 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
 .ed-identity {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.85rem;
   min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .ed-identity {
+    flex-wrap: nowrap;
+  }
 }
 
 .ed-identity__text {
@@ -489,11 +507,59 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
 .ed-history__title {
   letter-spacing: 0.02em;
   line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ed-history__title-main {
+  line-height: 1.3;
+}
+
+.ed-history__title-sub {
+  line-height: 1.4;
+  max-width: 100%;
+}
+
+@media (min-width: 768px) {
+  .ed-history__title {
+    display: block;
+  }
+
+  .ed-history__title-sub {
+    display: inline;
+  }
+
+  .ed-history__title-sub::before {
+    content: '— ';
+  }
 }
 
 .ed-history__table {
   background: var(--surface-white, #fff);
-  min-height: 12rem;
+  min-height: 10rem;
+}
+
+@media (min-width: 768px) {
+  .ed-history__table {
+    min-height: 12rem;
+  }
+}
+
+.ed-att-filters {
+  align-items: stretch;
+}
+
+@media (min-width: 768px) {
+  .ed-att-filters {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .ed-att-filters__actions {
+    flex-shrink: 0;
+    margin-left: auto;
+  }
 }
 
 .ed-att-filters__cal :deep(.p-calendar),
