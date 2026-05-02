@@ -178,7 +178,7 @@ function formatUbicacionCatalog(row) {
       :show-edit-action="true"
       :show-delete-action="iamStore.hasFullActionAccess"
       :show-history-action="false"
-      :show-import="false"
+      :show-import="iamStore.hasFullActionAccess"
       :import-columns="VEHICLE_IMPORT_COLUMNS"
       @new-item-requested-manager="openNewDialog"
       @view-item-requested-manager="goToVehicleDetail"
