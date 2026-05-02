@@ -708,15 +708,16 @@ button.p-password-toggle-button:hover,
    DATEPICKER (PrimeVue 4 — DatePicker component)
    ======================================== */
 
-/* ① Root wrapper: debe ser transparente, sin borde ni shadow propio.
-   En PrimeVue 3 esta clase era solo el panel popup; en PrimeVue 4
-   es el wrapper raíz que contiene el input + botón. */
+/* ① Root wrapper: flex row — input + botón como hermanos */
 .p-datepicker {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   outline: none !important;
   padding: 0 !important;
+  display: inline-flex !important;
+  align-items: stretch !important;
+  max-width: 100% !important;
 }
 
 /* ② Eliminar cualquier focus ring del wrapper */
@@ -735,7 +736,7 @@ input.p-datepicker-input {
   background-color: var(--color-white) !important;
   border: 2px solid var(--color-gray-200) !important;
   color: var(--color-gray-900) !important;
-  padding: 0.5rem 0.875rem !important;
+  padding: 0.5rem 2.5rem 0.5rem 0.875rem !important; /* padding-right deja espacio al ícono */
   border-radius: var(--radius-md) !important;
   font-size: var(--font-size-base) !important;
   line-height: 1.5 !important;
@@ -743,6 +744,7 @@ input.p-datepicker-input {
   box-shadow: none !important;
   width: 100% !important;
   transition: all var(--transition-fast) !important;
+  flex: 1 1 auto !important;
 }
 
 .p-datepicker-input::placeholder {
@@ -764,17 +766,37 @@ input.p-datepicker-input {
   background-color: var(--color-white) !important;
 }
 
-/* ④ Botón del ícono (dropdown trigger): sin background, sin borde */
+/* ④ Botón separado (icon-display="button") — no aplica cuando icon-display="input" */
 .p-datepicker-dropdown,
 button.p-datepicker-dropdown {
   background: transparent !important;
-  border: none !important;
-  color: var(--color-gray-900) !important;
+  border: 2px solid var(--color-gray-200) !important;
+  border-left: none !important;
+  color: var(--color-gray-400, #9ca3af) !important;
   box-shadow: none !important;
   outline: none !important;
-  padding: 0 0.5rem !important;
+  padding: 0 0.625rem !important;
   min-width: auto !important;
   border-radius: 0 var(--radius-md) var(--radius-md) 0 !important;
+  align-self: stretch !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+}
+
+/* ④b Ícono dentro del input (icon-display="input") — centrado con transform */
+.p-datepicker-input-icon-container {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  margin-block-start: 0 !important; /* anula el calc() del tema que puede no resolver */
+  inset-inline-end: 0.75rem !important;
+  display: flex !important;
+  align-items: center !important;
+  color: var(--color-gray-400, #9ca3af) !important;
+  pointer-events: none;
+  z-index: 1 !important;
 }
 
 .p-datepicker-dropdown:not(:disabled):hover,
