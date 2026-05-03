@@ -34,6 +34,12 @@ const ALL_MENU_ITEMS = [
         icon: 'pi pi-fw pi-users',
         to: '/staff-management',
         title: 'Colaboradores',
+    },
+    {
+        label: 'WhatsApp',
+        icon: 'pi pi-fw pi-whatsapp',
+        to: '/whatsapp-management',
+        title: 'Servicio WhatsApp',
     }
 ];
 

@@ -46,6 +46,7 @@ export const ROLE_ALLOWED_ROUTES = Object.freeze({
         '/vehicle-catalog',
         '/employee-management',
         '/security-checkpoint',
+        '/whatsapp-management',
     ],
     [ROLES.ROLE_SECURITY_GUARD]: [
         '/stays',
@@ -57,6 +58,7 @@ export const ROLE_ALLOWED_ROUTES = Object.freeze({
         '/vehicle-catalog',
         '/employee-management',
         '/security-checkpoint',
+        '/whatsapp-management',
     ],
 });
 

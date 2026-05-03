@@ -5,6 +5,7 @@ import staffManagementRoutes from "../staff-management/presentation/staff-manage
 import vehicleCatalogRoutes  from "../vehicle-catalog/presentation/vehicle-catalog.routes.js";
 import employeeManagementRoutes from "../employee-management/presentation/employee-management.routes.js";
 import securityCheckpointRoutes from "../security-checkpoint/presentation/security-checkpoint.routes.js";
+import whatsAppManagementRoutes from "../whatsapp-management/presentation/whatsapp-management.routes.js";
 import { authenticationGuard } from "../iam/presentation/guards/authentication.guard.js";
 
 import layout from '../public/presentation/views/layout.vue';
@@ -48,6 +49,12 @@ const routes = [
         component: layout,
         children: securityCheckpointRoutes,
         meta: { title: 'Marcación personal' },
+    },
+    {
+        path: '/whatsapp-management',
+        component: layout,
+        children: whatsAppManagementRoutes,
+        meta: { title: 'Servicio WhatsApp' },
     },
 
 ];
