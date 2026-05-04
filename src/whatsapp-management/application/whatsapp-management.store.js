@@ -89,7 +89,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             if (!qrString.value) {
                 await fetchStatus()
             }
-        }, 3000)
+        }, 5000)
     }
 
     function stopQrPolling() {

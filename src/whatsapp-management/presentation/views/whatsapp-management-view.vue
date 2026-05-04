@@ -13,8 +13,8 @@ const showKey   = ref(false)
 const copiedMsg = ref(false)
 const qrCanvas  = ref(null)
 
-// Cronómetro de refresco del QR (whatsapp-web.js emite uno nuevo ~cada 30s)
-const QR_REFRESH_SECONDS = 30
+// Cronómetro de refresco del QR (whatsapp-web.js emite uno nuevo ~cada 45s)
+const QR_REFRESH_SECONDS = 45
 const QR_MAX_AUTO_ROTATIONS = 3
 const qrCountdown = ref(QR_REFRESH_SECONDS)
 const qrAutoRotations = ref(0)
@@ -191,7 +191,12 @@ async function handleLoadGroups() {
     }
     const ok = await store.fetchGroups()
     if (!ok) {
-        showError(store.error || 'No se pudieron obtener los grupos')
+        const msg = store.error || ''
+        if (/sincroniza|425/i.test(msg)) {
+            showError('WhatsApp todavía está sincronizando los chats. Intenta de nuevo en unos segundos.')
+        } else {
+            showError(msg || 'No se pudieron obtener los grupos')
+        }
     } else if (store.groups.length === 0) {
         showError('No se encontraron grupos en la cuenta vinculada')
     } else {
