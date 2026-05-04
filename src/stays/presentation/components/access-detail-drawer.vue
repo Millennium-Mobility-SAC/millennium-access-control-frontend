@@ -27,7 +27,7 @@ const props = defineProps({
   whatsappResending: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:visible', 'edit-requested', 'remove-attachment-requested', 'resend-whatsapp-requested'])
+const emit = defineEmits(['update:visible', 'edit-requested', 'remove-attachment-requested', 'resend-whatsapp-requested', 'refresh-whatsapp-requested'])
 
 const WHATSAPP_STATUS_META = {
   SENT:     { label: 'Enviado',      severity: 'success' },
@@ -50,17 +50,24 @@ const whatsappBadge = computed(() => {
   return WHATSAPP_STATUS_META[attempt.status] ?? { label: attempt.status, severity: 'info' }
 })
 
-const canResendWhatsapp = computed(() => {
+const isWhatsappSent = computed(() => latestWhatsappAttempt.value?.status === 'SENT')
+const isWhatsappPending = computed(() => latestWhatsappAttempt.value?.status === 'PENDING')
+
+const resendButtonMeta = computed(() => {
   const attempt = latestWhatsappAttempt.value
-  if (!attempt) return false
-  if (attempt.status === 'FAILED') return true
-  if (attempt.status === 'PENDING') {
-    const last = attempt.lastAttemptAt || attempt.createdAt
-    if (!last) return true
-    const ageMs = Date.now() - new Date(last).getTime()
-    return ageMs > 30_000
+  if (!attempt) {
+    return { label: 'Enviar por WhatsApp', tone: 'primary' }
   }
-  return false
+  if (attempt.status === 'SENT') {
+    return { label: 'Reenviar', tone: 'ghost' }
+  }
+  if (attempt.status === 'FAILED') {
+    return { label: 'Reintentar envío', tone: 'primary' }
+  }
+  if (attempt.status === 'PENDING') {
+    return { label: 'Forzar reenvío', tone: 'warn' }
+  }
+  return { label: 'Enviar por WhatsApp', tone: 'primary' }
 })
 
 function formatWhatsappTimestamp(value) {
@@ -68,7 +75,9 @@ function formatWhatsappTimestamp(value) {
   try {
     const d = new Date(value)
     if (Number.isNaN(d.getTime())) return value
-    return d.toLocaleString()
+    const datePart = formatCalendarDateForUi(d, '—')
+    const timePart = formatTimeHmAmPmForUi(d, { seconds: 'auto' })
+    return `${datePart} · ${timePart}`
   } catch (_e) {
     return value
   }
@@ -76,6 +85,10 @@ function formatWhatsappTimestamp(value) {
 
 function requestResendWhatsapp() {
   if (props.item?.id != null) emit('resend-whatsapp-requested', props.item.id)
+}
+
+function requestRefreshWhatsapp() {
+  if (props.item?.id != null) emit('refresh-whatsapp-requested', props.item.id)
 }
 
 function close() {
@@ -575,29 +588,46 @@ function getDocumentTypeLabel(value) {
         </template>
 
         <!-- Notificación WhatsApp -->
-        <div class="detail-section">
-          <p class="detail-section-title">Notificación WhatsApp</p>
-          <div v-if="whatsappLoading && !latestWhatsappAttempt" class="detail-row">
-            <span class="detail-value text-color-secondary">
-              <i class="pi pi-spin pi-spinner mr-2" />Consultando estado…
-            </span>
+        <div class="detail-section whatsapp-section">
+          <div class="whatsapp-section__header">
+            <p class="detail-section-title">Notificación WhatsApp</p>
+            <pv-button
+              v-if="latestWhatsappAttempt"
+              type="button"
+              icon="pi pi-refresh"
+              :class="['whatsapp-section__refresh', { 'is-spinning': whatsappLoading }]"
+              text
+              rounded
+              size="small"
+              severity="secondary"
+              aria-label="Actualizar estado"
+              v-tooltip.top="'Actualizar estado'"
+              :disabled="whatsappLoading"
+              @click="requestRefreshWhatsapp"
+            />
+          </div>
+          <div v-if="whatsappLoading && !latestWhatsappAttempt" class="whatsapp-loading">
+            <i class="pi pi-spin pi-spinner" />
+            <span>Consultando estado…</span>
           </div>
           <template v-else>
-            <div v-if="!latestWhatsappAttempt" class="detail-row">
-              <span class="detail-value text-color-secondary">Sin notificaciones registradas.</span>
+            <div v-if="!latestWhatsappAttempt" class="whatsapp-empty">
+              <i class="pi pi-whatsapp" />
+              <span>Sin notificaciones registradas.</span>
             </div>
-            <div v-else class="detail-grid">
+            <template v-else>
               <div class="detail-row">
                 <span class="detail-label">Estado</span>
-                <span class="detail-value">
+                <span class="detail-value whatsapp-status-cell">
                   <pv-tag v-if="whatsappBadge" :value="whatsappBadge.label" :severity="whatsappBadge.severity" />
+                  <span v-if="isWhatsappPending" class="whatsapp-inline-hint">
+                    <i class="pi pi-spin pi-spinner" /> Procesando…
+                  </span>
                 </span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Operación</span>
-                <span class="detail-value">
-                  {{ WHATSAPP_OPERATION_LABEL[latestWhatsappAttempt.operationType] ?? latestWhatsappAttempt.operationType }}
-                </span>
+                <span class="detail-value">{{ WHATSAPP_OPERATION_LABEL[latestWhatsappAttempt.operationType] ?? latestWhatsappAttempt.operationType }}</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Intentos</span>
@@ -609,23 +639,26 @@ function getDocumentTypeLabel(value) {
               </div>
               <div v-if="latestWhatsappAttempt.sentAt" class="detail-row">
                 <span class="detail-label">Enviado</span>
-                <span class="detail-value font-semibold" style="color: var(--color-success)">{{ formatWhatsappTimestamp(latestWhatsappAttempt.sentAt) }}</span>
+                <span class="detail-value whatsapp-sent-value">{{ formatWhatsappTimestamp(latestWhatsappAttempt.sentAt) }}</span>
               </div>
-              <div v-if="latestWhatsappAttempt.errorMessage" class="detail-row" style="grid-column: 1 / -1;">
-                <span class="detail-label">Detalle</span>
-                <span class="detail-value" style="color: var(--color-danger); white-space: pre-wrap;">{{ latestWhatsappAttempt.errorMessage }}</span>
+              <details v-if="latestWhatsappAttempt.errorMessage" class="whatsapp-error-box">
+                <summary>
+                  <i class="pi pi-exclamation-triangle" /> Ver detalle del error
+                </summary>
+                <pre>{{ latestWhatsappAttempt.errorMessage }}</pre>
+              </details>
+              <div class="whatsapp-actions">
+                <pv-button
+                  type="button"
+                  :icon="whatsappResending ? null : 'pi pi-whatsapp'"
+                  :label="resendButtonMeta.label"
+                  size="small"
+                  :class="['whatsapp-resend-btn', `whatsapp-resend-btn--${resendButtonMeta.tone}`]"
+                  :loading="whatsappResending"
+                  @click="requestResendWhatsapp"
+                />
               </div>
-            </div>
-            <div v-if="canResendWhatsapp" class="mt-2">
-              <pv-button
-                icon="pi pi-whatsapp"
-                label="Enviar por WhatsApp"
-                size="small"
-                severity="success"
-                :loading="whatsappResending"
-                @click="requestResendWhatsapp"
-              />
-            </div>
+            </template>
           </template>
         </div>
 
@@ -938,6 +971,121 @@ function getDocumentTypeLabel(value) {
   object-fit: contain;
   background: #f3f4f6;
   border-radius: 12px;
+}
+.whatsapp-section {
+  position: relative;
+}
+.whatsapp-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.whatsapp-section__header .detail-section-title {
+  margin: 0;
+}
+.whatsapp-section__refresh.is-spinning :deep(.pi-refresh) {
+  animation: whatsapp-spin 0.9s linear infinite;
+}
+@keyframes whatsapp-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.whatsapp-loading,
+.whatsapp-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color, #6b7280);
+  padding: 0.4rem 0;
+}
+.whatsapp-empty .pi-whatsapp {
+  color: #25d366;
+}
+.whatsapp-status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.whatsapp-inline-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color, #6b7280);
+}
+.whatsapp-sent-value {
+  color: var(--color-success, #15803d) !important;
+  font-weight: 600;
+}
+.whatsapp-error-box {
+  margin-top: 0.5rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.82rem;
+  color: #991b1b;
+}
+.whatsapp-error-box summary {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+  list-style: none;
+}
+.whatsapp-error-box summary::-webkit-details-marker { display: none; }
+.whatsapp-error-box pre {
+  margin: 0.4rem 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.whatsapp-actions {
+  display: flex;
+  justify-content: stretch;
+  margin-top: 0.85rem;
+}
+.whatsapp-resend-btn {
+  width: 100%;
+}
+.whatsapp-resend-btn :deep(.p-button) {
+  width: 100%;
+  justify-content: center;
+  font-weight: 600;
+  border: 1px solid var(--wa-border, #16a34a) !important;
+  background: var(--wa-bg, #16a34a) !important;
+  color: var(--wa-color, #ffffff) !important;
+  box-shadow: none !important;
+}
+.whatsapp-resend-btn :deep(.p-button:hover) {
+  background: var(--wa-bg-hover, #15803d) !important;
+  border-color: var(--wa-bg-hover, #15803d) !important;
+}
+.whatsapp-resend-btn--primary {
+  --wa-bg: #25d366;
+  --wa-bg-hover: #1ebe5d;
+  --wa-color: #ffffff;
+  --wa-border: #25d366;
+}
+.whatsapp-resend-btn--warn {
+  --wa-bg: #f59e0b;
+  --wa-bg-hover: #d97706;
+  --wa-color: #ffffff;
+  --wa-border: #f59e0b;
+}
+.whatsapp-resend-btn--ghost {
+  --wa-bg: #ffffff;
+  --wa-bg-hover: #e7fbef;
+  --wa-color: #128c4a;
+  --wa-border: #25d366;
 }
 .preview-dialog__footer {
   display: flex;

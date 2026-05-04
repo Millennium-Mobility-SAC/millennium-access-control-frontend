@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { ref, computed, onMounted }                        from 'vue'
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useStaysStore }                        from '../../application/stays.store.js'
 import { useIamStore }                          from '@/iam/application/iam.store.js'
 import { useAsyncAction }                       from '@/shared/composables/use-async-action.js'
@@ -40,6 +40,53 @@ const deletingAttachmentId = ref(null)
 const drawerWhatsappAttempts = ref([])
 const drawerWhatsappLoading = ref(false)
 const drawerWhatsappResending = ref(false)
+let whatsappPollTimer = null
+let whatsappPollDeadline = 0
+const WHATSAPP_POLL_INTERVAL_MS = 4000
+const WHATSAPP_POLL_WINDOW_MS = 60_000
+
+function stopWhatsappPolling() {
+  if (whatsappPollTimer) {
+    clearTimeout(whatsappPollTimer)
+    whatsappPollTimer = null
+  }
+  whatsappPollDeadline = 0
+}
+
+async function refreshWhatsappStatus(stayId, { silent = false } = {}) {
+  if (stayId == null) return
+  if (!silent) drawerWhatsappLoading.value = true
+  try {
+    drawerWhatsappAttempts.value = await store.fetchNotificationStatus(stayId)
+  } catch (_e) {
+    if (!silent) drawerWhatsappAttempts.value = []
+  } finally {
+    if (!silent) drawerWhatsappLoading.value = false
+  }
+}
+
+function isWhatsappFinalState(attempt) {
+  return attempt && (attempt.status === 'SENT' || attempt.status === 'SKIPPED')
+}
+
+function scheduleWhatsappPoll(stayId) {
+  stopWhatsappPolling()
+  whatsappPollDeadline = Date.now() + WHATSAPP_POLL_WINDOW_MS
+  const tick = async () => {
+    if (!drawerVisible.value || drawerItem.value?.id !== stayId) {
+      stopWhatsappPolling()
+      return
+    }
+    await refreshWhatsappStatus(stayId, { silent: true })
+    const latest = drawerWhatsappAttempts.value?.[0] ?? null
+    if (isWhatsappFinalState(latest) || Date.now() >= whatsappPollDeadline) {
+      stopWhatsappPolling()
+      return
+    }
+    whatsappPollTimer = setTimeout(tick, WHATSAPP_POLL_INTERVAL_MS)
+  }
+  whatsappPollTimer = setTimeout(tick, WHATSAPP_POLL_INTERVAL_MS)
+}
 
 const exitDialogVisible   = ref(false)
 const exitEntity          = ref(null)
@@ -87,17 +134,25 @@ async function openDrawer(item) {
   drawerVisible.value = true
   drawerWhatsappAttempts.value = []
   drawerWhatsappLoading.value = true
+  stopWhatsappPolling()
   await run(async () => {
     await store.fetchById(item.id)
     drawerAttachments.value = await store.fetchAttachments(item.id)
   })
   if (store.selected) drawerItem.value = store.selected
-  try {
-    drawerWhatsappAttempts.value = await store.fetchNotificationStatus(item.id)
-  } catch (_e) {
-    drawerWhatsappAttempts.value = []
-  } finally {
-    drawerWhatsappLoading.value = false
+  await refreshWhatsappStatus(item.id)
+  const latest = drawerWhatsappAttempts.value?.[0] ?? null
+  if (latest && !isWhatsappFinalState(latest)) {
+    scheduleWhatsappPoll(item.id)
+  }
+}
+
+async function handleRefreshWhatsapp(stayId) {
+  stopWhatsappPolling()
+  await refreshWhatsappStatus(stayId)
+  const latest = drawerWhatsappAttempts.value?.[0] ?? null
+  if (latest && !isWhatsappFinalState(latest)) {
+    scheduleWhatsappPoll(stayId)
   }
 }
 
@@ -106,14 +161,23 @@ async function handleResendWhatsapp(stayId) {
   drawerWhatsappResending.value = true
   try {
     await store.resendWhatsApp(stayId)
-    drawerWhatsappAttempts.value = await store.fetchNotificationStatus(stayId)
+    await refreshWhatsappStatus(stayId, { silent: true })
     showSuccess('WhatsApp', 'Reenvío programado.')
+    scheduleWhatsappPoll(stayId)
   } catch (e) {
     showError('WhatsApp', e?.response?.data?.message ?? 'No se pudo programar el reenvío.')
   } finally {
     drawerWhatsappResending.value = false
   }
 }
+
+watch(drawerVisible, (visible) => {
+  if (!visible) stopWhatsappPolling()
+})
+
+onBeforeUnmount(() => {
+  stopWhatsappPolling()
+})
 
 const columns = [
   { field: 'status',      header: 'Estado',        sortable: true, style: 'min-width: 100px', template: 'status-template'   },
@@ -585,6 +649,7 @@ function handleExport() {
       @edit-requested="openEditDialog"
       @remove-attachment-requested="handleRemoveAttachment"
       @resend-whatsapp-requested="handleResendWhatsapp"
+      @refresh-whatsapp-requested="handleRefreshWhatsapp"
     />
 
     <!-- Create / Edit dialog -->
