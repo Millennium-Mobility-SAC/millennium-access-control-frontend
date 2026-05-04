@@ -10,7 +10,8 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-const fileInput = ref(null)
+const galleryInput = ref(null)
+const cameraInput = ref(null)
 const previewUrls = ref([])
 
 const files = computed(() => Array.isArray(props.modelValue) ? props.modelValue : [])
@@ -20,14 +21,38 @@ function rebuildPreviewUrls() {
   previewUrls.value = files.value.map(file => URL.createObjectURL(file))
 }
 
-function openFilePicker() {
-  fileInput.value?.click()
+function openGalleryPicker() {
+  galleryInput.value?.click()
+}
+
+function openCameraPicker() {
+  cameraInput.value?.click()
+}
+
+/** Clave estable para deduplicar archivos ya seleccionados en cargas sucesivas. */
+function fileKey(file) {
+  return `${file.name}::${file.size}::${file.lastModified ?? 0}`
 }
 
 function onFileChange(event) {
-  const selected = Array.from(event?.target?.files ?? [])
-  emit('update:modelValue', selected)
-  if (fileInput.value) fileInput.value.value = ''
+  const incoming = Array.from(event?.target?.files ?? [])
+  if (incoming.length === 0) {
+    if (event?.target) event.target.value = ''
+    return
+  }
+  // Acumular con los archivos ya seleccionados, evitando duplicados.
+  const existingKeys = new Set(files.value.map(fileKey))
+  const merged = [...files.value]
+  for (const file of incoming) {
+    const key = fileKey(file)
+    if (!existingKeys.has(key)) {
+      existingKeys.add(key)
+      merged.push(file)
+    }
+  }
+  emit('update:modelValue', merged)
+  // Reset del input para permitir re-seleccionar el mismo archivo si se eliminó.
+  if (event?.target) event.target.value = ''
 }
 
 function removeAt(index) {
@@ -43,7 +68,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="sip">
-    <div class="sip__dropzone" role="button" tabindex="0" @click="openFilePicker" @keydown.enter.prevent="openFilePicker" @keydown.space.prevent="openFilePicker">
+    <div class="sip__dropzone" role="button" tabindex="0" @click="openGalleryPicker" @keydown.enter.prevent="openGalleryPicker" @keydown.space.prevent="openGalleryPicker">
       <div class="sip__icon-wrap">
         <i class="pi pi-camera sip__icon" />
       </div>
@@ -51,17 +76,33 @@ onBeforeUnmount(() => {
         <div class="sip__title">{{ label }}</div>
         <div class="sip__subtitle">{{ hint }}</div>
         <div class="sip__actions">
-          <span class="sip__action sip__action--primary">Tomar foto</span>
-          <span class="sip__action">Elegir de galería</span>
+          <button type="button" class="sip__action sip__action--primary" @click.stop="openCameraPicker">
+            <i class="pi pi-camera" />
+            <span>Tomar foto</span>
+          </button>
+          <button type="button" class="sip__action" @click.stop="openGalleryPicker">
+            <i class="pi pi-images" />
+            <span>Elegir de galería</span>
+          </button>
         </div>
       </div>
     </div>
 
+    <!-- Galería: SIN atributo capture, así el sistema operativo ofrece el selector de archivos/galería. -->
     <input
-      ref="fileInput"
+      ref="galleryInput"
       type="file"
       accept="image/*"
       multiple
+      class="sip__input"
+      @change="onFileChange"
+    >
+
+    <!-- Cámara: con atributo capture para forzar la cámara en dispositivos móviles. -->
+    <input
+      ref="cameraInput"
+      type="file"
+      accept="image/*"
       :capture="capture"
       class="sip__input"
       @change="onFileChange"
@@ -156,19 +197,37 @@ onBeforeUnmount(() => {
 .sip__action {
   display: inline-flex;
   align-items: center;
-  padding: 0.35rem 0.65rem;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
   border-radius: 999px;
   background: #ffffff;
   border: 1px solid #dbeafe;
   font-size: 0.75rem;
   font-weight: 600;
   color: #1d4ed8;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.sip__action:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.sip__action:active {
+  transform: translateY(1px);
 }
 
 .sip__action--primary {
   background: #1d4ed8;
   color: #ffffff;
   border-color: #1d4ed8;
+}
+
+.sip__action--primary:hover {
+  background: #1e40af;
+  border-color: #1e40af;
 }
 
 .sip__input {
