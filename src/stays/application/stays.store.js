@@ -77,6 +77,16 @@ export const useStaysStore = defineStore('stays', () => {
     await api.deleteAttachment(stayId, fileId)
   }
 
+  async function fetchNotificationStatus(stayId) {
+    const response = await api.getNotificationStatus(stayId)
+    return Array.isArray(response?.data) ? response.data : []
+  }
+
+  async function resendWhatsApp(stayId) {
+    const response = await api.resendWhatsApp(stayId)
+    return response?.data ?? null
+  }
+
   /**
    * Crea múltiples entradas de acceso (tipo VEHICULO) en paralelo.
    * No lanza si alguno falla — devuelve { success, failed, total }.
@@ -118,6 +128,8 @@ export const useStaysStore = defineStore('stays', () => {
     fetchByVehicleId,
     fetchAttachments,
     deleteAttachment,
+    fetchNotificationStatus,
+    resendWhatsApp,
     select,
     clear,
   }

@@ -71,4 +71,14 @@ export class StaysApi extends BaseApi {
   deleteAttachment(stayId, fileId) {
     return this.http.delete(`/integrations/storage/stays/${stayId}/files/${fileId}`)
   }
+
+  /** @param {number} stayId  @returns list of WhatsApp delivery attempts */
+  getNotificationStatus(stayId) {
+    return this.http.get(`${this.#endpoint.endpointPath}/${stayId}/notification-status`)
+  }
+
+  /** @param {number} stayId  Triggers a manual resend; returns the new attempt */
+  resendWhatsApp(stayId) {
+    return this.http.post(`${this.#endpoint.endpointPath}/${stayId}/notify-whatsapp`)
+  }
 }

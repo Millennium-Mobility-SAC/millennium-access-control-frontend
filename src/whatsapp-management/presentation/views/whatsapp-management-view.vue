@@ -15,14 +15,39 @@ const qrCanvas  = ref(null)
 
 // Cronómetro de refresco del QR (whatsapp-web.js emite uno nuevo ~cada 30s)
 const QR_REFRESH_SECONDS = 30
+const QR_MAX_AUTO_ROTATIONS = 3
 const qrCountdown = ref(QR_REFRESH_SECONDS)
+const qrAutoRotations = ref(0)
+const qrManualPause = ref(false)
+const qrFlash = ref(false)
+let qrFlashTimer = null
 let qrCountdownTimer = null
+
+function triggerQrFlash() {
+    qrFlash.value = false
+    if (qrFlashTimer) clearTimeout(qrFlashTimer)
+    // forzar reflujo para reiniciar la animación incluso si ya estaba activa
+    requestAnimationFrame(() => {
+        qrFlash.value = true
+        qrFlashTimer = setTimeout(() => { qrFlash.value = false }, 700)
+    })
+}
 
 function startQrCountdown() {
     qrCountdown.value = QR_REFRESH_SECONDS
     if (qrCountdownTimer) clearInterval(qrCountdownTimer)
-    qrCountdownTimer = setInterval(() => {
-        if (qrCountdown.value > 0) qrCountdown.value -= 1
+    if (qrManualPause.value) return
+    qrCountdownTimer = setInterval(async () => {
+        if (qrCountdown.value > 1) {
+            qrCountdown.value -= 1
+            return
+        }
+        // Llegamos a 0: pedimos al backend el QR más reciente. Si llega uno
+        // nuevo, el watcher de qrString incrementará el contador y decidirá
+        // si pausar. Si todavía no rotó en el backend, el watcher no se
+        // disparará y mantendremos el contador en 0 hasta que llegue.
+        qrCountdown.value = 0
+        await store.fetchQr()
     }, 1000)
 }
 
@@ -34,7 +59,21 @@ function stopQrCountdown() {
     qrCountdown.value = QR_REFRESH_SECONDS
 }
 
+function resetQrRotationCounter() {
+    qrAutoRotations.value = 0
+    qrManualPause.value = false
+}
+
+async function handleManualQrRefresh() {
+    resetQrRotationCounter()
+    await store.fetchQr()
+    // Si no llega un QR nuevo, igual reiniciamos el cronómetro
+    startQrCountdown()
+}
+
 const qrCountdownPercent = computed(() => Math.round((qrCountdown.value / QR_REFRESH_SECONDS) * 100))
+// Mostramos el ciclo actual (1 de 3 al inicio, 2 de 3 tras la 1ª rotación, etc.)
+const qrCurrentRotation = computed(() => Math.min(QR_MAX_AUTO_ROTATIONS, qrAutoRotations.value + 1))
 
 // Modelos locales para edición (no mutamos el store directamente)
 const groupIdInput = ref('')
@@ -44,7 +83,7 @@ const selectedGroup = ref(null)
 watch(() => store.groupId, (val) => { groupIdInput.value = val || '' }, { immediate: true })
 watch(() => store.enabled, (val) => { enabledInput.value = !!val }, { immediate: true })
 
-watch(() => store.qrString, async (qr) => {
+watch(() => store.qrString, async (qr, prev) => {
     if (!qr) {
         stopQrCountdown()
         return
@@ -52,8 +91,27 @@ watch(() => store.qrString, async (qr) => {
     await nextTick()
     if (qrCanvas.value) {
         QRCode.toCanvas(qrCanvas.value, qr, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' } })
+        triggerQrFlash()
     }
-    // Cada vez que cambia el QR, reiniciamos el cronómetro a 30s
+    // Detectamos cuándo el QR realmente cambió (rotación real del backend).
+    const isFirstLoad = !prev
+    const isRotation  = !!prev && prev !== qr
+
+    if (isFirstLoad) {
+        // Primera carga o reanudación manual: contador en 0 (mostramos 1 de 3).
+        resetQrRotationCounter()
+    } else if (isRotation) {
+        // El backend rotó el QR. Incrementamos.
+        qrAutoRotations.value += 1
+        if (qrAutoRotations.value >= QR_MAX_AUTO_ROTATIONS) {
+            // Tras la 3ª rotación, pausamos: no permitiremos más automáticas.
+            qrManualPause.value = true
+            stopQrCountdown()
+            return
+        }
+    }
+
+    // Reiniciamos el cronómetro a 30s para la próxima rotación esperada.
     startQrCountdown()
 })
 
@@ -92,6 +150,7 @@ onMounted(async () => {
 onUnmounted(() => {
     store.stopQrPolling()
     stopQrCountdown()
+    if (qrFlashTimer) { clearTimeout(qrFlashTimer); qrFlashTimer = null }
 })
 
 async function handleGenerate() {
@@ -260,137 +319,165 @@ async function handleResetSession() {
                 </div>
             </div>
 
-            <!-- Card: QR Code (solo visible cuando desconectado y hay QR disponible) -->
-            <div v-if="store.connected === false && store.qrString" class="wa-card wa-card--qr">
-                <div class="wa-qr__head">
-                    <div class="wa-qr__head-icon">
-                        <i class="pi pi-qrcode" />
+            <!-- Pair: Configuración (izquierda) + QR (derecha) en pantallas anchas -->
+            <div class="wa-grid__pair">
+                
+                <!-- Card: QR Code (solo visible cuando desconectado y hay QR disponible) -->
+                <div v-if="store.connected === false && store.qrString" class="wa-card wa-card--qr">
+                    <div class="wa-qr__head">
+                        <div class="wa-qr__head-icon">
+                            <i class="pi pi-qrcode" />
+                        </div>
+                        <div>
+                            <p class="wa-qr__title">Escanear código QR</p>
+                            <p class="wa-qr__desc">Abre WhatsApp → <strong>Dispositivos vinculados</strong> → <strong>Vincular dispositivo</strong> y apunta la cámara aquí.</p>
+                        </div>
                     </div>
-                    <div>
-                        <p class="wa-qr__title">Escanear código QR</p>
-                        <p class="wa-qr__desc">Abre WhatsApp → <strong>Dispositivos vinculados</strong> → <strong>Vincular dispositivo</strong> y apunta la cámara aquí.</p>
+                    <div
+                        class="wa-qr__canvas-wrap"
+                        :class="{ 'wa-qr__canvas-wrap--flash': qrFlash, 'wa-qr__canvas-wrap--disabled': qrManualPause }"
+                    >
+                        <canvas ref="qrCanvas" class="wa-qr__canvas" />
+                        <button
+                            v-if="qrManualPause"
+                            type="button"
+                            class="wa-qr__overlay"
+                            :disabled="store.isLoading"
+                            :aria-label="'Solicitar nuevo QR'"
+                            @click="handleManualQrRefresh"
+                        >
+                            <i :class="['wa-qr__overlay-icon', store.isLoading ? 'pi pi-spin pi-spinner' : 'pi pi-refresh']" />
+                            <span class="wa-qr__overlay-text">Solicitar nuevo QR</span>
+                        </button>
                     </div>
-                </div>
-                <div class="wa-qr__canvas-wrap">
-                    <canvas ref="qrCanvas" class="wa-qr__canvas" />
-                </div>
-                <div class="wa-qr__countdown">
-                    <div class="wa-qr__countdown-row">
-                        <i class="pi pi-clock" />
-                        <span class="wa-qr__countdown-text">
-                            Próxima renovación en <strong>{{ qrCountdown }}s</strong>
-                        </span>
+                    <div class="wa-qr__countdown" v-if="!qrManualPause">
+                        <div class="wa-qr__countdown-row">
+                            <i class="pi pi-clock" />
+                            <span class="wa-qr__countdown-text">
+                                Próxima renovación en <strong>{{ qrCountdown }}s</strong>
+                                <span class="wa-qr__countdown-meta">· {{ qrCurrentRotation }} de {{ QR_MAX_AUTO_ROTATIONS }}</span>
+                            </span>
+                        </div>
+                        <div class="wa-qr__countdown-bar" :aria-valuenow="qrCountdown" :aria-valuemax="QR_REFRESH_SECONDS" role="progressbar">
+                            <div class="wa-qr__countdown-fill" :style="{ width: qrCountdownPercent + '%' }" />
+                        </div>
                     </div>
-                    <div class="wa-qr__countdown-bar" :aria-valuenow="qrCountdown" :aria-valuemax="QR_REFRESH_SECONDS" role="progressbar">
-                        <div class="wa-qr__countdown-fill" :style="{ width: qrCountdownPercent + '%' }" />
+                    <div class="wa-qr__manual" v-else>
+                        <p class="wa-qr__manual-hint">
+                            <i class="pi pi-info-circle" />
+                            Se alcanzó el máximo de {{ QR_MAX_AUTO_ROTATIONS }} renovaciones automáticas. Solicita una actualización manual para obtener un nuevo código.
+                        </p>                     
                     </div>
-                </div>
-            </div>
-
-            <!-- Card: QR pendiente (desconectado pero QR aún no disponible) -->
-            <div v-else-if="store.connected === false && !store.qrString" class="wa-card wa-card--qr wa-card--qr-loading">
-                <div class="wa-qr__head">
-                    <div class="wa-qr__head-icon">
-                        <i class="pi pi-qrcode" />
-                    </div>
-                    <div>
-                        <p class="wa-qr__title">Código QR</p>
-                        <p class="wa-qr__desc">Esperando que el servicio genere el QR... Asegúrate de que el servicio WhatsApp esté en ejecución.</p>
-                    </div>
-                </div>
-                <div class="wa-qr__canvas-wrap wa-qr__canvas-wrap--empty">
-                    <i class="pi pi-spin pi-spinner wa-qr__spinner" />
-                    <span class="wa-qr__spinner-text">Obteniendo QR...</span>
-                </div>
-                <div class="wa-qr__stuck">
-                    <p class="wa-qr__stuck-hint">
-                        <i class="pi pi-info-circle" />
-                        Si el QR no aparece después de un minuto, la sesión guardada puede estar corrupta. Reinicia la sesión para forzar un nuevo QR.
-                    </p>
-                    <pv-button
-                        label="Reiniciar sesión"
-                        icon="pi pi-refresh"
-                        severity="warn"
-                        outlined
-                        size="small"
-                        :loading="store.isLoading"
-                        @click="handleResetSession"
-                    />
-                </div>
-            </div>
-
-            <!-- Card: Configuración (Group ID + Enabled) -->
-            <div class="wa-card wa-card--config">
-                <div class="wa-key__head">
-                    <div class="wa-key__head-icon">
-                        <i class="pi pi-cog" />
-                    </div>
-                    <div>
-                        <p class="wa-key__title">Configuración del bot</p>
-                        <p class="wa-key__desc">Grupo destino de las notificaciones y habilitación del envío.</p>
-                    </div>
-                </div>
-                <div class="wa-key__divider" />
-
-                <!-- Toggle enabled -->
-                <div class="wa-config__row">
-                    <div class="wa-config__label">
-                        <span class="wa-config__label-title">Notificaciones habilitadas</span>
-                        <span class="wa-config__label-desc">Si está deshabilitado, el backend no enviará mensajes.</span>
-                    </div>
-                    <pv-input-switch v-model="enabledInput" @change="handleToggleEnabled" :disabled="store.isLoading" />
                 </div>
 
-                <!-- Group ID -->
-                <div class="wa-config__row wa-config__row--column">
-                    <div class="wa-config__label">
-                        <span class="wa-config__label-title">Group ID de WhatsApp</span>
-                        <span class="wa-config__label-desc">
-                            Selecciona uno de tus grupos o pega el id manualmente (formato <code>xxxxx@g.us</code>).
-                        </span>
+                <!-- Card: QR pendiente (desconectado pero QR aún no disponible) -->
+                <div v-else-if="store.connected === false && !store.qrString" class="wa-card wa-card--qr wa-card--qr-loading">
+                    <div class="wa-qr__head">
+                        <div class="wa-qr__head-icon">
+                            <i class="pi pi-qrcode" />
+                        </div>
+                        <div>
+                            <p class="wa-qr__title">Código QR</p>
+                            <p class="wa-qr__desc">Esperando que el servicio genere el QR... Asegúrate de que el servicio WhatsApp esté en ejecución.</p>
+                        </div>
                     </div>
-
-                    <div class="wa-config__group-input">
+                    <div class="wa-qr__canvas-wrap wa-qr__canvas-wrap--empty">
+                        <i class="pi pi-spin pi-spinner wa-qr__spinner" />
+                        <span class="wa-qr__spinner-text">Obteniendo QR...</span>
+                    </div>
+                    <div class="wa-qr__stuck">
+                        <p class="wa-qr__stuck-hint">
+                            <i class="pi pi-info-circle" />
+                            Si el QR no aparece después de un minuto, la sesión guardada puede estar corrupta. Reinicia la sesión para forzar un nuevo QR.
+                        </p>
                         <pv-button
-                            label="Buscar mis grupos"
-                            icon="pi pi-search"
+                            label="Reiniciar sesión"
+                            icon="pi pi-refresh"
+                            severity="warn"
                             outlined
                             size="small"
-                            :loading="store.isLoadingGroups"
-                            :disabled="!store.connected"
-                            @click="handleLoadGroups"
-                        />
-                    </div>
-
-                    <div v-if="store.groups.length > 0" class="wa-config__group-input" style="margin-top: 0.5rem;">
-                        <pv-dropdown
-                            v-model="selectedGroup"
-                            :options="store.groups"
-                            option-label="name"
-                            placeholder="Selecciona un grupo"
-                            class="wa-config__input"
-                            @change="handleGroupSelected"
-                        >
-                            <template #option="slotProps">
-                                <div>
-                                    <div style="font-weight:600;">{{ slotProps.option.name }}</div>
-                                    <small style="color:#6b7280;">{{ slotProps.option.id }} · {{ slotProps.option.participants }} participantes</small>
-                                </div>
-                            </template>
-                        </pv-dropdown>
-                    </div>
-
-                    <div class="wa-config__group-input" style="margin-top: 0.5rem;">
-                        <pv-input-text v-model="groupIdInput" placeholder="123456789@g.us" class="wa-config__input" />
-                        <pv-button
-                            label="Guardar"
-                            icon="pi pi-save"
                             :loading="store.isLoading"
-                            :disabled="!groupIdInput || groupIdInput === store.groupId"
-                            @click="handleSaveGroupId"
+                            @click="handleResetSession"
                         />
                     </div>
                 </div>
+
+                <!-- Card: Configuración (Group ID + Enabled) -->
+                <div class="wa-card wa-card--config">
+                    <div class="wa-key__head">
+                        <div class="wa-key__head-icon">
+                            <i class="pi pi-cog" />
+                        </div>
+                        <div>
+                            <p class="wa-key__title">Configuración del bot</p>
+                            <p class="wa-key__desc">Grupo destino de las notificaciones y habilitación del envío.</p>
+                        </div>
+                    </div>
+                    <div class="wa-key__divider" />
+
+                    <!-- Toggle enabled -->
+                    <div class="wa-config__row">
+                        <div class="wa-config__label">
+                            <span class="wa-config__label-title">Notificaciones habilitadas</span>
+                            <span class="wa-config__label-desc">Si está deshabilitado, el backend no enviará mensajes.</span>
+                        </div>
+                        <pv-input-switch v-model="enabledInput" @change="handleToggleEnabled" :disabled="store.isLoading" />
+                    </div>
+
+                    <!-- Group ID -->
+                    <div class="wa-config__row wa-config__row--column">
+                        <div class="wa-config__label">
+                            <span class="wa-config__label-title">Group ID de WhatsApp</span>
+                            <span class="wa-config__label-desc">
+                                Selecciona uno de tus grupos o pega el id manualmente (formato <code>xxxxx@g.us</code>).
+                            </span>
+                        </div>
+
+                        <div class="wa-config__group-input">
+                            <pv-button
+                                label="Buscar mis grupos"
+                                icon="pi pi-search"
+                                outlined
+                                size="small"
+                                :loading="store.isLoadingGroups"
+                                :disabled="!store.connected"
+                                @click="handleLoadGroups"
+                            />
+                        </div>
+
+                        <div v-if="store.groups.length > 0" class="wa-config__group-input" style="margin-top: 0.5rem;">
+                            <pv-dropdown
+                                v-model="selectedGroup"
+                                :options="store.groups"
+                                option-label="name"
+                                placeholder="Selecciona un grupo"
+                                filter
+                                filter-placeholder="Buscar grupo..."
+                                class="wa-config__input"
+                                @change="handleGroupSelected"
+                            >
+                                <template #option="slotProps">
+                                    <div>
+                                        <div style="font-weight:600;">{{ slotProps.option.name }}</div>
+                                        <small style="color:#6b7280;">{{ slotProps.option.id }} · {{ slotProps.option.participants }} participantes</small>
+                                    </div>
+                                </template>
+                            </pv-dropdown>
+                        </div>
+
+                        <div class="wa-config__group-input" style="margin-top: 0.5rem;">
+                            <pv-input-text v-model="groupIdInput" placeholder="123456789@g.us" class="wa-config__input" />
+                            <pv-button
+                                label="Guardar"
+                                icon="pi pi-save"
+                                :loading="store.isLoading"
+                                :disabled="!groupIdInput || groupIdInput === store.groupId"
+                                @click="handleSaveGroupId"
+                            />
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Card: API Key -->
@@ -468,10 +555,12 @@ async function handleResetSession() {
 <style scoped>
 /* ── Página ─────────────────────────────────────────────────── */
 .wa-page {
-    padding: 1.75rem 2rem;
+    padding: clamp(1rem, 2vw, 1.75rem) clamp(1rem, 2.5vw, 2rem);
     width: 100%;
+    max-width: 100%;
     min-height: 100%;
     color: #111827;
+    box-sizing: border-box;
 }
 
 /* ── Encabezado ─────────────────────────────────────────────── */
@@ -516,6 +605,19 @@ async function handleResetSession() {
 .wa-grid {
     display: grid;
     gap: 1.25rem;
+}
+
+/* Fila de dos cards lado a lado (config + QR). En mobile colapsa a una columna. */
+.wa-grid__pair {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    align-items: start;
+}
+@media (min-width: 960px) {
+    .wa-grid__pair {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
 }
 
 /* ── Cards base ─────────────────────────────────────────────── */
@@ -617,7 +719,47 @@ async function handleResetSession() {
     display: flex;
     justify-content: center;
     margin-bottom: 0.85rem;
+    position: relative;
 }
+.wa-qr__canvas-wrap--flash .wa-qr__canvas {
+    animation: wa-qr-flash 0.7s ease-out;
+}
+.wa-qr__canvas-wrap--disabled .wa-qr__canvas {
+    filter: grayscale(0.85) brightness(0.55);
+    transition: filter 0.25s ease;
+}
+@keyframes wa-qr-flash {
+    0%   { transform: scale(0.92); opacity: 0; filter: blur(6px); }
+    40%  { transform: scale(1.04); opacity: 1; filter: blur(0); box-shadow: 0 0 0 4px rgba(37, 211, 102, 0.35); }
+    100% { transform: scale(1);    opacity: 1; filter: blur(0); box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+}
+.wa-qr__overlay {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 240px;
+    height: 240px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(17, 24, 39, 0.55);
+    backdrop-filter: blur(2px);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.15s ease;
+    padding: 0;
+}
+.wa-qr__overlay:hover:not(:disabled) {
+    background: rgba(17, 24, 39, 0.7);
+    transform: scale(1.02);
+}
+.wa-qr__overlay:disabled { cursor: progress; opacity: 0.85; }
+.wa-qr__overlay-icon { font-size: 2.25rem; }
+.wa-qr__overlay-text { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.02em; }
 .wa-qr__canvas-wrap--empty {
     flex-direction: column;
     align-items: center;
@@ -696,6 +838,31 @@ async function handleResetSession() {
     line-height: 1.5;
 }
 .wa-qr__stuck-hint .pi-info-circle { color: #f59e0b; margin-top: 0.15rem; }
+
+.wa-qr__countdown-meta {
+    margin-left: 0.35rem;
+    color: #9ca3af;
+    font-weight: 500;
+}
+.wa-qr__manual {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+.wa-qr__manual-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin: 0;
+    line-height: 1.5;
+}
+.wa-qr__manual-hint .pi-info-circle { color: #25d366; margin-top: 0.15rem; }
 
 .wa-status__pill {
     display: inline-flex;
@@ -878,6 +1045,96 @@ async function handleResetSession() {
     display: flex;
     gap: 0.5rem;
     align-items: stretch;
+    flex-wrap: wrap;
 }
-.wa-config__input { flex: 1; }
+.wa-config__input { flex: 1 1 220px; min-width: 0; }
+
+/* ── Responsive ───────────────────────────────────── */
+
+/* Tablet (≤ 768px) */
+@media (max-width: 768px) {
+    .wa-page__header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.85rem;
+        margin-bottom: 1.5rem;
+    }
+    .wa-page__header :deep(.p-button) {
+        align-self: stretch;
+    }
+    .wa-card { padding: 1.15rem; }
+    .wa-status {
+        flex-wrap: wrap;
+    }
+    .wa-status__pill {
+        order: 3;
+        margin-left: auto;
+    }
+    .wa-status__actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .wa-status__actions :deep(.p-button) {
+        width: 100%;
+    }
+    .wa-config__row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.6rem;
+    }
+    .wa-key__reveal-input {
+        flex-wrap: wrap;
+    }
+    .wa-key__reveal-field { flex: 1 1 100%; }
+}
+
+/* Móvil (≤ 480px) */
+@media (max-width: 480px) {
+    .wa-page__title    { font-size: 1.15rem; }
+    .wa-page__subtitle { font-size: 0.8rem; }
+    .wa-page__header-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 1.2rem;
+    }
+    .wa-card { padding: 1rem; border-radius: 10px; }
+    .wa-qr__head,
+    .wa-key__head {
+        gap: 0.6rem;
+        margin-bottom: 1rem;
+    }
+    .wa-qr__head-icon,
+    .wa-key__head-icon {
+        width: 2.1rem;
+        height: 2.1rem;
+        font-size: 0.95rem;
+    }
+    .wa-qr__title,
+    .wa-key__title { font-size: 0.95rem; }
+    .wa-qr__desc,
+    .wa-key__desc { font-size: 0.78rem; }
+    /* QR canvas escala manteniendo proporción */
+    .wa-qr__canvas {
+        max-width: 100%;
+        height: auto;
+    }
+    .wa-qr__canvas-wrap--empty { padding: 1.75rem 0; }
+    .wa-status__indicator {
+        width: 2.75rem;
+        height: 2.75rem;
+        font-size: 1.15rem;
+    }
+    .wa-status__text { font-size: 0.95rem; }
+    .wa-status__hint,
+    .wa-status__actions-hint { font-size: 0.78rem; }
+    .wa-config__group-input :deep(.p-button) {
+        width: 100%;
+    }
+    .wa-key__masked-value {
+        word-break: break-all;
+        white-space: normal;
+        display: block;
+    }
+    .wa-key__masked-row { padding-left: 0; margin-top: 0.35rem; }
+}
 </style>

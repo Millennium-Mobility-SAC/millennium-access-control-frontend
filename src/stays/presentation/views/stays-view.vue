@@ -37,6 +37,9 @@ const drawerVisible = ref(false)
 const drawerItem    = ref(null)
 const drawerAttachments = ref([])
 const deletingAttachmentId = ref(null)
+const drawerWhatsappAttempts = ref([])
+const drawerWhatsappLoading = ref(false)
+const drawerWhatsappResending = ref(false)
 
 const exitDialogVisible   = ref(false)
 const exitEntity          = ref(null)
@@ -82,11 +85,34 @@ function clearAllFilters() {
 async function openDrawer(item) {
   drawerItem.value    = item
   drawerVisible.value = true
+  drawerWhatsappAttempts.value = []
+  drawerWhatsappLoading.value = true
   await run(async () => {
     await store.fetchById(item.id)
     drawerAttachments.value = await store.fetchAttachments(item.id)
   })
   if (store.selected) drawerItem.value = store.selected
+  try {
+    drawerWhatsappAttempts.value = await store.fetchNotificationStatus(item.id)
+  } catch (_e) {
+    drawerWhatsappAttempts.value = []
+  } finally {
+    drawerWhatsappLoading.value = false
+  }
+}
+
+async function handleResendWhatsapp(stayId) {
+  if (drawerWhatsappResending.value) return
+  drawerWhatsappResending.value = true
+  try {
+    await store.resendWhatsApp(stayId)
+    drawerWhatsappAttempts.value = await store.fetchNotificationStatus(stayId)
+    showSuccess('WhatsApp', 'Reenvío programado.')
+  } catch (e) {
+    showError('WhatsApp', e?.response?.data?.message ?? 'No se pudo programar el reenvío.')
+  } finally {
+    drawerWhatsappResending.value = false
+  }
 }
 
 const columns = [
@@ -553,8 +579,12 @@ function handleExport() {
       :attachments="drawerAttachments"
       :can-manage-attachments="canManageAttachments"
       :deleting-attachment-id="deletingAttachmentId"
+      :whatsapp-attempts="drawerWhatsappAttempts"
+      :whatsapp-loading="drawerWhatsappLoading"
+      :whatsapp-resending="drawerWhatsappResending"
       @edit-requested="openEditDialog"
       @remove-attachment-requested="handleRemoveAttachment"
+      @resend-whatsapp-requested="handleResendWhatsapp"
     />
 
     <!-- Create / Edit dialog -->

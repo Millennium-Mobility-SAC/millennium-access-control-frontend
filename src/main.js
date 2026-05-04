@@ -63,7 +63,7 @@ import Paginator from 'primevue/paginator'
 import ProgressBar from 'primevue/progressbar'
 import ProgressSpinner from 'primevue/progressspinner'
 import InputMask from 'primevue/inputmask'
-import InputSwitch from 'primevue/inputswitch'
+import ToggleSwitch from 'primevue/toggleswitch'
 import Chips from 'primevue/chips'
 import InputChips from 'primevue/inputchips'
 import Dropdown from 'primevue/dropdown'
@@ -167,7 +167,8 @@ app
     .component('pv-select', Select)
     .component('pv-progress-bar', ProgressBar)
     .component('pv-calendar', DatePicker)
-    .component('pv-input-switch', InputSwitch)
+    .component('pv-input-switch', ToggleSwitch)
+    .component('pv-toggle-switch', ToggleSwitch)
     .component('pv-chips', Chips)
     .component('pv-input-chips', InputChips)
     .component('pv-progress-spinner', ProgressSpinner)

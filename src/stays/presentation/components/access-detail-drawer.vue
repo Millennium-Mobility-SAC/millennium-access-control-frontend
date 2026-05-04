@@ -20,9 +20,61 @@ const props = defineProps({
   attachments: { type: Array, default: () => [] },
   canManageAttachments: { type: Boolean, default: false },
   deletingAttachmentId: { type: [Number, null], default: null },
+  whatsappAttempts: { type: Array, default: () => [] },
+  whatsappLoading: { type: Boolean, default: false },
+  whatsappResending: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:visible', 'edit-requested', 'remove-attachment-requested'])
+const emit = defineEmits(['update:visible', 'edit-requested', 'remove-attachment-requested', 'resend-whatsapp-requested'])
+
+const WHATSAPP_STATUS_META = {
+  SENT:     { label: 'Enviado',      severity: 'success' },
+  PENDING:  { label: 'Pendiente',    severity: 'warn'    },
+  FAILED:   { label: 'No enviado',   severity: 'danger'  },
+  SKIPPED:  { label: 'Deshabilitado', severity: 'secondary' },
+}
+const WHATSAPP_OPERATION_LABEL = {
+  ENTRY:           'Ingreso',
+  TEMPORAL_EXIT:   'Salida temporal',
+  PERMANENT_EXIT:  'Salida permanente',
+  RETURN:          'Retorno',
+}
+
+const latestWhatsappAttempt = computed(() => props.whatsappAttempts?.[0] ?? null)
+
+const whatsappBadge = computed(() => {
+  const attempt = latestWhatsappAttempt.value
+  if (!attempt) return null
+  return WHATSAPP_STATUS_META[attempt.status] ?? { label: attempt.status, severity: 'info' }
+})
+
+const canResendWhatsapp = computed(() => {
+  const attempt = latestWhatsappAttempt.value
+  if (!attempt) return false
+  if (attempt.status === 'FAILED') return true
+  if (attempt.status === 'PENDING') {
+    const last = attempt.lastAttemptAt || attempt.createdAt
+    if (!last) return true
+    const ageMs = Date.now() - new Date(last).getTime()
+    return ageMs > 30_000
+  }
+  return false
+})
+
+function formatWhatsappTimestamp(value) {
+  if (!value) return '—'
+  try {
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) return value
+    return d.toLocaleString()
+  } catch (_e) {
+    return value
+  }
+}
+
+function requestResendWhatsapp() {
+  if (props.item?.id != null) emit('resend-whatsapp-requested', props.item.id)
+}
 
 function close() {
   emit('update:visible', false)
@@ -526,6 +578,61 @@ function getDocumentTypeLabel(value) {
             </div>
           </template>
         </template>
+
+        <!-- Notificación WhatsApp -->
+        <div class="detail-section">
+          <p class="detail-section-title">Notificación WhatsApp</p>
+          <div v-if="whatsappLoading && !latestWhatsappAttempt" class="detail-row">
+            <span class="detail-value text-color-secondary">
+              <i class="pi pi-spin pi-spinner mr-2" />Consultando estado…
+            </span>
+          </div>
+          <template v-else>
+            <div v-if="!latestWhatsappAttempt" class="detail-row">
+              <span class="detail-value text-color-secondary">Sin notificaciones registradas.</span>
+            </div>
+            <div v-else class="detail-grid">
+              <div class="detail-row">
+                <span class="detail-label">Estado</span>
+                <span class="detail-value">
+                  <pv-tag v-if="whatsappBadge" :value="whatsappBadge.label" :severity="whatsappBadge.severity" />
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Operación</span>
+                <span class="detail-value">
+                  {{ WHATSAPP_OPERATION_LABEL[latestWhatsappAttempt.operationType] ?? latestWhatsappAttempt.operationType }}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Intentos</span>
+                <span class="detail-value">{{ latestWhatsappAttempt.attempts }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Último intento</span>
+                <span class="detail-value">{{ formatWhatsappTimestamp(latestWhatsappAttempt.lastAttemptAt || latestWhatsappAttempt.createdAt) }}</span>
+              </div>
+              <div v-if="latestWhatsappAttempt.sentAt" class="detail-row">
+                <span class="detail-label">Enviado</span>
+                <span class="detail-value font-semibold" style="color: var(--color-success)">{{ formatWhatsappTimestamp(latestWhatsappAttempt.sentAt) }}</span>
+              </div>
+              <div v-if="latestWhatsappAttempt.errorMessage" class="detail-row" style="grid-column: 1 / -1;">
+                <span class="detail-label">Detalle</span>
+                <span class="detail-value" style="color: var(--color-danger); white-space: pre-wrap;">{{ latestWhatsappAttempt.errorMessage }}</span>
+              </div>
+            </div>
+            <div v-if="canResendWhatsapp" class="mt-2">
+              <pv-button
+                icon="pi pi-whatsapp"
+                label="Enviar por WhatsApp"
+                size="small"
+                severity="success"
+                :loading="whatsappResending"
+                @click="requestResendWhatsapp"
+              />
+            </div>
+          </template>
+        </div>
 
         <!-- Acciones -->
         <div class="detail-section" style="border-bottom: none; background: #f9fafb;">
