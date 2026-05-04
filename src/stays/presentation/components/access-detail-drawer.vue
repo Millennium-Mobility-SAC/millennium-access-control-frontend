@@ -1,6 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import DetailDrawer from '@/shared/presentation/components/detail-drawer.vue'
+import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
+import { useConfirmDialog } from '@/shared/composables/use-confirm-dialog.js'
 import {
   MOTIVOS_INGRESO,
   MOTIVO_SEVERITY,
@@ -93,8 +95,8 @@ const selectedByOperation = ref({})
 const previewVisible = ref(false)
 const previewImage = ref(null)
 const previewSectionKey = ref('ENTRY')
-const confirmRemoveVisible = ref(false)
-const pendingRemoveAttachment = ref(null)
+
+const { confirmDelete } = useConfirmDialog()
 
 function resolveProviderFileId(attachment) {
   return attachment?.provider_file_id ?? attachment?.providerFileId ?? null
@@ -246,19 +248,12 @@ function closePreview() {
 }
 
 function requestRemoveAttachment(attachment) {
-  pendingRemoveAttachment.value = attachment
-  confirmRemoveVisible.value = true
-}
-
-function cancelRemoveAttachment() {
-  confirmRemoveVisible.value = false
-  pendingRemoveAttachment.value = null
-}
-
-function confirmRemoveAttachment() {
-  if (!pendingRemoveAttachment.value) return
-  removeAttachment(pendingRemoveAttachment.value)
-  cancelRemoveAttachment()
+  if (!attachment) return
+  const fileName =
+    attachment.file_name ?? attachment.fileName ?? 'esta evidencia'
+  confirmDelete('la evidencia', fileName, () => {
+    removeAttachment(attachment)
+  })
 }
 
 // ── Formatters (compartido: `format-datetime-ui.js`) ───────────────────────────
@@ -651,55 +646,62 @@ function getDocumentTypeLabel(value) {
     </template>
   </DetailDrawer>
 
-  <pv-dialog
-    v-model:visible="previewVisible"
-    modal
-    dismissable-mask
-    :style="{ width: 'min(900px, 96vw)' }"
-    :breakpoints="{ '768px': '96vw' }"
-    header="Vista previa"
+  <CreateAndEdit
+    :visible="previewVisible"
+    :header-title-override="'Vista previa de evidencia'"
+    size="large"
+    hide-footer
+    @canceled-shared="closePreview"
   >
-    <div v-if="previewImage" class="preview-dialog">
-      <img
-        :src="getPreviewSrc(previewImage)"
-        :alt="previewImage.file_name ?? previewImage.fileName"
-        class="preview-dialog__image"
-      >
-      <div class="preview-dialog__footer">
-        <div>
-          <div class="attachment-name">{{ previewImage.file_name ?? previewImage.fileName }}</div>
-          <div class="attachment-sub">{{ previewImage.stay_operation_type ?? previewImage.stayOperationType }}</div>
-        </div>
-        <div class="preview-dialog__actions">
-          <button v-if="previewSectionImages.length > 1" type="button" @click="showPreviewPreviousImage">Anterior</button>
-          <button v-if="previewSectionImages.length > 1" type="button" @click="showPreviewNextImage">Siguiente</button>
-          <a :href="getOpenUrl(previewImage)" target="_blank" rel="noopener noreferrer">Abrir</a>
+    <template #content>
+      <div v-if="previewImage" class="preview-dialog">
+        <img
+          :src="getPreviewSrc(previewImage)"
+          :alt="previewImage.file_name ?? previewImage.fileName"
+          class="preview-dialog__image"
+        >
+        <div class="preview-dialog__footer">
+          <div class="preview-dialog__meta">
+            <div class="attachment-name">{{ previewImage.file_name ?? previewImage.fileName }}</div>
+            <div class="attachment-sub">{{ previewImage.stay_operation_type ?? previewImage.stayOperationType }}</div>
+          </div>
+          <div class="preview-dialog__actions">
+            <pv-button
+              v-if="previewSectionImages.length > 1"
+              type="button"
+              icon="pi pi-chevron-left"
+              label="Anterior"
+              severity="secondary"
+              outlined
+              size="small"
+              @click="showPreviewPreviousImage"
+            />
+            <pv-button
+              v-if="previewSectionImages.length > 1"
+              type="button"
+              icon="pi pi-chevron-right"
+              icon-pos="right"
+              label="Siguiente"
+              severity="secondary"
+              outlined
+              size="small"
+              @click="showPreviewNextImage"
+            />
+            <pv-button
+              type="button"
+              icon="pi pi-external-link"
+              label="Abrir"
+              size="small"
+              :as="'a'"
+              :href="getOpenUrl(previewImage)"
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+          </div>
         </div>
       </div>
-    </div>
-    <template #closebutton>
-      <button class="preview-dialog__close" type="button" @click="closePreview">
-        <i class="pi pi-times" />
-      </button>
     </template>
-  </pv-dialog>
-
-  <pv-dialog
-    v-model:visible="confirmRemoveVisible"
-    modal
-    header="Confirmar eliminación"
-    :style="{ width: 'min(420px, 92vw)' }"
-  >
-    <p style="margin: 0; color: #374151;">
-      ¿Deseas eliminar la evidencia
-      <strong>{{ pendingRemoveAttachment?.file_name ?? pendingRemoveAttachment?.fileName ?? '' }}</strong>?
-      Esta acción no se puede deshacer.
-    </p>
-    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
-      <pv-button label="Cancelar" severity="secondary" text @click="cancelRemoveAttachment" />
-      <pv-button label="Eliminar" severity="danger" @click="confirmRemoveAttachment" />
-    </div>
-  </pv-dialog>
+  </CreateAndEdit>
 </template>
 
 <style scoped>
@@ -942,26 +944,16 @@ function getDocumentTypeLabel(value) {
   justify-content: space-between;
   gap: 1rem;
   align-items: center;
+  margin-top: 0.85rem;
+}
+.preview-dialog__meta {
+  min-width: 0;
 }
 .preview-dialog__actions {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.5rem;
   align-items: center;
-}
-.preview-dialog__actions button,
-.preview-dialog__actions a {
-  border: none;
-  background: transparent;
-  color: #1d4ed8;
-  cursor: pointer;
-  font-size: 0.82rem;
-  text-decoration: none;
-  padding: 0;
-}
-.preview-dialog__close {
-  border: none;
-  background: transparent;
-  cursor: pointer;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 640px) {
@@ -971,6 +963,10 @@ function getDocumentTypeLabel(value) {
   .preview-dialog__footer {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .preview-dialog__actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>

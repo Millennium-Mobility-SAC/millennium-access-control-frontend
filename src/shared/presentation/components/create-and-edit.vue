@@ -47,6 +47,12 @@ const props = defineProps({
   submitDisabled: {
     type: Boolean,
     default: false
+  },
+  /** Oculta el footer estándar (Cancelar/Crear). Útil para diálogos de solo visualización
+   *  o cuando se reemplaza por completo el footer con el slot `footer`. */
+  hideFooter: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -119,27 +125,30 @@ const onSaveRequested = () => {
     <!-- Slot para el contenido personalizado -->
     <slot name="content"></slot>
 
-    <template #footer>
+    <template v-if="!hideFooter" #footer>
       <div
         class="ce-footer flex flex-column-reverse sm:flex-row justify-content-stretch sm:justify-content-end align-items-stretch sm:align-items-center gap-2 w-full"
       >
-        <pv-button
-          type="button"
-          label="Cancelar"
-          text
-          size="small"
-          class="w-full sm:w-auto"
-          @click="onCancelRequested"
-        />
-        <pv-button
-          type="button"
-          :label="submitLabel"
-          size="small"
-          class="w-full sm:w-auto"
-          :loading="submitLoading"
-          :disabled="submitDisabled"
-          @click="onSaveRequested"
-        />
+        <!-- Slot opcional para reemplazar los botones por defecto manteniendo el contenedor del footer. -->
+        <slot name="footer" :cancel="onCancelRequested" :submit="onSaveRequested">
+          <pv-button
+            type="button"
+            label="Cancelar"
+            text
+            size="small"
+            class="w-full sm:w-auto"
+            @click="onCancelRequested"
+          />
+          <pv-button
+            type="button"
+            :label="submitLabel"
+            size="small"
+            class="w-full sm:w-auto"
+            :loading="submitLoading"
+            :disabled="submitDisabled"
+            @click="onSaveRequested"
+          />
+        </slot>
       </div>
     </template>
   </pv-dialog>
