@@ -152,7 +152,19 @@ const toggleUserMenu = (event) => {
                 pcCloseButton: { style: 'color:#475569 !important;' },
             }"
         >
-            <template v-if="iamStore.currentProfile">
+            <template v-if="iamStore.profileLoading">
+                <div class="flex justify-content-center align-items-center py-5">
+                    <i class="pi pi-spin pi-spinner" style="font-size:2rem;color:var(--primary-color)"></i>
+                </div>
+            </template>
+            <template v-else-if="iamStore.profileError">
+                <div class="flex flex-column align-items-center gap-3 py-5">
+                    <i class="pi pi-exclamation-circle" style="font-size:2rem;color:#ef4444"></i>
+                    <span style="color:#64748b;font-size:0.875rem;text-align:center;">{{ iamStore.profileError.message || 'No se pudo cargar el perfil.' }}</span>
+                    <pv-button label="Reintentar" icon="pi pi-refresh" text size="small" @click="iamStore.fetchProfile(iamStore.currentUserId)" />
+                </div>
+            </template>
+            <template v-else-if="iamStore.currentProfile">
                 <!-- Avatar + name card -->
                 <div class="flex align-items-center gap-3 px-3 py-3 mb-3"
                      style="background:#fff; border-radius:10px; border:1px solid #e2e8f0;">
@@ -231,8 +243,9 @@ const toggleUserMenu = (event) => {
                 </div>
             </template>
             <template v-else>
-                <div class="flex justify-content-center align-items-center py-5">
-                    <i class="pi pi-spin pi-spinner" style="font-size:2rem;color:var(--primary-color)"></i>
+                <div class="flex flex-column align-items-center gap-2 py-5">
+                    <i class="pi pi-user-minus" style="font-size:2rem;color:#94a3b8"></i>
+                    <span style="color:#64748b;font-size:0.875rem;">Este usuario no tiene perfil creado.</span>
                 </div>
             </template>
         </pv-dialog>

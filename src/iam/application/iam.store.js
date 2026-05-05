@@ -17,6 +17,8 @@ export const useIamStore = defineStore('iam', () => {
     const currentUsername  = ref('');
     const currentUserRoles = ref([]);
     const currentProfile   = ref(null);
+    const profileLoading   = ref(false);
+    const profileError     = ref(null);
     const isLoading        = ref(false);
     const error            = ref(null);
 
@@ -39,7 +41,7 @@ export const useIamStore = defineStore('iam', () => {
         if (roles.includes('ROLE_SUPPORT_ADMIN')) return 'ROLE_SUPPORT_ADMIN';
         return roles[0] ?? '';
     });
-    const isOwner  = computed(() => currentUserRoles.value.includes('ROLE_OWNER'));
+    const isOwner  = computed(() => false); // ROLE_OWNER no existe en el sistema
     /** Alineado con backend: ADMIN y SUPPORT_ADMIN (borrados, IAM, estadías, etc.). */
     const hasFullActionAccess = computed(() => hasFullActionRoles(currentUserRoles.value));
 
@@ -64,6 +66,8 @@ export const useIamStore = defineStore('iam', () => {
         currentUserId.value    = null;
         currentUsername.value  = '';
         currentUserRoles.value = [];
+        currentProfile.value   = null;
+        profileError.value     = null;
     }
 
     function _handleSessionExpired() {
@@ -170,11 +174,16 @@ export const useIamStore = defineStore('iam', () => {
      */
     async function fetchProfile(userId) {
         if (!userId) return;
+        profileLoading.value = true;
+        profileError.value   = null;
         try {
             const response = await api.getProfileByUserId(userId);
             currentProfile.value = response.data ?? null;
-        } catch {
+        } catch (err) {
             currentProfile.value = null;
+            profileError.value   = normalizeApiError(err, 'No se pudo cargar el perfil. Intenta nuevamente.');
+        } finally {
+            profileLoading.value = false;
         }
     }
 
@@ -199,6 +208,7 @@ export const useIamStore = defineStore('iam', () => {
 
     return {
         isSignedIn, currentUserId, currentUsername, currentUserRoles, currentProfile,
+        profileLoading, profileError,
         isLoading, error,
         currentToken, userRole, isOwner, hasFullActionAccess,
         login, logout, register, forgotPassword, fetchProfile, createProfile,
