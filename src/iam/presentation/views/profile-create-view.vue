@@ -172,6 +172,28 @@ async function handleSubmit() {
             <p class="pc-section-header">Identidad</p>
             <div class="pc-row">
               <div class="pc-field pc-field--flex">
+                <label class="pc-label">Nombres</label>
+                <pv-input-text
+                  v-model="form.firstName"
+                  placeholder="Ej. Juan Carlos"
+                  class="w-full"
+                  :invalid="!!errors.firstName"
+                />
+                <small v-if="errors.firstName" class="pc-error">{{ errors.firstName }}</small>
+              </div>
+              <div class="pc-field pc-field--flex">
+                <label class="pc-label">Apellidos</label>
+                <pv-input-text
+                  v-model="form.lastName"
+                  placeholder="Ej. Pérez López"
+                  class="w-full"
+                  :invalid="!!errors.lastName"
+                />
+                <small v-if="errors.lastName" class="pc-error">{{ errors.lastName }}</small>
+              </div>
+            </div>
+            <div class="pc-row">
+              <div class="pc-field pc-field--flex">
                 <label class="pc-label">Tipo de documento</label>
                 <pv-select
                   v-model="form.documentType"
@@ -193,28 +215,7 @@ async function handleSubmit() {
                 <small v-if="errors.documentNumber" class="pc-error">{{ errors.documentNumber }}</small>
               </div>
             </div>
-            <div class="pc-row">
-              <div class="pc-field pc-field--flex">
-                <label class="pc-label">Nombres</label>
-                <pv-input-text
-                  v-model="form.firstName"
-                  placeholder="Ej. Juan Carlos"
-                  class="w-full"
-                  :invalid="!!errors.firstName"
-                />
-                <small v-if="errors.firstName" class="pc-error">{{ errors.firstName }}</small>
-              </div>
-              <div class="pc-field pc-field--flex">
-                <label class="pc-label">Apellidos</label>
-                <pv-input-text
-                  v-model="form.lastName"
-                  placeholder="Ej. Pérez López"
-                  class="w-full"
-                  :invalid="!!errors.lastName"
-                />
-                <small v-if="errors.lastName" class="pc-error">{{ errors.lastName }}</small>
-              </div>
-            </div>
+            
           </div>
 
           <!-- ── Contacto ────────────────────────────────────────────── -->

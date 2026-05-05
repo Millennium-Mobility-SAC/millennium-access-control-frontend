@@ -8,6 +8,26 @@ const DEFAULT_MESSAGES_BY_TYPE = {
 function translateBusinessMessage(message) {
   if (!message) return message
 
+  if (/Invalid username or password/i.test(message)) {
+    return 'Usuario o contraseña incorrectos. Verifica tus credenciales e intenta de nuevo.'
+  }
+
+  if (/User with username .+ not found/i.test(message)) {
+    return 'El usuario ingresado no existe. Verifica el nombre de usuario.'
+  }
+
+  if (/Bad credentials/i.test(message)) {
+    return 'Contraseña incorrecta. Verifica tus credenciales e intenta de nuevo.'
+  }
+
+  if (/User is disabled/i.test(message)) {
+    return 'Esta cuenta está desactivada. Contacta al administrador.'
+  }
+
+  if (/User account is locked/i.test(message)) {
+    return 'La cuenta está bloqueada. Contacta al administrador.'
+  }
+
   if (/Vehicle with ID \d+ already has an active stay/i.test(message)) {
     return 'Este vehículo ya cuenta con un ingreso activo. Registra primero su salida o selecciona otro vehículo.'
   }

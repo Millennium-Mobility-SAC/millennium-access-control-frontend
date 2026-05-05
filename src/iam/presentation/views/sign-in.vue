@@ -39,7 +39,7 @@ async function handleLogin() {
         <!-- Error del store -->
         <div v-if="iamStore.error" class="login-error mb-3">
           <i class="pi pi-exclamation-circle login-error__icon"></i>
-          <span class="login-error__text">{{ iamStore.error }}</span>
+          <span class="login-error__text">{{ iamStore.error?.message ?? iamStore.error }}</span>
         </div>
 
         <!-- Formulario -->
