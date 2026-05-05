@@ -21,6 +21,7 @@ const props = defineProps({
   item:    { type: Object,  default: null  },
   attachments: { type: Array, default: () => [] },
   canManageAttachments: { type: Boolean, default: false },
+  canEdit: { type: Boolean, default: false },
   deletingAttachmentId: { type: [Number, null], default: null },
   whatsappAttempts: { type: Array, default: () => [] },
   whatsappLoading: { type: Boolean, default: false },
@@ -744,7 +745,7 @@ function getDocumentTypeLabel(value) {
         </div>
 
         <!-- Acciones -->
-        <div class="detail-section" style="border-bottom: none; background: #f9fafb;">
+        <div v-if="canEdit" class="detail-section" style="border-bottom: none; background: #f9fafb;">
           <div class="flex gap-2">
             <pv-button
               icon="pi pi-pencil"

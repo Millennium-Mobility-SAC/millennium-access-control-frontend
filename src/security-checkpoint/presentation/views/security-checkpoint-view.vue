@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import DataManager from '@/shared/presentation/components/data-manager.vue'
 import { useAsyncAction } from '@/shared/composables/use-async-action.js'
 import { useNotification } from '@/shared/composables/use-notification.js'
+import { usePermissions } from '@/shared/composables/use-permissions.js'
 import { useSecurityCheckpointStore } from '../../application/security-checkpoint.store.js'
 import { useIamStore } from '@/iam/application/iam.store.js'
 import PersonnelAttendanceCreateEdit from '../components/personnel-attendance-create-edit.vue'
@@ -17,6 +18,7 @@ import { todayIsoLocal, toIsoDateString } from '@/shared/domain/employee-attenda
 
 const store = useSecurityCheckpointStore()
 const iamStore = useIamStore()
+const permissions = usePermissions()
 
 /**
  * Vista Marcación de personal: por defecto solo el día de hoy; con «Historial completo»
@@ -293,8 +295,8 @@ onMounted(async () => {
       search-placeholder="Buscar…"
       :show-new="true"
       new-button-label="Registrar asistencia"
-      :show-delete="true"
-      :show-selection="true"
+      :show-delete="permissions.canDeleteCheckpoint.value"
+      :show-selection="permissions.canDeleteCheckpoint.value"
       :show-export="false"
       :show-actions="iamStore.hasFullActionAccess"
       :show-view-action="false"

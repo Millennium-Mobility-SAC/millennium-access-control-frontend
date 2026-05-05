@@ -4,6 +4,7 @@ import { useStaysStore }                        from '../../application/stays.st
 import { useIamStore }                          from '@/iam/application/iam.store.js'
 import { useAsyncAction }                       from '@/shared/composables/use-async-action.js'
 import { useNotification }                      from '@/shared/composables/use-notification.js'
+import { usePermissions }                       from '@/shared/composables/use-permissions.js'
 import { StorageFilesApi }                      from '../../infrastructure/api/storage-files.api.js'
 import DataManager                              from '@/shared/presentation/components/data-manager.vue'
 import AccessCreateAndEdit                      from '../components/access-create-and-edit.vue'
@@ -23,6 +24,7 @@ import {
 
 const store              = useStaysStore()
 const iamStore           = useIamStore()
+const permissions        = usePermissions()
 const { isLoading, error, run } = useAsyncAction()
 const { showSuccess, showError } = useNotification()
 const storageFilesApi = new StorageFilesApi()
@@ -267,10 +269,7 @@ async function handleSave(entity) {
   if (error.value) showError(error.value)
 }
 
-const canManageAttachments = computed(() => {
-  const roles = iamStore.currentUserRoles ?? []
-  return roles.includes('ROLE_ADMIN') || roles.includes('ROLE_SECURITY_GUARD') || roles.includes('ROLE_SUPPORT_ADMIN')
-})
+const canManageAttachments = permissions.canUploadAttachments
 
 async function handleRemoveAttachment(attachment) {
   if (!drawerItem.value?.id || !attachment?.id) return
@@ -513,7 +512,9 @@ function handleExport() {
       :view-action-icon-only="true"
       view-button-label="Ver detalle"
       :show-edit-action="false"
-      :show-delete-action="iamStore.hasFullActionAccess"
+      :show-delete-action="permissions.canDeleteStays.value"
+      :show-delete="permissions.canDeleteStays.value"
+      :show-selection="permissions.canDeleteStays.value"
       :show-exit-action="true"
       exit-button-label="Registrar salida"
       :exit-action-condition="(item) => item.status === 'EN_PLANTA' || item.status === 'EN_PLANTA_CUSTODIA'"
@@ -645,6 +646,7 @@ function handleExport() {
       :item="drawerItem"
       :attachments="drawerAttachments"
       :can-manage-attachments="canManageAttachments"
+      :can-edit="permissions.canEditStays.value"
       :deleting-attachment-id="deletingAttachmentId"
       :whatsapp-attempts="drawerWhatsappAttempts"
       :whatsapp-loading="drawerWhatsappLoading"

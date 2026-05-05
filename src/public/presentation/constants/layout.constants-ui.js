@@ -50,9 +50,9 @@ const ALL_MENU_ITEMS = [
  * @returns {Array} Items de menú visibles
  */
 export function getMenuItemsByRole(role) {
-    if (!role) return ALL_MENU_ITEMS;
+    if (!role) return [];
     const allowed = ROLE_ALLOWED_ROUTES[role];
-    if (!allowed) return ALL_MENU_ITEMS;
+    if (!allowed) return [];
 
     return ALL_MENU_ITEMS.filter(item =>
         allowed.some(r => item.to.startsWith(r))
