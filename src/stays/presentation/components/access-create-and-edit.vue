@@ -1,9 +1,11 @@
 <script setup>
-import { reactive, watch, onUnmounted, ref, computed } from 'vue'
+import { reactive, watch, onUnmounted, ref, computed, nextTick } from 'vue'
 import CreateAndEdit        from '@/shared/presentation/components/create-and-edit.vue'
 import StayImagePicker      from './stay-image-picker.vue'
 import { MOTIVOS_INGRESO, TIPOS_INGRESO, TIPOS_DOCUMENTO } from '../constants/stays-ui.constants.js'
 import { useVehicleCatalogStore } from '@/vehicle-catalog/application/vehicle-catalog.store.js'
+import { useStaysStore }          from '@/stays/application/stays.store.js'
+import { nowPeruTimeString, nowPeruDate } from '@/shared/domain/peru-time.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -18,15 +20,16 @@ const props = defineProps({
 const emit = defineEmits(['canceled-shared', 'saved-shared', 'remove-existing-attachment-requested'])
 
 const store           = useVehicleCatalogStore()
+const staysStore      = useStaysStore()
 const plateMatched    = ref(false)
 const showSaveVehicle = ref(false)
 const savingVehicle   = ref(false)
 const hasClient       = ref(false)
+const lastMileage     = ref(null)
 
 function pad(n) { return String(n).padStart(2, '0') }
 function nowTimeString() {
-  const d = new Date()
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return nowPeruTimeString()
 }
 
 // ── Live clock para Hora de Ingreso ──────────────────────────────────
@@ -92,7 +95,7 @@ watch(() => props.visible, (val) => {
   Object.assign(form, {
     id:                   src.id                   ?? null,
     type:                 src.type                 ?? 'VEHICULO',
-    entryDate:            src.entryDate ? new Date(src.entryDate) : (isNew ? new Date() : null),
+    entryDate:            src.entryDate ? new Date(src.entryDate) : (isNew ? nowPeruDate() : null),
     entryTime:            src.entryTime ? to12h(src.entryTime) : (isNew ? to12h(nowTimeString()) : ''),
     licensePlate:         src.licensePlate          ?? null,
     vehicleId:            src.vehicleId             ?? null,
@@ -106,7 +109,7 @@ watch(() => props.visible, (val) => {
     firstName:            src.customerFirstName     ?? src.firstName ?? null,
     lastName:             src.customerLastName      ?? src.lastName  ?? null,
     entryReason:          src.entryReason           ?? null,
-    exitDate:             src.exitDate   ? new Date(src.exitDate)  : (!isNew ? new Date() : null),
+    exitDate:             src.exitDate   ? new Date(src.exitDate)  : (!isNew ? nowPeruDate() : null),
     exitTime:             src.exitTime   ? to12h(src.exitTime)   : (!isNew ? to12h(nowTimeString()) : ''),
     exitType:             src.exitType   ?? (!isNew ? 'PERMANENTE' : null),
     returnDate:           src.returnDate ? new Date(src.returnDate) : null,
@@ -116,6 +119,9 @@ watch(() => props.visible, (val) => {
 
   // Determina si hay datos de cliente precargados
   hasClient.value = !!(src.clientDocumentNumber || src.customerFirstName || src.firstName)
+
+  // Resetea el contexto de vehículo (se recarga en searchByPlate)
+  lastMileage.value = null
 
   clearErrors()
 
@@ -130,6 +136,7 @@ watch(() => props.visible, (val) => {
 async function searchByPlate() {
   plateMatched.value    = false
   showSaveVehicle.value = false
+  lastMileage.value     = null
   if (!form.licensePlate) return
   const found = await store.fetchByLicensePlate(form.licensePlate)
   if (found) {
@@ -139,6 +146,17 @@ async function searchByPlate() {
     form.year  = found.year  ?? form.year
     form.color = found.color ?? form.color
     plateMatched.value = true
+    if (found.id) {
+      const ctx = await staysStore.fetchVehicleContext(found.id)
+      lastMileage.value = ctx.lastMileage
+      if (ctx.lastClient) {
+        form.documentType         = ctx.lastClient.documentType
+        form.clientDocumentNumber = ctx.lastClient.clientDocumentNumber
+        form.firstName            = ctx.lastClient.firstName
+        form.lastName             = ctx.lastClient.lastName
+        hasClient.value           = true
+      }
+    }
   } else {
     form.vehicleId    = null
     showSaveVehicle.value = true
@@ -383,6 +401,7 @@ const errors = reactive({
   firstName:            '',
   lastName:             '',
   entryReason:          '',
+  mileage:              '',
 })
 
 function clearErrors() {
@@ -391,6 +410,7 @@ function clearErrors() {
   errors.firstName            = ''
   errors.lastName             = ''
   errors.entryReason          = ''
+  errors.mileage              = ''
 }
 
 function validate() {
@@ -436,13 +456,32 @@ function validate() {
     valid = false
   }
 
+  if (form.type === 'VEHICULO' && form.mileage != null && lastMileage.value != null) {
+    if (form.mileage <= lastMileage.value) {
+      errors.mileage = `El kilometraje debe ser mayor al último registrado (${lastMileage.value.toLocaleString()} km)`
+      valid = false
+    }
+  }
+
   return valid
 }
 
 function onSave(formData) {
-  if (!validate()) return
+  if (!validate()) {
+    nextTick(() => {
+      const el = aceForm.value?.querySelector('.p-invalid, [aria-invalid="true"]')
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        const focusable = el.matches('input,select,textarea,button,[tabindex]') ? el : el.querySelector('input,select,textarea,button,[tabindex]')
+        focusable?.focus()
+      }
+    })
+    return
+  }
   emit('saved-shared', formData)
 }
+
+const aceForm = ref(null)
 
 </script>
 
@@ -459,7 +498,7 @@ function onSave(formData) {
     @saved-shared="onSave($event)"
   >
     <template #content>
-      <div class="ace-form">
+      <div ref="aceForm" class="ace-form">
 
         <!-- ── Tipo de entrada ── -->
         <div class="ace-section">
@@ -554,7 +593,14 @@ function onSave(formData) {
                   :min="0"
                   placeholder="Ej. 45000"
                   class="w-full"
+                  :invalid="!!errors.mileage"
                 />
+                <small v-if="lastMileage != null && !errors.mileage" class="ace-field-hint">
+                  Último registrado: {{ lastMileage.toLocaleString() }} km
+                </small>
+                <small v-if="errors.mileage" class="ace-field-error">
+                  {{ errors.mileage }}
+                </small>
               </div>
             </div>
             <div v-if="showSaveVehicle" class="ace-save-vehicle">
@@ -1021,6 +1067,18 @@ function onSave(formData) {
   font-size: 0.75rem;
   color: #dc2626;
   margin-top: -0.1rem;
+}
+.ace-field-error {
+  display: block;
+  font-size: 0.75rem;
+  color: #dc2626;
+  margin-top: 0.15rem;
+}
+.ace-field-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: #6b7280;
+  margin-top: 0.15rem;
 }
 
 .ace-existing-attachments {

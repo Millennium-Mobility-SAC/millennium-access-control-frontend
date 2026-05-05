@@ -1,6 +1,7 @@
-import { AccessEntry }   from '../../domain/models/access-entry.entity.js'
-import { TemporalExit }  from '../../domain/models/temporal-exit.entity.js'
-import { toIsoDateString } from '@/shared/domain/employee-attendance-day.js'
+import { AccessEntry }        from '../../domain/models/access-entry.entity.js'
+import { TemporalExit }       from '../../domain/models/temporal-exit.entity.js'
+import { toIsoDateString }    from '@/shared/domain/employee-attendance-day.js'
+import { toPeruCalendarDate } from '@/shared/domain/peru-time.js'
 
 const ENTRY_REASON_CANONICAL_VALUES = new Set([
   'MECANICA',
@@ -71,24 +72,33 @@ function exitTimeTo24h(value) {
 
 function entryTimeTo24h(value) {
   if (!value) return null
-  const m = value.trim().match(/^(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)$/i)
-  if (m) {
-    let h = parseInt(m[1])
-    const min = m[2], sec = m[3]
-    const period = m[4].toUpperCase()
+  // HH:MM:SS AM/PM (with seconds)
+  const mSec = value.trim().match(/^(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)$/i)
+  if (mSec) {
+    let h = parseInt(mSec[1])
+    const min = mSec[2], sec = mSec[3]
+    const period = mSec[4].toUpperCase()
     if (period === 'AM' && h === 12) h = 0
     else if (period === 'PM' && h !== 12) h += 12
     return `${String(h).padStart(2, '0')}:${min}:${sec}`
   }
+  // HH:MM AM/PM (no seconds fallback)
+  const m = value.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (m) {
+    let h = parseInt(m[1])
+    const min = m[2]
+    const period = m[3].toUpperCase()
+    if (period === 'AM' && h === 12) h = 0
+    else if (period === 'PM' && h !== 12) h += 12
+    return `${String(h).padStart(2, '0')}:${min}:00`
+  }
+  if (value.length === 5) return value + ':00'
   return value || null
 }
 
-/** Día civil local del calendario PrimeVue / `Date` — nunca `toISOString()` (UTC) para `entry_date`. */
+/** Día calendario en zona horaria de Perú (America/Lima). Nunca usa la zona del dispositivo. */
 function toBackendCalendarDate(value) {
-  if (!value) return null
-  const d = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(d.getTime())) return null
-  return toIsoDateString(d)
+  return toPeruCalendarDate(value)
 }
 
 export class AccessEntryAssembler {
@@ -151,7 +161,7 @@ export class AccessEntryAssembler {
    * @returns {Object}
    */
   static toResource(form) {
-    const entryDate = toBackendCalendarDate(form.entryDate)
+    const entryDate = toPeruCalendarDate(form.entryDate)
 
     return {
       type:                   form.type                 ?? 'VEHICULO',

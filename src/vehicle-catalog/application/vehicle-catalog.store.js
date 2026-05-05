@@ -73,8 +73,28 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
     return { total: resources.length, success, failed }
   }
 
+  /**
+   * Actualiza múltiples vehículos en el backend (un PATCH /bulk-update).
+   * El backend procesa cada fila de forma independiente y devuelve un reporte detallado.
+   * @param {Array} rows — filas del Excel ya mapeadas con claves current_plate, new_plate, brand, model, year, color
+   * @returns {{ total, updated, ignored, failed, results: Array }}
+   */
+  async function bulkUpdate(rows) {
+    const payload = rows.map(r => ({
+      current_plate: r.currentPlate  ?? r.current_plate,
+      new_plate:     r.newPlate      ?? r.new_plate      ?? null,
+      brand:         r.brand         || null,
+      model:         r.model         || null,
+      year:          r.year          ? Number(r.year) : null,
+      color:         r.color         || null,
+    }))
+    const result = await api.bulkUpdate(payload)
+    await fetchAll()
+    return result
+  }
+
   function select(vehicle) { _selected.value = vehicle }
   function clear() { _vehicles.value = []; _selected.value = null }
 
-  return { vehicles, selected, fetchByLicensePlate, fetchAll, fetchById, create, update, remove, bulkCreate, select, clear }
+  return { vehicles, selected, fetchByLicensePlate, fetchAll, fetchById, create, update, remove, bulkCreate, bulkUpdate, select, clear }
 })

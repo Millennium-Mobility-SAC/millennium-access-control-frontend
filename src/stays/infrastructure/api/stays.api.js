@@ -77,8 +77,9 @@ export class StaysApi extends BaseApi {
     return this.http.get(`${this.#endpoint.endpointPath}/${stayId}/notification-status`)
   }
 
-  /** @param {number} stayId  Triggers a manual resend; returns the new attempt */
-  resendWhatsApp(stayId) {
-    return this.http.post(`${this.#endpoint.endpointPath}/${stayId}/notify-whatsapp`)
+  /** @param {number} stayId  @param {string|null} operationType  @param {number|null} temporalExitId  Triggers a manual resend; returns the new attempt */
+  resendWhatsApp(stayId, operationType = null, temporalExitId = null) {
+    const body = operationType ? { operationType, temporalExitId } : {}
+    return this.http.post(`${this.#endpoint.endpointPath}/${stayId}/notify-whatsapp`, body)
   }
 }

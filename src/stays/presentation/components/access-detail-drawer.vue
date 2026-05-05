@@ -44,6 +44,58 @@ const WHATSAPP_OPERATION_LABEL = {
 
 const latestWhatsappAttempt = computed(() => props.whatsappAttempts?.[0] ?? null)
 
+// Operaciones disponibles para reenviar — derivadas de la estructura real del stay
+const availableResendOps = computed(() => {
+  if (!props.item) return []
+  const ops = []
+  const tes = props.item.temporalExits ?? []
+  const multiTe = tes.length > 1
+  const returns = tes.filter(te => te.returnDate)
+  const multiRet = returns.length > 1
+
+  ops.push({ key: 'ENTRY__', operationType: 'ENTRY', temporalExitId: null, label: 'Ingreso' })
+
+  tes.forEach((te, i) => {
+    ops.push({
+      key: `TEMPORAL_EXIT__${te.id}`,
+      operationType: 'TEMPORAL_EXIT',
+      temporalExitId: te.id,
+      label: multiTe ? `Salida temporal #${i + 1}` : 'Salida temporal'
+    })
+    if (te.returnDate) {
+      const retIdx = returns.findIndex(r => r.id === te.id)
+      ops.push({
+        key: `RETURN__${te.id}`,
+        operationType: 'RETURN',
+        temporalExitId: te.id,
+        label: multiRet ? `Retorno #${retIdx + 1}` : 'Retorno'
+      })
+    }
+  })
+
+  if (props.item.permanentExitDate) {
+    ops.push({ key: 'PERMANENT_EXIT__', operationType: 'PERMANENT_EXIT', temporalExitId: null, label: 'Salida permanente' })
+  }
+
+  return ops
+})
+
+// Selector de operación — por defecto la del último intento WhatsApp, o la última operación del stay
+const selectedResendOpKey = ref(null)
+watch(
+  [() => props.item, latestWhatsappAttempt],
+  () => {
+    const a = latestWhatsappAttempt.value
+    if (a) {
+      selectedResendOpKey.value = `${a.operationType}__${a.temporalExitId ?? ''}`
+    } else {
+      const ops = availableResendOps.value
+      selectedResendOpKey.value = ops[ops.length - 1]?.key ?? null
+    }
+  },
+  { immediate: true }
+)
+
 const whatsappBadge = computed(() => {
   const attempt = latestWhatsappAttempt.value
   if (!attempt) return null
@@ -83,8 +135,25 @@ function formatWhatsappTimestamp(value) {
   }
 }
 
+const OP_TYPE_ICON = {
+  ENTRY:          'pi pi-sign-in',
+  TEMPORAL_EXIT:  'pi pi-arrow-right-arrow-left',
+  RETURN:         'pi pi-reply',
+  PERMANENT_EXIT: 'pi pi-sign-out',
+}
+function opTypeIcon(type) {
+  return OP_TYPE_ICON[type] ?? 'pi pi-circle'
+}
+
 function requestResendWhatsapp() {
-  if (props.item?.id != null) emit('resend-whatsapp-requested', props.item.id)
+  if (props.item?.id == null) return
+  const op = selectedResendOpKey.value
+  const attempt = availableResendOps.value.find(a => a.key === op)
+  emit('resend-whatsapp-requested', {
+    stayId: props.item.id,
+    operationType: attempt?.operationType ?? null,
+    temporalExitId: attempt?.temporalExitId ?? null
+  })
 }
 
 function requestRefreshWhatsapp() {
@@ -648,15 +717,27 @@ function getDocumentTypeLabel(value) {
                 <pre>{{ latestWhatsappAttempt.errorMessage }}</pre>
               </details>
               <div class="whatsapp-actions">
-                <pv-button
+                <div class="whatsapp-op-selector">
+                  <label class="whatsapp-op-selector__label">Registro a reenviar</label>
+                  <pv-select
+                    v-model="selectedResendOpKey"
+                    :options="availableResendOps"
+                    option-label="label"
+                    option-value="key"
+                    class="whatsapp-op-select"
+                    fluid
+                  />
+                </div>
+                <button
                   type="button"
-                  :icon="whatsappResending ? null : 'pi pi-whatsapp'"
-                  :label="resendButtonMeta.label"
-                  size="small"
-                  :class="['whatsapp-resend-btn', `whatsapp-resend-btn--${resendButtonMeta.tone}`]"
-                  :loading="whatsappResending"
+                  class="whatsapp-resend-btn"
+                  :disabled="whatsappResending"
                   @click="requestResendWhatsapp"
-                />
+                >
+                  <i v-if="whatsappResending" class="pi pi-spin pi-spinner" />
+                  <i v-else class="pi pi-whatsapp" />
+                  {{ resendButtonMeta.label }}
+                </button>
               </div>
             </template>
           </template>
@@ -741,22 +822,18 @@ function getDocumentTypeLabel(value) {
 .attachments-block {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.35rem 0.45rem 0.15rem;
-  margin-top: 0.2rem;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem 0.75rem;
 }
 .attachments-operation {
   border: none;
-  border-radius: 0;
-  padding: 0.45rem 0.5rem;
+  padding: 0.5rem 0.6rem;
   background: transparent;
   border-left: 4px solid transparent;
   border-radius: 8px;
 }
 .attachments-operation + .attachments-operation {
-  border-top: 1px solid #e5e7eb;
-  margin-top: 0.35rem;
-  padding-top: 0.6rem;
+  margin-top: 0.2rem;
 }
 .attachments-operation--entry {
   background: #f0f9ff;
@@ -1023,7 +1100,7 @@ function getDocumentTypeLabel(value) {
   font-weight: 600;
 }
 .whatsapp-error-box {
-  margin-top: 0.5rem;
+  margin: 0.5rem 1rem;
   background: #fef2f2;
   border: 1px solid #fecaca;
   border-radius: 8px;
@@ -1050,42 +1127,54 @@ function getDocumentTypeLabel(value) {
 }
 .whatsapp-actions {
   display: flex;
-  justify-content: stretch;
+  flex-direction: column;
+  gap: 0.75rem;
   margin-top: 0.85rem;
+  padding: 0 1rem 1rem;
+}
+.whatsapp-op-selector__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.35rem;
+  display: block;
+}
+.whatsapp-op-select {
+  width: 100%;
 }
 .whatsapp-resend-btn {
-  width: 100%;
-}
-.whatsapp-resend-btn :deep(.p-button) {
-  width: 100%;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  border: none;
+  background: #25d366;
+  color: #ffffff;
+  font-size: 0.875rem;
   font-weight: 600;
-  border: 1px solid var(--wa-border, #16a34a) !important;
-  background: var(--wa-bg, #16a34a) !important;
-  color: var(--wa-color, #ffffff) !important;
-  box-shadow: none !important;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.15s;
+  line-height: 1.4;
 }
-.whatsapp-resend-btn :deep(.p-button:hover) {
-  background: var(--wa-bg-hover, #15803d) !important;
-  border-color: var(--wa-bg-hover, #15803d) !important;
+.whatsapp-resend-btn:hover:not(:disabled) {
+  background: #1ebe5d;
 }
-.whatsapp-resend-btn--primary {
-  --wa-bg: #25d366;
-  --wa-bg-hover: #1ebe5d;
-  --wa-color: #ffffff;
-  --wa-border: #25d366;
+.whatsapp-resend-btn:active:not(:disabled) {
+  background: #19a854;
 }
-.whatsapp-resend-btn--warn {
-  --wa-bg: #f59e0b;
-  --wa-bg-hover: #d97706;
-  --wa-color: #ffffff;
-  --wa-border: #f59e0b;
+.whatsapp-resend-btn:disabled {
+  background: #86efac;
+  cursor: not-allowed;
+  opacity: 0.75;
 }
-.whatsapp-resend-btn--ghost {
-  --wa-bg: #ffffff;
-  --wa-bg-hover: #e7fbef;
-  --wa-color: #128c4a;
-  --wa-border: #25d366;
+.whatsapp-resend-btn .pi {
+  font-size: 1rem;
 }
 .preview-dialog__footer {
   display: flex;

@@ -3,6 +3,7 @@ import { reactive, watch, onUnmounted } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
 import StayImagePicker from './stay-image-picker.vue'
 import { TIPOS_SALIDA, MOTIVOS_SALIDA_TEMPORAL, TIPOS_DOCUMENTO } from '../constants/stays-ui.constants.js'
+import { nowPeruTimeString, nowPeruDate } from '@/shared/domain/peru-time.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -16,8 +17,7 @@ const emit = defineEmits(['canceled', 'saved'])
 function pad(n) { return String(n).padStart(2, '0') }
 
 function nowTimeString() {
-  const d = new Date()
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return nowPeruTimeString()
 }
 
 function to12h(value) {
@@ -86,7 +86,7 @@ watch(() => props.visible, (val) => {
     year:                    src.year         ?? null,
     color:                   src.color        ?? null,
     exitType:                'PERMANENTE',
-    exitDate:                new Date(),
+    exitDate:                nowPeruDate(),
     exitTime:                to12h(nowTimeString()),
     temporaryExitReason:     null,
     replacementLicensePlate: null,

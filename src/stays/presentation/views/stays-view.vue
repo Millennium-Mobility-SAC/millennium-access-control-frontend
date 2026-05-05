@@ -156,11 +156,11 @@ async function handleRefreshWhatsapp(stayId) {
   }
 }
 
-async function handleResendWhatsapp(stayId) {
+async function handleResendWhatsapp({ stayId, operationType, temporalExitId } = {}) {
   if (drawerWhatsappResending.value) return
   drawerWhatsappResending.value = true
   try {
-    await store.resendWhatsApp(stayId)
+    await store.resendWhatsApp(stayId, operationType ?? null, temporalExitId ?? null)
     await refreshWhatsappStatus(stayId, { silent: true })
     showSuccess('WhatsApp', 'Reenvío programado.')
     scheduleWhatsappPoll(stayId)
@@ -247,6 +247,7 @@ async function handleSave(entity) {
       accessType: entity.type,
       stayType: 'INGRESO',
       operationDate: toIsoDateString(entity.entryDate),
+      operationTime: entity.entryTime ?? null,
     })
     const payload = { ...entity, attachmentIds }
     if (isEditing.value) {
@@ -321,6 +322,7 @@ async function handleExit(exitData) {
       accessType: exitData.type,
       stayType: exitData.exitType === 'TEMPORAL' ? 'SALIDA_TEMPORAL' : 'SALIDA_PERMANENTE',
       operationDate: toIsoDateString(exitData.exitDate),
+      operationTime: exitData.exitTime ?? null,
     })
     await store.registerExit(exitData.id, { ...exitData, attachmentIds })
     showSuccess('Salida registrada correctamente.')
@@ -338,6 +340,7 @@ async function handleReturn(returnData) {
       accessType: returnData.type,
       stayType: 'RETORNO',
       operationDate: toIsoDateString(returnData.returnDate),
+      operationTime: returnData.returnTime ?? null,
     })
     await store.registerReturn(returnData.id, { ...returnData, attachmentIds })
     showSuccess('Retorno registrado correctamente.')

@@ -24,6 +24,20 @@ export const VEHICLE_IMPORT_COLUMNS = [
   { key: 'customerLastName', header: 'Apellido salida', required: false },
 ]
 
+/**
+ * Columnas del archivo Excel para actualización masiva de vehículos.
+ * `current_plate` es la clave de identificación y es obligatoria.
+ * Los demás campos son opcionales: si se omiten o quedan en blanco, el campo no se modifica.
+ */
+export const VEHICLE_BULK_UPDATE_COLUMNS = [
+  { key: 'currentPlate', header: 'Placa actual', required: true,  hint: 'Placa exacta del vehículo a actualizar' },
+  { key: 'newPlate',     header: 'Placa nueva',  required: false, hint: 'Dejar en blanco si no cambia' },
+  { key: 'brand',        header: 'Marca',        required: false, hint: 'Dejar en blanco si no cambia' },
+  { key: 'model',        header: 'Modelo',       required: false, hint: 'Dejar en blanco si no cambia' },
+  { key: 'year',         header: 'Año',          required: false, hint: 'Dejar en blanco si no cambia' },
+  { key: 'color',        header: 'Color',        required: false, hint: 'Dejar en blanco si no cambia' },
+]
+
 export const VEHICLE_COLUMNS = [
   {
     field: 'licensePlate',

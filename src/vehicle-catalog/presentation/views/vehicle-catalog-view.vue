@@ -7,7 +7,8 @@ import { useAsyncAction }              from '@/shared/composables/use-async-acti
 import { useNotification }             from '@/shared/composables/use-notification.js'
 import DataManager                     from '@/shared/presentation/components/data-manager.vue'
 import VehicleCreateAndEdit            from '../components/vehicle-create-and-edit.vue'
-import { VEHICLE_COLUMNS, VEHICLE_IMPORT_COLUMNS } from '../constants/vehicle-catalog-ui.constants.js'
+import { VEHICLE_COLUMNS, VEHICLE_IMPORT_COLUMNS, VEHICLE_BULK_UPDATE_COLUMNS } from '../constants/vehicle-catalog-ui.constants.js'
+import ImportSpreadsheet from '@/shared/presentation/components/import-spreadsheet.vue'
 import {
   formatCalendarDateForUi,
   formatTimeHmAmPmForUi,
@@ -27,11 +28,20 @@ const dialogVisible = ref(false)
 const isEditing     = ref(false)
 const editEntity    = ref(null)
 
+// Bulk update
+const bulkUpdateDialogVisible  = ref(false)
+const bulkUpdateResultVisible  = ref(false)
+const bulkUpdateResult         = ref(null)
+const bulkUpdateLoading        = ref(false)
+
 // Filtros
 const filterStatus = ref([])
 const filterMotivo = ref([])
 const filterDays   = ref(null)
 const searchText   = ref('')
+
+/** Estados disponibles en catálogo de vehículos (sin Retornado, que regresa a En planta) */
+const VEHICLE_CATALOG_STATUS = ACCESS_STATUS.filter(s => s.value !== 'RETORNADO')
 
 const DAYS_RANGES = [
   { label: '0 – 3 días',   value: '0-3'  },
@@ -44,7 +54,7 @@ const filteredItems = computed(() => {
   const q = searchText.value.trim().toLowerCase()
   return store.vehicles.filter(v => {
     if (filterStatus.value.length && !filterStatus.value.includes(v.currentStatus)) return false
-    if (filterMotivo.value.length && !filterMotivo.value.includes(v.catalogFlowEntryReason)) return false
+    if (filterMotivo.value.length && !filterMotivo.value.includes(v.catalogActiveTemporalExitReason)) return false
     if (filterDays.value) {
       const d = v.daysInPlant ?? null
       if (d == null) return false
@@ -144,6 +154,20 @@ async function handleImport(rows) {
   }
 }
 
+async function handleBulkUpdate(rows) {
+  if (!rows || rows.length === 0) return
+  bulkUpdateLoading.value = true
+  try {
+    const result = await store.bulkUpdate(rows)
+    bulkUpdateResult.value = result
+    bulkUpdateResultVisible.value = true
+  } catch (e) {
+    showError(e?.message ?? 'Error al procesar la actualización masiva.')
+  } finally {
+    bulkUpdateLoading.value = false
+  }
+}
+
 onMounted(async () => {
   await run(() => store.fetchAll())
 })
@@ -171,12 +195,12 @@ function labelMotivoSalidaTemporal(value) {
   return MOTIVOS_SALIDA_TEMPORAL.find(m => m.value === value)?.label ?? value
 }
 
-/** Ubicación: motivo de salida temporal si hay una activa; si no, el motivo de ingreso del flujo. */
+/** Ubicación: motivo de salida temporal si hay una activa; si no, En planta. */
 function formatUbicacionCatalog(row) {
   if (row.catalogActiveTemporalExitReason) {
     return labelMotivoSalidaTemporal(row.catalogActiveTemporalExitReason)
   }
-  return labelMotivoIngreso(row.catalogFlowEntryReason)
+  return 'En planta'
 }
 </script>
 
@@ -207,6 +231,19 @@ function formatUbicacionCatalog(row) {
       @import-data-requested-manager="handleImport"
       @clear-filters="clearAllFilters"
     >
+      <template v-if="iamStore.hasFullActionAccess" #extra-actions>
+        <pv-button
+          icon="pi pi-pencil"
+          label="Actualizar masivamente"
+          severity="warning"
+          size="small"
+          outlined
+          :loading="bulkUpdateLoading"
+          class="dm-stoolbar-btn w-full sm:w-auto"
+          @click="bulkUpdateDialogVisible = true"
+        />
+      </template>
+
       <template #filters="{ clearFilters }">
         <div class="app-filters-row app-filters-row--stack-sm vc-filters w-full">
           <pv-icon-field class="vc-filter-search">
@@ -220,7 +257,7 @@ function formatUbicacionCatalog(row) {
           </pv-icon-field>
           <pv-multi-select
             v-model="filterStatus"
-            :options="ACCESS_STATUS"
+            :options="VEHICLE_CATALOG_STATUS"
             option-label="label"
             option-value="value"
             placeholder="Estado"
@@ -230,7 +267,7 @@ function formatUbicacionCatalog(row) {
           />
           <pv-multi-select
             v-model="filterMotivo"
-            :options="MOTIVOS_INGRESO"
+            :options="MOTIVOS_SALIDA_TEMPORAL"
             option-label="label"
             option-value="value"
             placeholder="Motivo / Ubicación"
@@ -306,6 +343,71 @@ function formatUbicacionCatalog(row) {
       @canceled-shared="closeDialog"
       @saved-shared="handleSave"
     />
+
+    <!-- Bulk update — import spreadsheet dialog -->
+    <ImportSpreadsheet
+      v-model:visible="bulkUpdateDialogVisible"
+      :import-columns="VEHICLE_BULK_UPDATE_COLUMNS"
+      title="Actualización masiva de vehículos"
+      template-download-file-name="plantilla-actualizacion-vehiculos.xlsx"
+      template-sheet-name="Actualización"
+      :template-sample-rows="[{ currentPlate: 'ABC-123', newPlate: '', brand: 'Toyota', model: 'Corolla', year: 2023, color: 'Rojo' }]"
+      @import-confirmed="handleBulkUpdate"
+    />
+
+    <!-- Bulk update — results dialog -->
+    <pv-dialog
+      v-model:visible="bulkUpdateResultVisible"
+      header="Resultado de la actualización masiva"
+      :modal="true"
+      :closable="true"
+      :draggable="false"
+      class="vcu-result-dialog"
+      style="width: min(52rem, 96vw)"
+    >
+      <template v-if="bulkUpdateResult">
+        <div class="vcu-summary">
+          <span class="vcu-summary-chip vcu-chip--updated">
+            <i class="pi pi-check-circle" /> {{ bulkUpdateResult.updated }} actualizado(s)
+          </span>
+          <span class="vcu-summary-chip vcu-chip--ignored">
+            <i class="pi pi-minus-circle" /> {{ bulkUpdateResult.ignored }} ignorado(s)
+          </span>
+          <span class="vcu-summary-chip vcu-chip--failed">
+            <i class="pi pi-times-circle" /> {{ bulkUpdateResult.failed }} fallido(s)
+          </span>
+          <span class="vcu-summary-total">de {{ bulkUpdateResult.total }} filas procesadas</span>
+        </div>
+
+        <pv-data-table
+          :value="bulkUpdateResult.results"
+          :paginator="bulkUpdateResult.results.length > 10"
+          :rows="10"
+          class="vcu-result-table mt-3"
+          size="small"
+          scroll-height="340px"
+          scrollable
+        >
+          <pv-column field="current_plate" header="Placa" style="min-width:7rem; font-weight:700" />
+          <pv-column field="status" header="Estado" style="min-width:6rem">
+            <template #body="{ data }">
+              <pv-tag
+                :value="data.status === 'UPDATED' ? 'Actualizado' : data.status === 'IGNORED' ? 'Ignorado' : 'Fallido'"
+                :severity="data.status === 'UPDATED' ? 'success' : data.status === 'IGNORED' ? 'warn' : 'danger'"
+              />
+            </template>
+          </pv-column>
+          <pv-column field="reason" header="Detalle" style="min-width:12rem">
+            <template #body="{ data }">
+              <span class="vcu-reason">{{ data.reason ?? '—' }}</span>
+            </template>
+          </pv-column>
+        </pv-data-table>
+      </template>
+      <template #footer>
+        <pv-button label="Cerrar" icon="pi pi-times" text @click="bulkUpdateResultVisible = false" />
+      </template>
+    </pv-dialog>
 
   </div>
 </template>
@@ -419,4 +521,38 @@ function formatUbicacionCatalog(row) {
 .vc-days--warn    { background: #fef9c3; color: #a16207; }
 .vc-days--alert   { background: #ffedd5; color: #c2410c; }
 .vc-days--danger  { background: #fee2e2; color: #b91c1c; }
+
+/* ── Bulk update result dialog ───────────────────────────────────────────── */
+.vcu-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.vcu-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.vcu-chip--updated { background: #dcfce7; color: #15803d; }
+.vcu-chip--ignored { background: #fef9c3; color: #a16207; }
+.vcu-chip--failed  { background: #fee2e2; color: #b91c1c; }
+
+.vcu-summary-total {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-left: 0.25rem;
+}
+
+.vcu-reason {
+  font-size: 0.78rem;
+  color: #374151;
+}
 </style>

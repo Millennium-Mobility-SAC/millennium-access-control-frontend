@@ -19,4 +19,12 @@ export class VehicleCatalogApi extends BaseApi {
   getByLicensePlate(licensePlate) {
     return this.http.get(`${this.#endpoint.endpointPath}/license-plate/${encodeURIComponent(licensePlate)}`)
   }
+
+  /**
+   * Sends a batch of vehicle update rows to the backend.
+   * @param {Array<{current_plate:string, new_plate?:string, brand?:string, model?:string, year?:number, color?:string}>} items
+   */
+  bulkUpdate(items) {
+    return this.http.patch(`${this.#endpoint.endpointPath}/bulk-update`, items)
+  }
 }

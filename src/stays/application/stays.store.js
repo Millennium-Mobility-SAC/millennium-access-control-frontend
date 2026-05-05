@@ -68,6 +68,31 @@ export const useStaysStore = defineStore('stays', () => {
     return AccessEntryAssembler.toEntitiesFromResponse(response)
   }
 
+  /**
+   * Returns the last mileage and last client data for a vehicle from its stay history.
+   * Uses a single API call and handles errors gracefully.
+   * @param {number} vehicleId
+   * @returns {{ lastMileage: number|null, lastClient: object|null }}
+   */
+  async function fetchVehicleContext(vehicleId) {
+    try {
+      const stays = await fetchByVehicleId(vehicleId)
+      const lastMileage = stays.find(s => s.mileage != null)?.mileage ?? null
+      const clientStay  = stays.find(s => s.clientDocumentNumber && s.clientDocumentNumber.trim())
+      const lastClient  = clientStay
+        ? {
+            documentType:         clientStay.documentType          ?? 'DNI',
+            clientDocumentNumber: clientStay.clientDocumentNumber,
+            firstName:            clientStay.firstName             ?? null,
+            lastName:             clientStay.lastName              ?? null,
+          }
+        : null
+      return { lastMileage, lastClient }
+    } catch {
+      return { lastMileage: null, lastClient: null }
+    }
+  }
+
   async function fetchAttachments(stayId) {
     const response = await api.getAttachments(stayId)
     return Array.isArray(response?.data) ? response.data : []
@@ -82,8 +107,8 @@ export const useStaysStore = defineStore('stays', () => {
     return Array.isArray(response?.data) ? response.data : []
   }
 
-  async function resendWhatsApp(stayId) {
-    const response = await api.resendWhatsApp(stayId)
+  async function resendWhatsApp(stayId, operationType = null, temporalExitId = null) {
+    const response = await api.resendWhatsApp(stayId, operationType, temporalExitId)
     return response?.data ?? null
   }
 
@@ -126,6 +151,7 @@ export const useStaysStore = defineStore('stays', () => {
     registerExit,
     registerReturn,
     fetchByVehicleId,
+    fetchVehicleContext,
     fetchAttachments,
     deleteAttachment,
     fetchNotificationStatus,
