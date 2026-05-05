@@ -118,16 +118,11 @@ export const useIamStore = defineStore('iam', () => {
 
     /**
      * Cierra la sesion del usuario autenticado.
+     * El backend usa JWT stateless — no existe endpoint de logout en servidor.
+     * La invalidación se logra eliminando el token del cliente.
      */
-    async function logout() {
+    function logout() {
         _clearSession();
-        isLoading.value = true;
-        try {
-            await api.logout();
-        } catch { /* ignorar error de logout en backend */ }
-        finally {
-            isLoading.value = false;
-        }
     }
 
     /**
