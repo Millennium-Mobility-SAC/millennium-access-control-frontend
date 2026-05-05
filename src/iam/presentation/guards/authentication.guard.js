@@ -5,7 +5,7 @@ import { hasRouteAccess } from '@/shared/presentation/constants/roles.constants.
  * Rutas que no requieren autenticación.
  * Definidas aquí directamente para evitar la dependencia infrastructure → presentation.
  */
-const PUBLIC_PATHS = ['/sign-in', '/forgot-password', '/reset-password'];
+const PUBLIC_PATHS = ['/sign-in', '/forgot-password', '/reset-password', '/create-profile'];
 
 /**
  * Guard de autenticación global para Vue Router 4.

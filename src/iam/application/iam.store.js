@@ -178,10 +178,29 @@ export const useIamStore = defineStore('iam', () => {
         }
     }
 
+    /**
+     * Crea un nuevo perfil de usuario (cuenta IAM + datos personales en un solo paso).
+     * @param {Object} payload - Datos del perfil (username, password, roles, email, firstName, lastName, phoneNumber, documentType, documentNumber, position, department, active)
+     * @returns {Promise<boolean>} true si exitoso
+     */
+    async function createProfile(payload) {
+        isLoading.value = true;
+        error.value     = null;
+        try {
+            await api.createProfile(payload);
+            return true;
+        } catch (err) {
+            error.value = normalizeApiError(err, 'No se pudo crear el perfil. Verifica los datos e intenta de nuevo.');
+            return false;
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
     return {
         isSignedIn, currentUserId, currentUsername, currentUserRoles, currentProfile,
         isLoading, error,
         currentToken, userRole, isOwner, hasFullActionAccess,
-        login, logout, register, forgotPassword, fetchProfile,
+        login, logout, register, forgotPassword, fetchProfile, createProfile,
     };
 });

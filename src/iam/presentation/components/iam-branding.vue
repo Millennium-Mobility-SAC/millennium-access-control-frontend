@@ -31,13 +31,13 @@ import logoMillenniumMobility from '@/assets/img/logo-millennium-mobility.png';
 <style scoped>
 .bg-gradient {
     position: relative;
-    background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-primary) 100%);
+    background: #080d1a;
 }
 .bg-gradient::before {
     content: '';
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse at 20% 30%, rgba(26, 107, 194, 0.08) 0%, transparent 50%);
+    background: radial-gradient(ellipse at 20% 30%, rgba(26, 107, 194, 0.06) 0%, transparent 55%);
     pointer-events: none;
 }
 .app-logo {

@@ -29,3 +29,31 @@ export const IAM_MESSAGES = {
   RESET_PASSWORD_SUCCESS: 'Contraseña restablecida correctamente',
   RESET_PASSWORD_ERROR: 'Error al restablecer la contraseña'
 };
+
+// ── Profile creation constants ─────────────────────────────────────────────
+
+export const PROFILE_DOCUMENT_TYPES = [
+  { label: 'DNI',       value: 'DNI'       },
+  { label: 'C.E.',      value: 'CE'        },
+  { label: 'Pasaporte', value: 'PASAPORTE' },
+  { label: 'PTP',       value: 'PTP'       },
+  { label: 'Otro',      value: 'OTRO'      },
+];
+
+export const PROFILE_DEPARTMENTS = [
+  { label: 'Administración',      value: 'ADMINISTRACION'   },
+  { label: 'Mecánica',            value: 'MECANICA'         },
+  { label: 'Carrocería',          value: 'CARROCERIA'       },
+  { label: 'Ventas',              value: 'VENTAS'           },
+  { label: 'Atención al cliente', value: 'ATENCION_CLIENTE' },
+  { label: 'Logística',           value: 'LOGISTICA'        },
+  { label: 'Seguridad',           value: 'SEGURIDAD'        },
+  { label: 'Sistemas',            value: 'SISTEMAS'         },
+  { label: 'Otro',                value: 'OTRO'             },
+];
+
+export const PROFILE_ROLES_OPTIONS = [
+  { label: 'Administrador',            value: 'ROLE_ADMIN'          },
+  { label: 'Administrador de Soporte', value: 'ROLE_SUPPORT_ADMIN'  },
+  { label: 'Guardia de Seguridad',     value: 'ROLE_SECURITY_GUARD' },
+];

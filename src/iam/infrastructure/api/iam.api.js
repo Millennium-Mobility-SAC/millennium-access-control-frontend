@@ -83,6 +83,15 @@ export class IamApi extends BaseApi {
         return this.http.get(`/profiles/user/${userId}`);
     }
 
+    /**
+     * Crea un nuevo perfil de usuario (crea cuenta IAM + datos de perfil en un solo paso).
+     * @param {Object} resource - Campos del perfil (username, password, roles, email, firstName, lastName, phoneNumber, documentType, documentNumber, position, department, active)
+     * @returns {Promise<AxiosResponse>}
+     */
+    createProfile(resource) {
+        return this.http.post('/profiles', resource);
+    }
+
     // ── CRUD genérico (usuarios del sistema) ─────────────────────────────
 
     getAll()             { return this.#endpoint.getAll(); }
