@@ -1318,11 +1318,18 @@ button.p-datepicker-dropdown:focus-visible {
 }
 
 .p-message.p-message-error {
-  border-left: 4px solid var(--color-error);
+  border-left: 4px solid #b91c1c;
+  background-color: #fef2f2;
+  color: #7f1d1d;
 }
 
 .p-message.p-message-error .p-message-icon {
-  color: var(--color-error);
+  color: #b91c1c;
+}
+
+.p-message.p-message-error .p-message-text {
+  color: #7f1d1d;
+  font-weight: 500;
 }
 
 /* ========================================

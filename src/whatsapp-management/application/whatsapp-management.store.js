@@ -7,7 +7,8 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
 
     // ── Estado ────────────────────────────────────────────────────────────
     const isLoading    = ref(false)
-    const error        = ref(null)
+    const error        = ref(null)   // mensaje amigable para el usuario
+    const rawError     = ref(null)   // mensaje técnico para reportar
     const connected    = ref(null)   // null = no consultado aún
     const enabled      = ref(false)
     const groupId      = ref('')
@@ -19,13 +20,48 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
     const isLoadingGroups = ref(false)
     let _qrPollingId   = null
 
-    function _clearError() { error.value = null }
+    function _clearError() { error.value = null; rawError.value = null }
 
-    function _parseError(e) {
+    /** Extrae el texto técnico crudo para mostrar en "Detalles técnicos". */
+    function _extractRaw(e) {
         return e?.response?.data?.message
             || e?.response?.data?.error
             || e?.message
-            || 'Error inesperado'
+            || String(e)
+    }
+
+    /** Mapea el error a un mensaje amigable en español. */
+    function _parseError(e) {
+        const status = e?.response?.status
+        const raw    = _extractRaw(e)
+        const lc     = raw.toLowerCase()
+
+        if (status === 401) return 'No autorizado. Verifica que tu sesión esté activa.'
+        if (status === 403) return 'No tienes permisos para realizar esta acción.'
+        if (status === 404) return 'El recurso solicitado no existe en el servidor.'
+        if (status === 503) return 'El servicio no está disponible en este momento. Intenta de nuevo en unos segundos.'
+        if (status >= 500 && status < 600) return 'Error interno del servidor. Si persiste, contacta al administrador.'
+
+        if (/i\/o error|connection refused|econnrefused/i.test(lc))
+            return 'No se pudo comunicar con el servicio de WhatsApp. Verifica que el microservicio Node.js esté en ejecución.'
+        if (/timed? ?out|timeout/i.test(lc))
+            return 'La operación tardó demasiado. El servicio puede estar sobrecargado. Intenta de nuevo.'
+        if (/network error/i.test(lc))
+            return 'Error de red. Verifica tu conexión y que el servidor esté disponible.'
+        if (/sincroniza|425/i.test(lc))
+            return 'WhatsApp todavía está sincronizando. Espera unos segundos e intenta de nuevo.'
+
+        // Fallback: el mensaje tal como viene pero sin traceback de Spring
+        const cleaned = (e?.response?.data?.message || e?.message || 'Error inesperado')
+            .replace(/An unexpected error occurred:\s*/i, '')
+            .trim()
+        return cleaned.length > 0 ? cleaned : 'Error inesperado'
+    }
+
+    /** Establece error amigable + error técnico en un solo paso. */
+    function _setError(e) {
+        error.value    = _parseError(e)
+        rawError.value = _extractRaw(e)
     }
 
     function _applyConfiguration(data) {
@@ -44,7 +80,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             const { data } = await api.getConfiguration()
             _applyConfiguration(data)
         } catch (e) {
-            error.value = _parseError(e)
+            _setError(e)
         } finally {
             isLoading.value = false
         }
@@ -60,7 +96,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
                 stopQrPolling()
             }
         } catch (e) {
-            error.value = _parseError(e)
+            _setError(e)
         }
     }
 
@@ -110,7 +146,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             maskedKey.value = data.key.slice(0, 6) + '••••••••••••••••••••••••••••••••' + data.key.slice(-4)
             return data.key
         } catch (e) {
-            error.value = _parseError(e)
+            _setError(e)
             return null
         } finally {
             isLoading.value = false
@@ -125,7 +161,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             _applyConfiguration(data)
             return true
         } catch (e) {
-            error.value = _parseError(e)
+            _setError(e)
             return false
         } finally {
             isLoading.value = false
@@ -140,7 +176,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             _applyConfiguration(data)
             return true
         } catch (e) {
-            error.value = _parseError(e)
+            _setError(e)
             return false
         } finally {
             isLoading.value = false
@@ -159,7 +195,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             startQrPolling()
             return true
         } catch (e) {
-            error.value = _parseError(e)
+            _setError(e)
             return false
         } finally {
             isLoading.value = false
@@ -178,7 +214,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             groups.value = Array.isArray(data) ? data : []
             return true
         } catch (e) {
-            error.value = _parseError(e)
+            _setError(e)
             groups.value = []
             return false
         } finally {
@@ -188,7 +224,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
 
     return {
         // estado
-        isLoading, error, connected, enabled, groupId, hasKey, maskedKey, generatedKey, qrString,
+        isLoading, error, rawError, connected, enabled, groupId, hasKey, maskedKey, generatedKey, qrString,
         groups, isLoadingGroups,
         // acciones
         fetchConfiguration, fetchStatus, fetchQr, startQrPolling, stopQrPolling,

@@ -11,6 +11,7 @@ const confirm   = useConfirm()
 
 const showKey   = ref(false)
 const copiedMsg = ref(false)
+const rawCopied = ref(false)
 const qrCanvas  = ref(null)
 
 // Cronómetro de refresco del QR (whatsapp-web.js emite uno nuevo ~cada 45s)
@@ -229,6 +230,14 @@ async function copyKey() {
     setTimeout(() => { copiedMsg.value = false }, 2500)
 }
 
+async function copyRawError() {
+    const msg = store.rawError
+    if (!msg) return
+    await navigator.clipboard.writeText(msg)
+    rawCopied.value = true
+    setTimeout(() => { rawCopied.value = false }, 2500)
+}
+
 async function refresh() {
     store.clearGeneratedKey()
     showKey.value = false
@@ -280,9 +289,25 @@ async function handleResetSession() {
         </div>
 
         <!-- Error global -->
-        <pv-message v-if="store.error" severity="error" class="wa-page__error" :closable="false">
-            {{ store.error }}
-        </pv-message>
+        <div v-if="store.error" class="wa-error-block">
+            <div class="wa-error-block__main">
+                <i class="pi pi-times-circle wa-error-block__icon" />
+                <span class="wa-error-block__msg">{{ store.error }}</span>
+            </div>
+            <details v-if="store.rawError && store.rawError !== store.error" class="wa-error-block__details">
+                <summary>Detalles técnicos <span class="wa-error-block__copy-hint">(para reportar al administrador)</span></summary>
+                <div class="wa-error-block__raw-row">
+                    <code class="wa-error-block__raw">{{ store.rawError }}</code>
+                    <pv-button
+                        :icon="rawCopied ? 'pi pi-check' : 'pi pi-copy'"
+                        :severity="rawCopied ? 'success' : 'secondary'"
+                        text rounded size="small"
+                        v-tooltip="rawCopied ? '¡Copiado!' : 'Copiar mensaje de error'"
+                        @click="copyRawError"
+                    />
+                </div>
+            </details>
+        </div>
 
         <!-- Grid de contenido -->
         <div class="wa-grid">
@@ -604,7 +629,82 @@ async function handleResetSession() {
     color: #6b7280;
     margin: 0;
 }
-.wa-page__error { margin-bottom: 1.5rem; }
+
+/* ── Error block ────────────────────────────────────────────── */
+.wa-error-block {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-left: 4px solid #b91c1c;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1.5rem;
+}
+.wa-error-block__main {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+}
+.wa-error-block__icon {
+    color: #b91c1c;
+    font-size: 1rem;
+    margin-top: 0.1rem;
+    flex-shrink: 0;
+}
+.wa-error-block__msg {
+    color: #7f1d1d;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.5;
+    flex: 1;
+}
+.wa-error-block__details {
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid #fca5a5;
+}
+.wa-error-block__details summary {
+    font-size: 0.78rem;
+    color: #9b1c1c;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 500;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.wa-error-block__details summary::before {
+    content: '►';
+    font-size: 0.65rem;
+    transition: transform 0.15s;
+}
+.wa-error-block__details[open] summary::before {
+    transform: rotate(90deg);
+}
+.wa-error-block__copy-hint {
+    font-weight: 400;
+    color: #b91c1c;
+    opacity: 0.8;
+}
+.wa-error-block__raw-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+}
+.wa-error-block__raw {
+    flex: 1;
+    font-family: ui-monospace, 'Cascadia Code', monospace;
+    font-size: 0.73rem;
+    color: #7f1d1d;
+    background: #fff1f2;
+    border: 1px solid #fca5a5;
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.5;
+}
 
 /* ── Grid ───────────────────────────────────────────────────── */
 .wa-grid {
