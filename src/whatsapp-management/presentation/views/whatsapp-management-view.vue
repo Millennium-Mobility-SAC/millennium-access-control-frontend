@@ -325,7 +325,7 @@ async function handleResetSession() {
             </div>
 
             <!-- Pair: Configuración (izquierda) + QR (derecha) en pantallas anchas -->
-            <div class="wa-grid__pair">
+            <div class="wa-grid__pair" :class="{ 'wa-grid__pair--solo': store.connected !== false }">
                 
                 <!-- Card: QR Code (solo visible cuando desconectado y hay QR disponible) -->
                 <div v-if="store.connected === false && store.qrString" class="wa-card wa-card--qr">
@@ -622,6 +622,9 @@ async function handleResetSession() {
 @media (min-width: 960px) {
     .wa-grid__pair {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .wa-grid__pair--solo {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 

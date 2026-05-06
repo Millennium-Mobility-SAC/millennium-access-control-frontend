@@ -13,7 +13,6 @@ import {
   formatCalendarDateForUi,
   formatTimeOfDayForUi,
 } from '@/shared/domain/format-datetime-ui.js'
-import { sortAttendanceRecordsByRecencyDesc } from '../../domain/sort-attendance-records.js'
 import { todayIsoLocal, toIsoDateString } from '@/shared/domain/employee-attendance-day.js'
 
 const store = useSecurityCheckpointStore()
@@ -24,9 +23,7 @@ const permissions = usePermissions()
  * Vista Marcación de personal: por defecto solo el día de hoy; con «Historial completo»
  * se consultan todas las marcaciones (y filtros por fecha como antes).
  */
-const attendanceHistoryRows = computed(() =>
-  sortAttendanceRecordsByRecencyDesc(store.attendanceRecords),
-)
+const attendanceHistoryRows = computed(() => store.attendanceRecords)
 
 /** false = solo marcaciones de hoy; true = historial completo con filtros de fecha opcionales. */
 const fullHistoryMode = ref(false)
@@ -156,10 +153,16 @@ function formatCheckOutForExport(row) {
   return isAttendanceCheckOutPending(row) ? 'Pendiente' : formatTimeCell(row.checkOutTime)
 }
 
-/** Excel en cliente: mismos registros que la tabla (filtros actuales del API). */
-function exportAttendanceExcel() {
-  const list = attendanceHistoryRows.value
-  if (!list.length) {
+/** Excel export: fetches all records matching active filters from the server. */
+async function exportAttendanceExcel() {
+  let list
+  try {
+    list = await store.exportAll()
+  } catch {
+    showError('No se pudo exportar los registros.')
+    return
+  }
+  if (!list?.length) {
     showError('No hay registros para exportar.')
     return
   }
@@ -177,6 +180,10 @@ function exportAttendanceExcel() {
   XLSX.utils.book_append_sheet(wb, ws, 'Marcación')
   const date = todayIsoLocal()
   XLSX.writeFile(wb, `marcacion-personal-${date}.xlsx`)
+}
+
+function handlePageChange({ page }) {
+  store.goToPage(page)
 }
 
 /**
@@ -287,6 +294,9 @@ onMounted(async () => {
     <DataManager
       :items="attendanceHistoryRows"
       :filtered-items="attendanceHistoryRows"
+      :lazy="true"
+      :total-records="store.pagination.totalElements"
+      :rows="20"
       :title="{ singular: 'registro', plural: 'registros' }"
       :columns="columns"
       :dynamic="true"
@@ -306,6 +316,7 @@ onMounted(async () => {
       @new-item-requested-manager="openCreatePersonnelDialog"
       @edit-item-requested-manager="openEditPersonnelDialog"
       @delete-item-requested-manager="deleteAttendanceRow"
+      @page-changed="handlePageChange"
     >
       <template #extra-actions>
         <pv-button

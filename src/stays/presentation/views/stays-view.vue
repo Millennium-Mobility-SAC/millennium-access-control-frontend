@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useStaysStore }                        from '../../application/stays.store.js'
 import { useIamStore }                          from '@/iam/application/iam.store.js'
 import { useAsyncAction }                       from '@/shared/composables/use-async-action.js'
@@ -102,33 +102,31 @@ const filterType   = ref([])
 const filterMotivo = ref([])
 const searchText   = ref('')
 
-const filteredItems = computed(() => {
-  const q = searchText.value.trim().toLowerCase()
-  return store.items.filter(item => {
-    if (filterStatus.value.length && !filterStatus.value.includes(item.status))      return false
-    if (filterType.value.length   && !filterType.value.includes(item.type))          return false
-    if (filterMotivo.value.length && !filterMotivo.value.includes(item.entryReason)) return false
-    if (q) {
-      const searchable = [
-        item.licensePlate,
-        item.fullName,
-        item.firstName,
-        item.lastName,
-        item.brand,
-        item.model,
-        item.clientDocumentNumber,
-      ].filter(Boolean).join(' ').toLowerCase()
-      if (!searchable.includes(q)) return false
-    }
-    return true
+// ── Server-side filtering ──────────────────────────────────────────
+let _searchDebounceTimer = null
+
+function applyAllFilters() {
+  store.applyFilters({
+    statuses:     filterStatus.value,
+    types:        filterType.value,
+    entryReasons: filterMotivo.value,
+    search:       searchText.value,
   })
+}
+
+watch(searchText, () => {
+  clearTimeout(_searchDebounceTimer)
+  _searchDebounceTimer = setTimeout(applyAllFilters, 400)
 })
+
+watch([filterStatus, filterType, filterMotivo], applyAllFilters, { deep: true })
 
 function clearAllFilters() {
   filterStatus.value = []
   filterType.value   = []
   filterMotivo.value = []
   searchText.value   = ''
+  store.applyFilters({ statuses: [], types: [], entryReasons: [], search: '' })
 }
 
 async function openDrawer(item) {
@@ -474,25 +472,37 @@ function flattenRows(entries, buildRow) {
 const VEHICLE_COL_WIDTHS = [6, 18, 18, 14, 12, 22, 24, 22, 18, 18, 18, 18, 12, 14, 16, 6, 14, 12, 20, 22, 22, 20, 18, 18, 14, 12]
 const PERSON_COL_WIDTHS  = [6, 18, 18, 14, 12, 22, 24, 22, 18, 18, 18, 18, 18, 18, 16, 16, 20, 22, 22, 20, 18, 18, 14, 12]
 
-function handleExport() {
-  const vehicles = store.items.filter(e => e.type === 'VEHICULO')
-  const persons  = store.items.filter(e => e.type === 'PERSONA')
+async function handleExport() {
+  await run(async () => {
+    const entries = await store.exportAll()
+    if (!entries.length) {
+      showError('No hay datos para exportar con los filtros actuales.')
+      return
+    }
+    const vehicles = entries.filter(e => e.type === 'VEHICULO')
+    const persons  = entries.filter(e => e.type === 'PERSONA')
 
-  const wb = XLSX.utils.book_new()
+    const wb = XLSX.utils.book_new()
 
-  if (vehicles.length > 0) {
-    const ws = XLSX.utils.json_to_sheet(flattenRows(vehicles, buildVehicleRow), { cellDates: true })
-    applySheetStyles(ws, VEHICLE_COL_WIDTHS)
-    XLSX.utils.book_append_sheet(wb, ws, 'Vehículos')
-  }
-  if (persons.length > 0) {
-    const ws = XLSX.utils.json_to_sheet(flattenRows(persons, buildPersonRow), { cellDates: true })
-    applySheetStyles(ws, PERSON_COL_WIDTHS)
-    XLSX.utils.book_append_sheet(wb, ws, 'Personas')
-  }
+    if (vehicles.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(flattenRows(vehicles, buildVehicleRow), { cellDates: true })
+      applySheetStyles(ws, VEHICLE_COL_WIDTHS)
+      XLSX.utils.book_append_sheet(wb, ws, 'Vehículos')
+    }
+    if (persons.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(flattenRows(persons, buildPersonRow), { cellDates: true })
+      applySheetStyles(ws, PERSON_COL_WIDTHS)
+      XLSX.utils.book_append_sheet(wb, ws, 'Personas')
+    }
 
-  const date = todayIsoLocal()
-  XLSX.writeFile(wb, `control-acceso-${date}.xlsx`)
+    const date = todayIsoLocal()
+    XLSX.writeFile(wb, `control-acceso-${date}.xlsx`)
+  }, { rethrow: false })
+  if (error.value) showError(error.value)
+}
+
+function handlePageChange({ page }) {
+  store.goToPage(page)
 }
 </script>
 
@@ -500,8 +510,11 @@ function handleExport() {
   <div class="stays-page app-page-view flex flex-column flex-1 min-h-0 min-w-0">
     <DataManager
       :items="store.items"
-      :filtered-items="filteredItems"
+      :filtered-items="null"
       :global-filter-value="searchText"
+      :lazy="true"
+      :total-records="store.pagination.totalElements"
+      :rows="20"
       :title="{ singular: 'registro', plural: 'registros' }"
       :columns="columns"
       :dynamic="true"
@@ -531,7 +544,8 @@ function handleExport() {
       @import-data-requested-manager="handleImport"
       @exit-item-requested-manager="openExitDialog"
       @return-item-requested-manager="openReturnDialog"
-      @global-filter-change="(v) => searchText = v"
+      @page-changed="handlePageChange"
+      @global-filter-change="(v) => { searchText = v }"
       @clear-filters="clearAllFilters"
     >
       <template #extra-actions>

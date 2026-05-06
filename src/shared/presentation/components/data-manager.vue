@@ -99,6 +99,12 @@ const props = defineProps({
   viewActionIconOnly: { type: Boolean, default: false },
   /** Texto adicional en el diálogo de confirmación al eliminar (p. ej. efectos en cascada). */
   deleteConfirmExtra: { type: String, default: '' },
+
+  // Paginación lazy (server-side)
+  /** Activa el modo lazy: la paginación se delega al servidor. */
+  lazy:         { type: Boolean, default: false },
+  /** Total de registros en el servidor (requerido cuando lazy=true). */
+  totalRecords: { type: Number,  default: 0     },
 })
 
 // ===========================
@@ -124,6 +130,7 @@ const emit = defineEmits([
   'row-select',
   'row-unselect',
   'import-data-requested-manager',
+  'page-changed',
 ])
 
 // ===========================
@@ -288,6 +295,16 @@ const confirmDeleteItem = (item) => {
 const exportToCsv = () => dt.value.exportCSV()
 
 /**
+ * Maneja el evento de paginación de PrimeVue.
+ * En modo lazy delega al padre; en modo normal PrimeVue ya pagina internamente.
+ */
+const onPage = (event) => {
+  if (props.lazy) {
+    emit('page-changed', { page: event.page, rows: event.rows })
+  }
+}
+
+/**
  * Emite evento cuando se selecciona una fila
  */
 const onRowSelect = (event) => emit('row-select', event)
@@ -427,6 +444,9 @@ onMounted(() => initFilters())
         paginator-template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
         current-page-report-template="Mostrando {first} - {last} de {totalRecords} registros"
         hover
+        :lazy="lazy"
+        :total-records="totalRecords"
+        @page="onPage"
         @row-select="onRowSelect"
         @row-unselect="onRowUnselect"
       >

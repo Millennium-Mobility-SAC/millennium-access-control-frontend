@@ -3,82 +3,74 @@ import { computed, ref } from 'vue'
 import { EmployeesSharedApi } from '@/shared/infrustructure/api/employees-shared.api.js'
 import { EmployeeAssembler } from '@/employee-management/infrastructure/assemblers/employee.assembler.js'
 import { AttendanceRecordAssembler } from '../infrastructure/assemblers/attendance-record.assembler.js'
-import { sortAttendanceRecordsByRecencyDesc } from '../domain/sort-attendance-records.js'
 import { pendingAttendanceAction, todayIsoLocal, findTodayAttendanceRow } from '@/shared/domain/employee-attendance-day.js'
-
-/** Estado de la última carga: «todo» (GET sin params) o rango + búsqueda aplicados por el usuario. */
-function initialLastQuery() {
-  return {
-    all: true,
-    dateFrom: null,
-    dateTo: null,
-    search: '',
-  }
-}
 
 export const useSecurityCheckpointStore = defineStore('security-checkpoint', () => {
   const api = new EmployeesSharedApi()
+
+  // Paginated state
   const _records = ref([])
-  const _lastQuery = ref(initialLastQuery())
+  const _page = ref(0)
+  const _size = ref(20)
+  const _totalElements = ref(0)
+  const _totalPages = ref(0)
+  const _activeFilters = ref({ dateFrom: null, dateTo: null, search: '' })
 
   const attendanceRecords = computed(() => _records.value)
+  const pagination = computed(() => ({
+    page: _page.value,
+    size: _size.value,
+    totalElements: _totalElements.value,
+    totalPages: _totalPages.value,
+  }))
 
-  /**
-   * @param {null|undefined|{ dateFrom?: string|null, dateTo?: string|null, search?: string }} query
-   * - `{}` o sin args: sin rango (toda la data o solo search si viene en el objeto).
-   * - Nunca reutiliza la petición anterior implícitamente (evita lista «pegada» al limpiar filtros).
-   * - Con dateFrom + dateTo: GET con filtros (y search opcional).
-   */
-  async function fetchAttendanceRecords(query = {}) {
-    const raw = query ?? {}
-    const dateFrom = raw.dateFrom ?? null
-    const dateTo = raw.dateTo ?? null
-    const search = (raw.search ?? '').trim()
-    const hasRange = Boolean(dateFrom && dateTo)
-
-    if (!hasRange) {
-      _lastQuery.value = {
-        all: true,
-        dateFrom: null,
-        dateTo: null,
-        search,
-      }
-      const response = await api.getAttendanceRecords(search ? { search } : null)
-      const rows = AttendanceRecordAssembler.listFromResponse(response)
-      _records.value = sortAttendanceRecordsByRecencyDesc(rows)
-      return _records.value
-    }
-
-    _lastQuery.value = {
-      all: false,
-      dateFrom,
-      dateTo,
-      search,
-    }
+  async function fetchPage(page) {
+    const { dateFrom, dateTo, search } = _activeFilters.value
     const response = await api.getAttendanceRecords({
       dateFrom,
       dateTo,
       search,
+      page,
+      size: _size.value,
     })
-    const rows = AttendanceRecordAssembler.listFromResponse(response)
-    _records.value = sortAttendanceRecordsByRecencyDesc(rows)
-    return _records.value
+    const data = response.data
+    const content = data?.content ?? data
+    const rows = (Array.isArray(content) ? content : []).map(r => AttendanceRecordAssembler.fromResource(r))
+    _records.value = rows
+    _page.value = data?.page ?? page
+    _totalElements.value = data?.total_elements ?? rows.length
+    _totalPages.value = data?.total_pages ?? 1
+    return rows
+  }
+
+  /**
+   * Sets active filters and fetches page 0.
+   * @param {null|undefined|{ dateFrom?: string|null, dateTo?: string|null, search?: string }} query
+   */
+  async function fetchAttendanceRecords(query = {}) {
+    const raw = query ?? {}
+    _activeFilters.value = {
+      dateFrom: raw.dateFrom ?? null,
+      dateTo: raw.dateTo ?? null,
+      search: (raw.search ?? '').trim(),
+    }
+    return fetchPage(0)
+  }
+
+  async function goToPage(page) {
+    return fetchPage(page)
+  }
+
+  /** Exports all records matching the current active filters (no pagination). */
+  async function exportAll() {
+    const { dateFrom, dateTo, search } = _activeFilters.value
+    const response = await api.exportAttendanceRecords({ dateFrom, dateTo, search })
+    if (!Array.isArray(response?.data)) return []
+    return response.data.map(r => AttendanceRecordAssembler.fromResource(r))
   }
 
   async function refreshLastQuery() {
-    const q = _lastQuery.value
-    if (q.all) {
-      return fetchAttendanceRecords({
-        dateFrom: null,
-        dateTo: null,
-        search: q.search ?? '',
-      })
-    }
-    return fetchAttendanceRecords({
-      dateFrom: q.dateFrom,
-      dateTo: q.dateTo,
-      search: q.search ?? '',
-    })
+    return fetchPage(_page.value)
   }
 
   async function lookupEmployeeForAttendance(lookupTerm) {
@@ -120,13 +112,19 @@ export const useSecurityCheckpointStore = defineStore('security-checkpoint', () 
 
   async function removeAttendanceRecord(employeeId, attendanceId) {
     await api.deleteAttendance(employeeId, attendanceId)
-    await refreshLastQuery()
+    // If removing the last item on a non-first page, go back one page
+    if (_records.value.length <= 1 && _page.value > 0) {
+      return fetchPage(_page.value - 1)
+    }
+    return fetchPage(_page.value)
   }
 
   return {
     attendanceRecords,
-    lastQuery: computed(() => _lastQuery.value),
+    pagination,
     fetchAttendanceRecords,
+    goToPage,
+    exportAll,
     refreshLastQuery,
     lookupEmployeeForAttendance,
     fetchEmployeeSuggestions,
@@ -137,3 +135,4 @@ export const useSecurityCheckpointStore = defineStore('security-checkpoint', () 
     removeAttendanceRecord,
   }
 })
+

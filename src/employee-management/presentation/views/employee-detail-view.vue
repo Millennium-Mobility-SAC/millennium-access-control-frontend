@@ -135,6 +135,7 @@ function resetAttendanceFilters(clearFilters) {
   filterDateFrom.value = null
   filterDateTo.value = null
   attendanceSearch.value = ''
+  // watchers fire and reload from server
   if (typeof clearFilters === 'function') clearFilters()
 }
 
@@ -150,16 +151,18 @@ function sanitizeFilePart(s) {
     .slice(0, 48)
 }
 
-/** Excel en cliente: incluye columna Trabajador (mismos filtros que la tabla). */
-function exportAttendanceExcel() {
+/** Excel: descarga todos los registros del empleado que coincidan con los filtros activos. */
+async function exportAttendanceExcel() {
   const e = employee.value
   if (!e) return
-  const worker = (e.fullName ?? '').trim() || '—'
-  const list = filteredAttendance.value
-  if (!list.length) {
+  let list = null
+  await run(async () => { list = await store.exportAttendance() })
+  if (error.value) { showError(error.value); return }
+  if (!list?.length) {
     showError('No hay registros para exportar con los filtros actuales.')
     return
   }
+  const worker = (e.fullName ?? '').trim() || '—'
   const rows = list.map((r) => ({
     Trabajador: worker,
     Fecha: formatAttendanceDate(r.attendanceDate),
@@ -196,17 +199,13 @@ async function loadDetail() {
   filterDateTo.value = null
   await run(async () => {
     await store.fetchById(id)
-    await store.fetchAttendance(id)
+    await store.fetchAttendance(id, {})
   }, { errorMessage: 'No se pudo cargar el empleado o su historial de asistencia.' })
   if (error.value) {
     showError(error.value)
     await router.replace({ name: 'employee-management' })
   }
 }
-
-watch([filterDateFrom, filterDateTo], () => {
-  syncAttendanceHastaWithSoloDesde()
-})
 
 watch(employeeId, () => { loadDetail() }, { immediate: true })
 </script>
@@ -271,7 +270,9 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
       <div class="ed-history__table flex-1 min-h-0 min-w-0 surface-card border-round-lg border-1 surface-border p-2 md:p-3">
         <DataManager
           :items="store.attendance"
-          :filtered-items="filteredAttendance"
+          :total-records="store.attPagination.totalElements"
+          :rows="20"
+          :lazy="true"
           :global-filter-value="attendanceSearch"
           :title="{ singular: 'registro', plural: 'registros' }"
           :columns="attendanceColumns"
@@ -286,6 +287,7 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
           :show-delete="false"
           :show-export="false"
           @global-filter-change="onAttendanceSearchChange"
+          @page-changed="handleAttPageChange"
         >
           <template #filters="{ clearFilters }">
             <div class="app-filters-row app-filters-row--stack-sm ed-att-filters w-full min-w-0 flex-1">

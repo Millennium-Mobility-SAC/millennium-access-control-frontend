@@ -52,31 +52,38 @@ export class EmployeesSharedApi extends BaseApi {
   }
 
   /**
-   * Sin `query` / sin filtros de fechas: GET sin parámetros (toda la data en servidor).
-   * Con `dateFrom` y `dateTo` (y `search` opcional): listado filtrado.
-   * Solo `search` (sin fechas): búsqueda por documento, nombre o cargo.
+   * Paginated attendance records. Pass `page` and `size` for pagination.
+   * Date range and search are optional filters.
    *
-   * @param {null|undefined|{ dateFrom?: string, dateTo?: string, search?: string }} query
+   * @param {null|undefined|{ dateFrom?: string, dateTo?: string, search?: string, page?: number, size?: number }} query
    */
   getAttendanceRecords(query) {
     const path = `${this.#endpoint.endpointPath}/attendance-records`
-    if (query == null) {
-      return this.http.get(path)
-    }
-    const search = query.search?.trim() || ''
-    const hasRange = Boolean(query.dateFrom && query.dateTo)
-    if (!hasRange) {
-      if (!search) {
-        return this.http.get(path)
-      }
-      return this.http.get(path, { params: { search } })
-    }
-    const params = {
-      date_from: query.dateFrom,
-      date_to: query.dateTo,
-    }
+    const params = {}
+    if (query?.dateFrom) params.date_from = query.dateFrom
+    if (query?.dateTo) params.date_to = query.dateTo
+    const search = query?.search?.trim()
     if (search) params.search = search
+    params.page = query?.page ?? 0
+    params.size = query?.size ?? 20
     return this.http.get(path, { params })
+  }
+
+  /**
+   * Export all attendance records matching the given filters (no pagination cap).
+   *
+   * @param {null|undefined|{ dateFrom?: string, dateTo?: string, search?: string }} query
+   */
+  exportAttendanceRecords(query) {
+    const path = `${this.#endpoint.endpointPath}/attendance-records/export`
+    const params = {}
+    if (query?.dateFrom) params.date_from = query.dateFrom
+    if (query?.dateTo) params.date_to = query.dateTo
+    const search = query?.search?.trim()
+    if (search) params.search = search
+    return Object.keys(params).length > 0
+      ? this.http.get(path, { params })
+      : this.http.get(path)
   }
 
   /** @param {string} lookupTerm — documento o nombre (coincidencia por documento primero, luego nombre). */

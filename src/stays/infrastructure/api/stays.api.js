@@ -77,6 +77,14 @@ export class StaysApi extends BaseApi {
     return this.http.get(`${this.#endpoint.endpointPath}/${stayId}/notification-status`)
   }
 
+  /**
+   * Export all stays matching the given filters (no pagination, safety-capped at 5000).
+   * @param {Object} [params] - Optional filter query params (status, type, entry_reason, search)
+   */
+  exportAll(params = {}) {
+    return this.http.get(`${this.#endpoint.endpointPath}/export`, { params })
+  }
+
   /** @param {number} stayId  @param {string|null} operationType  @param {number|null} temporalExitId  Triggers a manual resend; returns the new attempt */
   resendWhatsApp(stayId, operationType = null, temporalExitId = null) {
     const body = operationType ? { operationType, temporalExitId } : {}

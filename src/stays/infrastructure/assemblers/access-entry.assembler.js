@@ -248,9 +248,13 @@ export class AccessEntryAssembler {
   /**
    * @param {Object} response - Full HTTP response (e.g. Axios)
    * @returns {AccessEntry[]}
+   * Handles both a plain array response and a PagedResponse { content: [...] }.
    */
   static toEntitiesFromResponse(response) {
-    if (!Array.isArray(response?.data)) return []
-    return response.data.map(r => AccessEntryAssembler.toEntityFromResource(r))
+    const data = response?.data
+    const items = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.content) ? data.content : []
+    return items.map(r => AccessEntryAssembler.toEntityFromResource(r))
   }
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted }  from 'vue'
+import { ref, watch, onMounted }             from 'vue'
 import { useRouter }                   from 'vue-router'
 import { useVehicleCatalogStore }      from '../../application/vehicle-catalog.store.js'
 import { useIamStore }                 from '@/iam/application/iam.store.js'
@@ -50,26 +50,27 @@ const DAYS_RANGES = [
   { label: '+ 15 días',    value: '15+'  },
 ]
 
-const filteredItems = computed(() => {
-  const q = searchText.value.trim().toLowerCase()
-  return store.vehicles.filter(v => {
-    if (filterStatus.value.length && !filterStatus.value.includes(v.currentStatus)) return false
-    if (filterMotivo.value.length && !filterMotivo.value.includes(v.catalogActiveTemporalExitReason)) return false
-    if (filterDays.value) {
-      const d = v.daysInPlant ?? null
-      if (d == null) return false
-      if (filterDays.value === '0-3'  && d > 3)           return false
-      if (filterDays.value === '4-7'  && (d < 4 || d > 7))  return false
-      if (filterDays.value === '8-14' && (d < 8 || d > 14)) return false
-      if (filterDays.value === '15+'  && d < 15)          return false
-    }
-    if (q) {
-      const searchable = [v.licensePlate, v.brand, v.model, String(v.year ?? '')]
-        .filter(Boolean).join(' ').toLowerCase()
-      if (!searchable.includes(q)) return false
-    }
-    return true
-  })
+function buildFilters() {
+  return {
+    statuses:            filterStatus.value.length ? [...filterStatus.value] : undefined,
+    temporalExitReasons: filterMotivo.value.length ? [...filterMotivo.value] : undefined,
+    daysRange:           filterDays.value   ?? undefined,
+    search:              searchText.value.trim() || undefined,
+  }
+}
+
+// Push new filters to the backend on any filter change
+watch([filterStatus, filterMotivo, filterDays], () => {
+  run(() => store.fetchVehicles(buildFilters()))
+}, { deep: true })
+
+// Debounce text search so we don't fire on every keystroke
+let _searchTimer = null
+watch(searchText, () => {
+  clearTimeout(_searchTimer)
+  _searchTimer = setTimeout(() => {
+    run(() => store.fetchVehicles(buildFilters()))
+  }, 350)
 })
 
 function clearAllFilters() {
@@ -77,6 +78,11 @@ function clearAllFilters() {
   filterMotivo.value = []
   filterDays.value   = null
   searchText.value   = ''
+  // watchers will fire and call fetchVehicles with empty filters
+}
+
+function handlePageChange({ page }) {
+  run(() => store.goToPage(page))
 }
 
 const columns = VEHICLE_COLUMNS
@@ -169,7 +175,7 @@ async function handleBulkUpdate(rows) {
 }
 
 onMounted(async () => {
-  await run(() => store.fetchAll())
+  await run(() => store.fetchVehicles({}))
 })
 
 // ── Date/time (compartido: `format-datetime-ui.js`) ──────────────────────────
@@ -208,7 +214,9 @@ function formatUbicacionCatalog(row) {
   <div class="vc-page app-page-view flex flex-column flex-1 min-h-0 min-w-0">
     <DataManager
       :items="store.vehicles"
-      :filtered-items="filteredItems"
+      :total-records="store.pagination.totalElements"
+      :rows="20"
+      :lazy="true"
       delete-confirm-extra="También se eliminará todo el historial de accesos asociado (ingresos, salidas temporales y permanentes)."
       :title="{ singular: 'vehículo', plural: 'vehículos' }"
       :columns="columns"
@@ -230,6 +238,7 @@ function formatUbicacionCatalog(row) {
       @delete-selected-items-requested-manager="handleDeleteSelected"
       @import-data-requested-manager="handleImport"
       @clear-filters="clearAllFilters"
+      @page-changed="handlePageChange"
     >
       <template v-if="iamStore.hasFullActionAccess" #extra-actions>
         <pv-button

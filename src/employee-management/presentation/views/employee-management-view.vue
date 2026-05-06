@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import * as XLSX from 'xlsx'
 import DataManager from '@/shared/presentation/components/data-manager.vue'
@@ -33,14 +33,23 @@ const importVisible = ref(false)
 const searchText = ref('')
 const filterStatus = ref(null)
 
-const filteredItems = computed(() => {
-  const q = searchText.value.trim().toLowerCase()
-  return store.employees.filter(e => {
-    if (filterStatus.value && e.status !== filterStatus.value) return false
-    if (!q) return true
-    const searchable = [e.fullName, e.position, e.documentNumber].join(' ').toLowerCase()
-    return searchable.includes(q)
-  })
+function buildFilters() {
+  return {
+    status: filterStatus.value ?? undefined,
+    search: searchText.value.trim() || undefined,
+  }
+}
+
+watch(filterStatus, () => {
+  run(() => store.fetchEmployees(buildFilters()))
+})
+
+let _empSearchTimer = null
+watch(searchText, () => {
+  clearTimeout(_empSearchTimer)
+  _empSearchTimer = setTimeout(() => {
+    run(() => store.fetchEmployees(buildFilters()))
+  }, 350)
 })
 
 /** Anchos mínimos moderados: scroll horizontal suave en móvil/tablet. */
@@ -59,10 +68,12 @@ function statusLabel(status) {
   return status === 'ACTIVE' ? 'Activo' : 'Inactivo'
 }
 
-/** Excel en cliente: respeta búsqueda y filtro de estado; columna Trabajador. */
-function exportEmployeesExcel() {
-  const list = filteredItems.value
-  if (!list.length) {
+/** Excel: descarga todos los empleados que coincidan con los filtros activos. */
+async function exportEmployeesExcel() {
+  let list = null
+  await run(async () => { list = await store.exportEmployees() })
+  if (error.value) { showError(error.value); return }
+  if (!list?.length) {
     showError('No hay empleados para exportar con los filtros actuales.')
     return
   }
@@ -138,10 +149,15 @@ async function handleImport(rows) {
 function clearAllFilters() {
   searchText.value = ''
   filterStatus.value = null
+  // watchers fire automatically and reload data
+}
+
+function handleEmpPageChange({ page }) {
+  run(() => store.goToEmpPage(page))
 }
 
 onMounted(async () => {
-  await run(() => store.fetchAll(), { errorMessage: 'No se pudo cargar el listado de empleados.' })
+  await run(() => store.fetchEmployees({}), { errorMessage: 'No se pudo cargar el listado de empleados.' })
   if (error.value) showError(error.value)
 })
 </script>
@@ -150,7 +166,9 @@ onMounted(async () => {
   <div class="em-page app-page-view flex flex-column flex-1 min-h-0 min-w-0">
     <DataManager
       :items="store.employees"
-      :filtered-items="filteredItems"
+      :total-records="store.empPagination.totalElements"
+      :rows="20"
+      :lazy="true"
       :title="{ singular: 'empleado', plural: 'empleados' }"
       :columns="columns"
       :dynamic="true"
@@ -169,6 +187,7 @@ onMounted(async () => {
       @delete-item-requested-manager="handleDelete"
       @delete-selected-items-requested-manager="handleDeleteSelected"
       @clear-filters="clearAllFilters"
+      @page-changed="handleEmpPageChange"
     >
       <template #extra-actions>
         <pv-button label="Importar" icon="pi pi-upload" severity="info" size="small" outlined @click="importVisible = true" />
