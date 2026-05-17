@@ -6,6 +6,14 @@ import { MOTIVOS_INGRESO, TIPOS_INGRESO, TIPOS_DOCUMENTO } from '../constants/st
 import { useVehicleCatalogStore } from '@/vehicle-catalog/application/vehicle-catalog.store.js'
 import { useStaysStore }          from '@/stays/application/stays.store.js'
 import { nowPeruTimeString, nowPeruDate } from '@/shared/domain/peru-time.js'
+import { useStayAttachmentMedia } from '../composables/use-stay-attachment-media.js'
+
+const {
+  driveImgAttrs,
+  getOpenUrl,
+  getPreviewSrc,
+  onAttachmentImageError,
+} = useStayAttachmentMedia()
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -317,34 +325,6 @@ watch(groupedExistingAttachmentSections, (sections) => {
 
 function toggleSection(sectionKey) {
   openSections.value[sectionKey] = !openSections.value[sectionKey]
-}
-
-function resolveProviderFileId(attachment) {
-  return attachment?.provider_file_id ?? attachment?.providerFileId ?? null
-}
-
-function buildDriveViewUrl(providerFileId) {
-  return `https://drive.google.com/file/d/${providerFileId}/view`
-}
-
-function buildDrivePreviewUrl(providerFileId) {
-  return `https://drive.google.com/thumbnail?id=${providerFileId}&sz=w1200`
-}
-
-function getOpenUrl(attachment) {
-  const providerFileId = resolveProviderFileId(attachment)
-  if (providerFileId) return buildDriveViewUrl(providerFileId)
-  return attachment?.public_url ?? attachment?.publicUrl ?? '#'
-}
-
-function getPreviewSrc(attachment) {
-  const providerFileId = resolveProviderFileId(attachment)
-  if (providerFileId) return buildDrivePreviewUrl(providerFileId)
-  return attachment?.public_url ?? attachment?.publicUrl ?? ''
-}
-
-function onExistingImageError(event) {
-  event.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='160'%3E%3Crect width='240' height='160' fill='%23e5e7eb'/%3E%3Ctext x='120' y='85' text-anchor='middle' fill='%236b7280' font-size='14' font-family='Arial'%3ESin vista previa%3C/text%3E%3C/svg%3E"
 }
 
 function requestRemoveExistingAttachment(attachment) {
@@ -775,9 +755,10 @@ const aceForm = ref(null)
                   >
                     <a :href="getOpenUrl(attachment)" target="_blank" rel="noopener noreferrer">
                       <img
-                        :src="getPreviewSrc(attachment)"
+                        v-bind="driveImgAttrs"
+                        :src="getPreviewSrc(attachment, 'w1200')"
                         :alt="attachment.file_name ?? attachment.fileName"
-                        @error="onExistingImageError"
+                        @error="onAttachmentImageError"
                       >
                     </a>
                     <button

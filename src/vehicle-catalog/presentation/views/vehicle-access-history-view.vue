@@ -22,7 +22,7 @@ const vehicleStore = useVehicleCatalogStore()
 const MILEAGE_INGRESO_TOOLTIP =
   'Kilometraje del odómetro declarado al registrar ese ingreso. No es el motivo de ingreso (0KM, Mecánica, etc. van arriba).'
 const accessStore  = useStaysStore()
-const { isLoading, run } = useAsyncAction()
+const { isLoading, error, run } = useAsyncAction()
 
 // ── Vehicle id from route ─────────────────────────────────────────────────────
 const vehicleId = Number(route.params.vehicleId)
@@ -303,6 +303,17 @@ const processedHistory = computed(() =>
     <!-- ── Loading ──────────────────────────────────────────────────────────── -->
     <div v-if="isLoading" class="flex justify-content-center align-items-center flex-1">
       <i class="pi pi-spinner pi-spin" style="font-size: 2rem; color: var(--color-primary)" />
+    </div>
+
+    <!-- ── Error al cargar historial ────────────────────────────────────────── -->
+    <div
+      v-else-if="error"
+      class="flex flex-column align-items-center justify-content-center flex-1 gap-2"
+    >
+      <i class="pi pi-exclamation-triangle" style="font-size: 2.5rem; color: var(--red-500, #dc2626)" />
+      <span style="color: var(--text-body); font-size: 0.9rem; text-align: center; max-width: 22rem">
+        {{ error }}
+      </span>
     </div>
 
     <!-- ── Empty state ──────────────────────────────────────────────────────── -->

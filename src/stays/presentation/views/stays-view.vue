@@ -138,7 +138,10 @@ async function openDrawer(item) {
   await run(async () => {
     await store.fetchById(item.id)
     drawerAttachments.value = await store.fetchAttachments(item.id)
-  })
+  }, { errorMessage: 'No se pudieron cargar las evidencias del registro.' })
+  if (error.value && drawerVisible.value) {
+    showError(error.value)
+  }
   if (store.selected) drawerItem.value = store.selected
   await refreshWhatsappStatus(item.id)
   const latest = drawerWhatsappAttempts.value?.[0] ?? null

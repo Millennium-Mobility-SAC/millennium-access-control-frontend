@@ -1,6 +1,7 @@
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
+  # Las miniaturas de Google Drive en <img> usan referrerpolicy="no-referrer" por evidencia.
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 

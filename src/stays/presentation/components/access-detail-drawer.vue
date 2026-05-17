@@ -15,6 +15,15 @@ import {
   formatCalendarDateForUi,
   formatTimeHmAmPmForUi,
 } from '@/shared/domain/format-datetime-ui.js'
+import { useStayAttachmentMedia } from '../composables/use-stay-attachment-media.js'
+
+const {
+  driveImgAttrs,
+  getOpenUrl,
+  getPreviewSrc,
+  isImageAttachment,
+  onAttachmentImageError,
+} = useStayAttachmentMedia()
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -181,37 +190,6 @@ const previewSectionKey = ref('ENTRY')
 
 const { confirmDelete } = useConfirmDialog()
 
-function resolveProviderFileId(attachment) {
-  return attachment?.provider_file_id ?? attachment?.providerFileId ?? null
-}
-
-function buildDriveViewUrl(providerFileId) {
-  return `https://drive.google.com/file/d/${providerFileId}/view`
-}
-
-function buildDrivePreviewUrl(providerFileId) {
-  return `https://drive.google.com/thumbnail?id=${providerFileId}&sz=w1600`
-}
-
-function getOpenUrl(attachment) {
-  const providerFileId = resolveProviderFileId(attachment)
-  if (providerFileId) return buildDriveViewUrl(providerFileId)
-  return attachment?.public_url ?? attachment?.publicUrl ?? '#'
-}
-
-function getPreviewSrc(attachment) {
-  const providerFileId = resolveProviderFileId(attachment)
-  if (providerFileId) return buildDrivePreviewUrl(providerFileId)
-  return attachment?.public_url ?? attachment?.publicUrl ?? ''
-}
-
-function isImageAttachment(attachment) {
-  const mimeType = attachment?.mime_type ?? attachment?.mimeType ?? ''
-  if (mimeType.startsWith('image/')) return true
-  const fileName = (attachment?.file_name ?? attachment?.fileName ?? '').toLowerCase()
-  return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(fileName)
-}
-
 const imageAttachments = computed(() =>
   (props.attachments ?? []).filter(isImageAttachment)
 )
@@ -267,7 +245,8 @@ watch(
     sections.forEach((section) => {
       nextState[section.key] = selectedByOperation.value[section.key] ?? 0
       if (nextState[section.key] >= section.images.length) nextState[section.key] = 0
-      nextExpanded[section.key] = expandedHistoryBySection.value[section.key] ?? false
+      const wasExpanded = expandedHistoryBySection.value[section.key]
+      nextExpanded[section.key] = wasExpanded ?? (section.images.length > 0)
     })
     selectedByOperation.value = nextState
     expandedHistoryBySection.value = nextExpanded
@@ -502,9 +481,11 @@ function getDocumentTypeLabel(value) {
               <div v-if="section.historyExpanded && section.latestImage" class="attachments-viewer">
                 <div class="attachments-hero" @click="openPreview(section)">
                   <img
+                    v-bind="driveImgAttrs"
                     :src="getPreviewSrc(section.latestImage)"
                     :alt="section.latestImage?.file_name ?? section.latestImage?.fileName"
                     class="attachments-hero__image"
+                    @error="onAttachmentImageError"
                   >
                   <button
                     v-if="canManageAttachments && section.latestImage"
@@ -531,9 +512,11 @@ function getDocumentTypeLabel(value) {
                   @click="openPreview(section, attachment)"
                 >
                   <img
+                    v-bind="driveImgAttrs"
                     :src="getPreviewSrc(attachment)"
                     :alt="attachment.file_name ?? attachment.fileName"
                     class="attachments-thumb__image"
+                    @error="onAttachmentImageError"
                   >
                   <button
                     v-if="canManageAttachments"
@@ -771,9 +754,11 @@ function getDocumentTypeLabel(value) {
     <template #content>
       <div v-if="previewImage" class="preview-dialog">
         <img
+          v-bind="driveImgAttrs"
           :src="getPreviewSrc(previewImage)"
           :alt="previewImage.file_name ?? previewImage.fileName"
           class="preview-dialog__image"
+          @error="onAttachmentImageError"
         >
         <div class="preview-dialog__footer">
           <div class="preview-dialog__meta">
