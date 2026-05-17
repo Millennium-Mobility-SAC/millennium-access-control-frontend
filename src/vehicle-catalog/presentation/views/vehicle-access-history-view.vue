@@ -30,7 +30,10 @@ const { showError, showInfo } = useNotification()
 
 const photoDialogVisible = ref(false)
 const photoAttachments = ref([])
-const photoLoadingStayId = ref(null)
+const photoDialogTitle = ref('Evidencias fotográficas')
+const photoLoadingKey = ref(null)
+/** stayId → lista de adjuntos (evita repetir GET al abrir varias filas de la misma estadía) */
+const attachmentsCache = ref(new Map())
 
 // ── Vehicle id from route ─────────────────────────────────────────────────────
 const vehicleId = Number(route.params.vehicleId)
@@ -109,12 +112,14 @@ function buildTimeline(entry) {
 
   // 1. Entry
   events.push({
-    type:   'ingreso',
-    date:   entry.entryDate,
-    time:   entry.entryTime,
-    label:  'Ingreso a planta',
-    detail: getEntryReasonLabel(entry.entryReason),
-    extra:  entry.mileage != null ? entry.mileage.toLocaleString('es-PE') + ' km' : null,
+    type:           'ingreso',
+    operationType:  'ENTRY',
+    temporalExitId: null,
+    date:           entry.entryDate,
+    time:           entry.entryTime,
+    label:          'Ingreso a planta',
+    detail:         getEntryReasonLabel(entry.entryReason),
+    extra:          entry.mileage != null ? entry.mileage.toLocaleString('es-PE') + ' km' : null,
   })
 
   // 2. Temporal exits in chronological order
@@ -124,30 +129,36 @@ function buildTimeline(entry) {
 
   for (const te of sortedExits) {
     events.push({
-      type:   'salida-temporal',
-      date:   te.exitDate,
-      time:   te.exitTime,
-      label:  'Salida temporal',
-      detail: getExitReasonLabel(te.exitReason),
-      extra:  te.replacementLicensePlate ? `Placa reemplazo: ${te.replacementLicensePlate}` : null,
+      type:           'salida-temporal',
+      operationType:  'TEMPORAL_EXIT',
+      temporalExitId: te.id ?? null,
+      date:           te.exitDate,
+      time:           te.exitTime,
+      label:          'Salida temporal',
+      detail:         getExitReasonLabel(te.exitReason),
+      extra:          te.replacementLicensePlate ? `Placa reemplazo: ${te.replacementLicensePlate}` : null,
     })
     if (te.returnDate) {
       events.push({
-        type:   'retorno',
-        date:   te.returnDate,
-        time:   te.returnTime,
-        label:  'Retorno a planta',
-        detail: null,
-        extra:  null,
+        type:           'retorno',
+        operationType:  'RETURN',
+        temporalExitId: te.id ?? null,
+        date:           te.returnDate,
+        time:           te.returnTime,
+        label:          'Retorno a planta',
+        detail:         null,
+        extra:          null,
       })
     } else {
       events.push({
-        type:   'retorno-pendiente',
-        date:   null,
-        time:   null,
-        label:  'Retorno pendiente',
-        detail: 'Vehículo aún fuera de planta',
-        extra:  null,
+        type:           'retorno-pendiente',
+        operationType:  null,
+        temporalExitId: null,
+        date:           null,
+        time:           null,
+        label:          'Retorno pendiente',
+        detail:         'Vehículo aún fuera de planta',
+        extra:          null,
       })
     }
   }
@@ -160,12 +171,14 @@ function buildTimeline(entry) {
     ].filter(Boolean).join(' ') || null
     const clientDoc = entry.customerDni || entry.clientDocumentNumber || null
     events.push({
-      type:   'salida-permanente',
-      date:   entry.permanentExitDate,
-      time:   entry.permanentExitTime,
-      label:  'Salida permanente',
-      detail: clientName,
-      extra:  clientDoc ? `Doc: ${clientDoc}` : null,
+      type:           'salida-permanente',
+      operationType:  'PERMANENT_EXIT',
+      temporalExitId: null,
+      date:           entry.permanentExitDate,
+      time:           entry.permanentExitTime,
+      label:          'Salida permanente',
+      detail:         clientName,
+      extra:          clientDoc ? `Doc: ${clientDoc}` : null,
     })
   }
 
@@ -267,27 +280,64 @@ function handleExport() {
   XLSX.writeFile(wb, `historial-${plate}-${date}.xlsx`)
 }
 
-async function openStayPhotos(entry) {
-  if (!entry?.id || photoLoadingStayId.value != null) return
-  photoLoadingStayId.value = entry.id
+function rowPhotoKey(entryId, row) {
+  return `${entryId}:${row.operationType}:${row.temporalExitId ?? ''}`
+}
+
+function getAttachmentOperationType(file) {
+  return file?.stay_operation_type ?? file?.stayOperationType ?? null
+}
+
+function getAttachmentTemporalExitId(file) {
+  const id = file?.temporal_exit_id ?? file?.temporalExitId
+  return id == null ? null : Number(id)
+}
+
+function filterImagesForRow(files, row) {
+  if (!row?.operationType) return []
+  return files.filter((file) => {
+    if (!isImageAttachment(file)) return false
+    if (getAttachmentOperationType(file) !== row.operationType) return false
+    if (row.operationType === 'TEMPORAL_EXIT' || row.operationType === 'RETURN') {
+      return getAttachmentTemporalExitId(file) === Number(row.temporalExitId)
+    }
+    return true
+  })
+}
+
+async function fetchStayAttachmentsCached(stayId) {
+  if (attachmentsCache.value.has(stayId)) {
+    return attachmentsCache.value.get(stayId)
+  }
+  const files = await accessStore.fetchAttachments(stayId)
+  const list = Array.isArray(files) ? files : []
+  attachmentsCache.value.set(stayId, list)
+  return list
+}
+
+async function openRowPhotos(entry, row) {
+  if (!entry?.id || !row?.operationType || photoLoadingKey.value != null) return
+  const key = rowPhotoKey(entry.id, row)
+  photoLoadingKey.value = key
   try {
-    const files = await accessStore.fetchAttachments(entry.id)
-    const images = files.filter(isImageAttachment)
+    const files = await fetchStayAttachmentsCached(entry.id)
+    const images = filterImagesForRow(files, row)
     if (!images.length) {
-      showInfo('Esta estadía no tiene fotos registradas.', 'Sin evidencias')
+      showInfo('No hay fotos registradas para este paso.', 'Sin evidencias')
       return
     }
-    photoAttachments.value = files
+    photoAttachments.value = images
+    photoDialogTitle.value = `Fotos — ${row.label}`
     photoDialogVisible.value = true
   } catch {
-    showError('No se pudieron cargar las fotos de esta estadía.')
+    showError('No se pudieron cargar las fotos de este paso.')
   } finally {
-    photoLoadingStayId.value = null
+    photoLoadingKey.value = null
   }
 }
 
-function isPhotoLoading(entryId) {
-  return photoLoadingStayId.value === entryId
+function isPhotoLoading(entryId, row) {
+  return photoLoadingKey.value === rowPhotoKey(entryId, row)
 }
 
 // Pre-process to avoid recomputing in template
@@ -522,16 +572,16 @@ const processedHistory = computed(() =>
             >
               <template #body="{ data }">
                 <pv-button
-                  v-if="data.rowIndex === 1"
+                  v-if="data.operationType"
                   icon="pi pi-images"
                   label="Ver fotos"
                   severity="secondary"
                   outlined
                   size="small"
                   class="vh-photos-btn"
-                  :loading="isPhotoLoading(entry.id)"
-                  :disabled="photoLoadingStayId != null && !isPhotoLoading(entry.id)"
-                  @click="openStayPhotos(entry)"
+                  :loading="isPhotoLoading(entry.id, data)"
+                  :disabled="photoLoadingKey != null && !isPhotoLoading(entry.id, data)"
+                  @click="openRowPhotos(entry, data)"
                 />
                 <span v-else class="vh-cell-muted">—</span>
               </template>
@@ -545,7 +595,7 @@ const processedHistory = computed(() =>
     <AttachmentCarouselDialog
       v-model:visible="photoDialogVisible"
       :attachments="photoAttachments"
-      title="Evidencias fotográficas"
+      :title="photoDialogTitle"
     />
 
   </div>
