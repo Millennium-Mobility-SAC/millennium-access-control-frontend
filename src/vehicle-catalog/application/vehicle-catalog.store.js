@@ -34,6 +34,12 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
     }
   }
 
+  /** @param {string} term */
+  async function fetchVehicleSuggestions(term) {
+    const response = await api.getSuggestions(term.trim(), 15)
+    return VehicleAssembler.toEntitiesFromResponse(response)
+  }
+
   /** Fetch a specific page using the currently active filters. */
   async function fetchPage(page) {
     const params = api.buildParams(_activeFilters.value, page, _size.value)
@@ -81,6 +87,7 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
     const created = VehicleAssembler.toEntityFromResponse(response)
     _selected.value = created
     await fetchPage(0)
+    return created
   }
 
   async function update(id, resource) {
@@ -142,7 +149,7 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
 
   return {
     vehicles, selected, pagination,
-    fetchByLicensePlate, fetchVehicles, goToPage, exportAll, refreshLastQuery,
+    fetchByLicensePlate, fetchVehicleSuggestions, fetchVehicles, goToPage, exportAll, refreshLastQuery,
     fetchById, create, update, remove, bulkCreate, bulkUpdate,
     select, clear,
   }

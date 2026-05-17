@@ -5,6 +5,8 @@ import StayImagePicker      from './stay-image-picker.vue'
 import { MOTIVOS_INGRESO, TIPOS_INGRESO, TIPOS_DOCUMENTO } from '../constants/stays-ui.constants.js'
 import { useVehicleCatalogStore } from '@/vehicle-catalog/application/vehicle-catalog.store.js'
 import { useStaysStore }          from '@/stays/application/stays.store.js'
+import { useNotification }        from '@/shared/composables/use-notification.js'
+import { normalizeApiError }      from '@/shared/infrustructure/error-normalizer.js'
 import { nowPeruTimeString, nowPeruDate } from '@/shared/domain/peru-time.js'
 import { useStayAttachmentMedia } from '../composables/use-stay-attachment-media.js'
 
@@ -29,11 +31,16 @@ const emit = defineEmits(['canceled-shared', 'saved-shared', 'remove-existing-at
 
 const store           = useVehicleCatalogStore()
 const staysStore      = useStaysStore()
+const { showError }   = useNotification()
 const plateMatched    = ref(false)
 const showSaveVehicle = ref(false)
 const savingVehicle   = ref(false)
 const hasClient       = ref(false)
 const lastMileage     = ref(null)
+const selectedPlateWrap = ref(null)
+const plateSuggestionRows = ref([])
+const plateSuggestLoading = ref(false)
+let plateSuggestDebounceTimer = null
 
 function pad(n) { return String(n).padStart(2, '0') }
 function nowTimeString() {
@@ -66,7 +73,11 @@ function stopExitClock() {
   exitClockInterval = null
 }
 
-onUnmounted(() => { stopLiveClock(); stopExitClock() })
+onUnmounted(() => {
+  stopLiveClock()
+  stopExitClock()
+  clearTimeout(plateSuggestDebounceTimer)
+})
 
 // ── Form state ─────────────────────────────────────────────
 const form = reactive({
@@ -95,7 +106,12 @@ const form = reactive({
 })
 
 watch(() => props.visible, (val) => {
-  if (!val) { stopLiveClock(); stopExitClock(); return }
+  if (!val) {
+    stopLiveClock()
+    stopExitClock()
+    resetPlateLookup()
+    return
+  }
 
   const src = props.entity ?? {}
   const isNew = !src.id
@@ -128,8 +144,17 @@ watch(() => props.visible, (val) => {
   // Determina si hay datos de cliente precargados
   hasClient.value = !!(src.clientDocumentNumber || src.customerFirstName || src.firstName)
 
-  // Resetea el contexto de vehículo (se recarga en searchByPlate)
-  lastMileage.value = null
+  resetPlateLookup()
+  if (form.type === 'VEHICULO' && form.licensePlate) {
+    selectedPlateWrap.value = toPlateRow({
+      id: form.vehicleId,
+      licensePlate: form.licensePlate,
+      brand: form.brand,
+      model: form.model,
+      year: form.year,
+    })
+    plateMatched.value = !!form.vehicleId
+  }
 
   clearErrors()
 
@@ -140,49 +165,125 @@ watch(() => props.visible, (val) => {
   else stopExitClock()
 })
 
-// ── Búsqueda manual por placa ────────────────────────────────────────
-async function searchByPlate() {
-  plateMatched.value    = false
+// ── Autocompletado de placa (mismo patrón que marcación de personal) ──
+function formatPlateLine(vehicle) {
+  if (!vehicle) return ''
+  const plate = vehicle.licensePlate || ''
+  const extra = [vehicle.brand, vehicle.model, vehicle.year].filter(Boolean).join(' ')
+  return extra ? `${plate} — ${extra}` : plate
+}
+
+function toPlateRow(vehicle) {
+  return { id: vehicle.id ?? vehicle.licensePlate, line: formatPlateLine(vehicle), raw: vehicle }
+}
+
+function resetPlateLookup() {
+  clearTimeout(plateSuggestDebounceTimer)
+  plateSuggestDebounceTimer = null
+  selectedPlateWrap.value = null
+  plateSuggestionRows.value = []
+  plateMatched.value = false
   showSaveVehicle.value = false
-  lastMileage.value     = null
-  if (!form.licensePlate) return
-  const found = await store.fetchByLicensePlate(form.licensePlate)
-  if (found) {
-    form.vehicleId = found.id   ?? null
-    form.brand = found.brand || form.brand
-    form.model = found.model || form.model
-    form.year  = found.year  ?? form.year
-    form.color = found.color ?? form.color
-    plateMatched.value = true
-    if (found.id) {
-      const ctx = await staysStore.fetchVehicleContext(found.id)
-      lastMileage.value = ctx.lastMileage
-      if (ctx.lastClient) {
-        form.documentType         = ctx.lastClient.documentType
-        form.clientDocumentNumber = ctx.lastClient.clientDocumentNumber
-        form.firstName            = ctx.lastClient.firstName
-        form.lastName             = ctx.lastClient.lastName
-        hasClient.value           = true
-      }
+  lastMileage.value = null
+}
+
+async function applyVehicleFromSelection(vehicle) {
+  if (!vehicle) return
+  plateMatched.value = false
+  showSaveVehicle.value = false
+  lastMileage.value = null
+  form.licensePlate = vehicle.licensePlate ?? form.licensePlate
+  form.vehicleId = vehicle.id ?? null
+  form.brand = vehicle.brand || form.brand
+  form.model = vehicle.model || form.model
+  form.year = vehicle.year ?? form.year
+  form.color = vehicle.color ?? form.color
+  plateMatched.value = true
+  if (vehicle.id) {
+    const ctx = await staysStore.fetchVehicleContext(vehicle.id)
+    lastMileage.value = ctx.lastMileage
+    if (ctx.lastClient) {
+      form.documentType = ctx.lastClient.documentType
+      form.clientDocumentNumber = ctx.lastClient.clientDocumentNumber
+      form.firstName = ctx.lastClient.firstName
+      form.lastName = ctx.lastClient.lastName
+      hasClient.value = true
     }
-  } else {
-    form.vehicleId    = null
-    showSaveVehicle.value = true
   }
 }
 
+async function loadPlateSuggestions(query) {
+  const q = query.trim()
+  plateSuggestLoading.value = true
+  try {
+    const list = await store.fetchVehicleSuggestions(q)
+    const mapped = list.map(toPlateRow)
+    const cur = selectedPlateWrap.value
+    if (cur && !mapped.some(r => r.id === cur.id)) {
+      mapped.unshift(cur)
+    }
+    plateSuggestionRows.value = mapped
+    if (mapped.length === 0 && q.length >= 2) {
+      form.licensePlate = q.toUpperCase()
+      form.vehicleId = null
+      showSaveVehicle.value = true
+      plateMatched.value = false
+    } else {
+      showSaveVehicle.value = false
+    }
+  } catch (e) {
+    plateSuggestionRows.value = []
+    showError(normalizeApiError(e, 'No se pudieron cargar sugerencias de placa.'))
+  } finally {
+    plateSuggestLoading.value = false
+  }
+}
+
+function onPlateComplete(event) {
+  const q = (event.query ?? '').trim()
+  clearTimeout(plateSuggestDebounceTimer)
+  plateMatched.value = false
+  showSaveVehicle.value = false
+  if (q.length < 2) {
+    plateSuggestionRows.value = []
+    return
+  }
+  plateSuggestDebounceTimer = setTimeout(() => loadPlateSuggestions(q), 280)
+}
+
+watch(
+  () => selectedPlateWrap.value?.raw,
+  async (vehicle) => {
+    if (!props.visible || form.type !== 'VEHICULO') return
+    if (!vehicle) {
+      form.vehicleId = null
+      plateMatched.value = false
+      lastMileage.value = null
+      showSaveVehicle.value = false
+      return
+    }
+    await applyVehicleFromSelection(vehicle)
+  },
+)
+
 async function saveVehicle() {
+  if (!form.licensePlate?.trim()) return
   savingVehicle.value = true
   try {
-    await store.create({
+    const created = await store.create({
       licensePlate: form.licensePlate,
       brand:        form.brand,
       model:        form.model,
       year:         form.year,
       color:        form.color,
     })
-    plateMatched.value    = true
-    showSaveVehicle.value = false
+    if (created) {
+      selectedPlateWrap.value = toPlateRow(created)
+      await applyVehicleFromSelection(created)
+    } else {
+      plateMatched.value = true
+      showSaveVehicle.value = false
+    }
   } finally {
     savingVehicle.value = false
   }
@@ -205,6 +306,7 @@ function to12h(value) {
 
 function onTypeChange(newType) {
   if (newType === 'PERSONA') {
+    resetPlateLookup()
     form.licensePlate = null
     form.brand        = null
     form.model        = null
@@ -520,21 +622,26 @@ const aceForm = ref(null)
                     <i class="pi pi-check-circle" /> datos cargados
                   </span>
                 </label>
-                <div class="ace-plate-search">
-                  <pv-input-text
-                    v-model="form.licensePlate"
-                    placeholder="Ej. ABC-123"
-                    class="w-full ace-input-plate"
-                    :invalid="!!errors.licensePlate"
-                    @keyup.enter="searchByPlate"
-                  />
-                  <pv-button
-                    icon="pi pi-search"
-                    severity="secondary"
-                    type="button"
-                    @click="searchByPlate"
-                  />
-                </div>
+                <pv-auto-complete
+                  id="ace-plate-ac"
+                  v-model="selectedPlateWrap"
+                  :suggestions="plateSuggestionRows"
+                  option-label="line"
+                  data-key="id"
+                  :min-length="2"
+                  :delay="280"
+                  :force-selection="true"
+                  :loading="plateSuggestLoading"
+                  :show-clear="true"
+                  placeholder="Escriba placa, marca o modelo (mín. 2 caracteres)…"
+                  class="w-full ace-input-plate"
+                  :invalid="!!errors.licensePlate"
+                  fluid
+                  @complete="onPlateComplete"
+                />
+                <small v-if="!plateMatched && !showSaveVehicle" class="ace-field-hint">
+                  Escriba y elija una coincidencia de la lista.
+                </small>
               </div>
             </div>
             <div class="ace-row">

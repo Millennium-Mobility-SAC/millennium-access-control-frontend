@@ -34,6 +34,13 @@ export class VehicleCatalogApi extends BaseApi {
     return this.http.get(`${this.#endpoint.endpointPath}/license-plate/${encodeURIComponent(licensePlate)}`)
   }
 
+  /** Lista de vehículos para autocompletado (mín. 2 caracteres en servidor). */
+  getSuggestions(term, limit = 15) {
+    return this.http.get(`${this.#endpoint.endpointPath}/suggestions`, {
+      params: { term, limit },
+    })
+  }
+
   /** Export all vehicles matching the given filters (no pagination). */
   exportVehicles(filters = {}) {
     const params = {}
