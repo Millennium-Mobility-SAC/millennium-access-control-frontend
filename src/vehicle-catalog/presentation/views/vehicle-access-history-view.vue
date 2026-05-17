@@ -4,6 +4,9 @@ import { useRoute }                 from 'vue-router'
 import { useVehicleCatalogStore }   from '../../application/vehicle-catalog.store.js'
 import { useStaysStore }            from '@/stays/application/stays.store.js'
 import { useAsyncAction }           from '@/shared/composables/use-async-action.js'
+import { useNotification }          from '@/shared/composables/use-notification.js'
+import { isImageAttachment }        from '@/stays/presentation/composables/use-stay-attachment-media.js'
+import AttachmentCarouselDialog     from '@/shared/presentation/components/attachment-carousel-dialog.vue'
 import { ACCESS_STATUS, ACCESS_STATUS_SEVERITY } from '@/shared/presentation/constants/access-status.constants.js'
 import { MOTIVOS_INGRESO, MOTIVOS_SALIDA_TEMPORAL, TIPOS_DOCUMENTO } from '@/stays/presentation/constants/stays-ui.constants.js'
 import * as XLSX from 'xlsx'
@@ -23,6 +26,11 @@ const MILEAGE_INGRESO_TOOLTIP =
   'Kilometraje del odómetro declarado al registrar ese ingreso. No es el motivo de ingreso (0KM, Mecánica, etc. van arriba).'
 const accessStore  = useStaysStore()
 const { isLoading, error, run } = useAsyncAction()
+const { showError, showInfo } = useNotification()
+
+const photoDialogVisible = ref(false)
+const photoAttachments = ref([])
+const photoLoadingStayId = ref(null)
 
 // ── Vehicle id from route ─────────────────────────────────────────────────────
 const vehicleId = Number(route.params.vehicleId)
@@ -259,6 +267,29 @@ function handleExport() {
   XLSX.writeFile(wb, `historial-${plate}-${date}.xlsx`)
 }
 
+async function openStayPhotos(entry) {
+  if (!entry?.id || photoLoadingStayId.value != null) return
+  photoLoadingStayId.value = entry.id
+  try {
+    const files = await accessStore.fetchAttachments(entry.id)
+    const images = files.filter(isImageAttachment)
+    if (!images.length) {
+      showInfo('Esta estadía no tiene fotos registradas.', 'Sin evidencias')
+      return
+    }
+    photoAttachments.value = files
+    photoDialogVisible.value = true
+  } catch {
+    showError('No se pudieron cargar las fotos de esta estadía.')
+  } finally {
+    photoLoadingStayId.value = null
+  }
+}
+
+function isPhotoLoading(entryId) {
+  return photoLoadingStayId.value === entryId
+}
+
 // Pre-process to avoid recomputing in template
 const processedHistory = computed(() =>
   historyItems.value.map(entry => ({
@@ -483,11 +514,39 @@ const processedHistory = computed(() =>
                 <span class="vh-cell-notes">{{ data.extra || '—' }}</span>
               </template>
             </pv-column>
+            <pv-column
+              header="Fotos"
+              style="width: 7.5rem"
+              :header-style="{ textAlign: 'center' }"
+              :body-style="{ textAlign: 'center', verticalAlign: 'middle' }"
+            >
+              <template #body="{ data }">
+                <pv-button
+                  v-if="data.rowIndex === 1"
+                  icon="pi pi-images"
+                  label="Ver fotos"
+                  severity="secondary"
+                  outlined
+                  size="small"
+                  class="vh-photos-btn"
+                  :loading="isPhotoLoading(entry.id)"
+                  :disabled="photoLoadingStayId != null && !isPhotoLoading(entry.id)"
+                  @click="openStayPhotos(entry)"
+                />
+                <span v-else class="vh-cell-muted">—</span>
+              </template>
+            </pv-column>
           </pv-data-table>
         </div>
 
       </div>
     </div>
+
+    <AttachmentCarouselDialog
+      v-model:visible="photoDialogVisible"
+      :attachments="photoAttachments"
+      title="Evidencias fotográficas"
+    />
 
   </div>
 </template>
@@ -771,5 +830,9 @@ const processedHistory = computed(() =>
   font-style: italic;
   text-align: center;
   word-break: break-word;
+}
+
+.vh-photos-btn {
+  white-space: nowrap;
 }
 </style>
