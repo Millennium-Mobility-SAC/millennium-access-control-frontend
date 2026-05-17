@@ -622,23 +622,34 @@ const aceForm = ref(null)
                     <i class="pi pi-check-circle" /> datos cargados
                   </span>
                 </label>
-                <pv-auto-complete
-                  id="ace-plate-ac"
-                  v-model="selectedPlateWrap"
-                  :suggestions="plateSuggestionRows"
-                  option-label="line"
-                  data-key="id"
-                  :min-length="2"
-                  :delay="280"
-                  :force-selection="true"
-                  :loading="plateSuggestLoading"
-                  :show-clear="true"
-                  placeholder="Escriba placa, marca o modelo (mín. 2 caracteres)…"
-                  class="w-full ace-input-plate"
-                  :invalid="!!errors.licensePlate"
-                  fluid
-                  @complete="onPlateComplete"
-                />
+                <div class="input-icon-wrapper ace-plate-search">
+                  <i class="pi pi-search input-icon-wrapper__icon" aria-hidden="true" />
+                  <pv-auto-complete
+                    id="ace-plate-ac"
+                    v-model="selectedPlateWrap"
+                    :suggestions="plateSuggestionRows"
+                    option-label="line"
+                    data-key="id"
+                    :min-length="2"
+                    :delay="280"
+                    :force-selection="true"
+                    :loading="plateSuggestLoading"
+                    :show-clear="true"
+                    empty-search-message="Sin coincidencias para esta búsqueda."
+                    placeholder="Escriba la placa (mín. 2 caracteres)…"
+                    class="w-full ace-input-plate"
+                    :invalid="!!errors.licensePlate"
+                    fluid
+                    @complete="onPlateComplete"
+                  >
+                    <template #empty>
+                      <span class="ace-plate-empty-msg">
+                        <i class="pi pi-search-minus" aria-hidden="true" />
+                        Sin coincidencias. Revise la placa o guárdela en el catálogo.
+                      </span>
+                    </template>
+                  </pv-auto-complete>
+                </div>
                 <small v-if="!plateMatched && !showSaveVehicle" class="ace-field-hint">
                   Escriba y elija una coincidencia de la lista.
                 </small>
@@ -1068,14 +1079,37 @@ const aceForm = ref(null)
 .ace-field--full  { width: 100%; margin-bottom: 0.75rem; }
 .ace-field--half  { width: 50%; min-width: 180px; }
 
-/* ── Plate input highlight ── */
+/* ── Plate search (icon + autocomplete) ── */
 .ace-plate-search {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
   width: 100%;
 }
-.ace-plate-search .ace-input-plate { flex: 1; }
+.ace-plate-search :deep(.p-autocomplete) {
+  width: 100%;
+}
+.ace-plate-search :deep(.p-autocomplete-input) {
+  padding-left: 2.5rem !important;
+  padding-right: 2.25rem !important;
+}
+.ace-plate-search :deep(.p-autocomplete-empty-message) {
+  padding: 0;
+  background: transparent;
+}
+.ace-plate-empty-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #374151;
+}
+.ace-plate-empty-msg .pi {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
 
 /* ── Time field with button ── */
 .ace-time-field {
@@ -1093,11 +1127,18 @@ const aceForm = ref(null)
   color: var(--color-primary, #6366f1);
 }
 
-.ace-field--highlight .ace-input-plate input {
+.ace-field--highlight .ace-input-plate :deep(input.p-autocomplete-input) {
   font-size: 1rem !important;
   font-weight: 700 !important;
   letter-spacing: 0.06em !important;
   text-transform: uppercase !important;
+}
+.ace-field--highlight .ace-input-plate :deep(input.p-autocomplete-input::placeholder) {
+  font-weight: 400 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  color: #6b7280 !important;
+  opacity: 1;
 }
 
 /* ── Plate autocomplete match indicator ── */
@@ -1165,7 +1206,8 @@ const aceForm = ref(null)
 .ace-field-hint {
   display: block;
   font-size: 0.72rem;
-  color: #6b7280;
+  font-weight: 500;
+  color: #4b5563;
   margin-top: 0.15rem;
 }
 

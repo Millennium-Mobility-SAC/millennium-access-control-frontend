@@ -270,8 +270,10 @@ input.p-inputmask {
 /* Input con ícono — wrapper manual (ver utilities.css)
    Especificidad 0,2,1 > 0,1,1 del bloque base: siempre gana */
 .input-icon-wrapper .p-inputtext,
-.input-icon-wrapper input.p-inputtext {
-  padding-left: 2.25rem !important;
+.input-icon-wrapper input.p-inputtext,
+.input-icon-wrapper .p-autocomplete-input,
+.input-icon-wrapper input.p-autocomplete-input {
+  padding-left: 2.5rem !important;
 }
 
 /* pv-icon-field / pv-input-icon — override global

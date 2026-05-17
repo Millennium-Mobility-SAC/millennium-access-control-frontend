@@ -259,7 +259,7 @@ function formatUbicacionCatalog(row) {
             <pv-input-icon class="pi pi-search" />
             <pv-input-text
               v-model="searchText"
-              placeholder="Buscar por placa, marca, modelo o año"
+              placeholder="Buscar por placa"
               class="w-full"
               autocomplete="off"
             />
