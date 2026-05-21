@@ -28,8 +28,20 @@ export class EmployeesSharedApi extends BaseApi {
     return this.#endpoint.getById(id)
   }
 
-  getAttendanceHistory(employeeId) {
-    return this.http.get(`${this.#endpoint.endpointPath}/${employeeId}/attendance`)
+  /**
+   * Historial de asistencia de un empleado (paginado).
+   * @param {number|string} employeeId
+   * @param {null|undefined|{ dateFrom?: string, dateTo?: string, search?: string, page?: number, size?: number }} [query]
+   */
+  getAttendanceHistory(employeeId, query) {
+    const params = {}
+    if (query?.dateFrom) params.date_from = query.dateFrom
+    if (query?.dateTo) params.date_to = query.dateTo
+    const search = query?.search?.trim()
+    if (search) params.search = search
+    if (query?.page != null) params.page = query.page
+    if (query?.size != null) params.size = query.size
+    return this.http.get(`${this.#endpoint.endpointPath}/${employeeId}/attendance`, { params })
   }
 
   registerCheckIn(employeeId, payload = {}) {

@@ -847,27 +847,30 @@ const shellLoading = computed(() => props.submitLoading || isLoading.value)
                 </div>
               </div>
             </div>
-            <div class="pa-registro__row flex gap-3 flex-wrap">
-              <div class="pa-registro__field flex-1 min-w-12rem">
-                <span class="pa-registro__label">Fecha</span>
-                <div
-                  class="pa-faux-input w-full"
-                  role="status"
-                  aria-label="Fecha de referencia para la salida"
-                >
-                  <span class="pa-faux-input__value">{{ clockDateShort }}</span>
-                  <i class="pi pi-calendar pa-faux-input__icon text-500" aria-hidden="true" />
+            <div class="pa-registro__block">
+              <span class="pa-registro__sublabel">Registro de salida</span>
+              <div class="pa-registro__row flex gap-3 flex-wrap">
+                <div class="pa-registro__field flex-1 min-w-12rem">
+                  <span class="pa-registro__label">Fecha</span>
+                  <div
+                    class="pa-faux-input w-full"
+                    role="status"
+                    aria-label="Fecha de referencia para la salida"
+                  >
+                    <span class="pa-faux-input__value">{{ clockDateShort }}</span>
+                    <i class="pi pi-calendar pa-faux-input__icon text-500" aria-hidden="true" />
+                  </div>
                 </div>
-              </div>
-              <div class="pa-registro__field flex-1 min-w-12rem">
-                <span class="pa-registro__label">Hora</span>
-                <div
-                  class="pa-faux-input w-full"
-                  role="status"
-                  aria-label="Hora de referencia para la salida"
-                >
-                  <span class="pa-faux-input__value">{{ clockTimeLive }}</span>
-                  <i class="pi pi-clock pa-faux-input__icon text-500" aria-hidden="true" />
+                <div class="pa-registro__field flex-1 min-w-12rem">
+                  <span class="pa-registro__label">Hora</span>
+                  <div
+                    class="pa-faux-input w-full"
+                    role="status"
+                    aria-label="Hora de referencia para la salida"
+                  >
+                    <span class="pa-faux-input__value">{{ clockTimeLive }}</span>
+                    <i class="pi pi-clock pa-faux-input__icon text-500" aria-hidden="true" />
+                  </div>
                 </div>
               </div>
             </div>

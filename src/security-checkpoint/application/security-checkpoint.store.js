@@ -86,9 +86,14 @@ export const useSecurityCheckpointStore = defineStore('security-checkpoint', () 
 
   /** @returns {Promise<{ action: 'INGRESO' | 'SALIDA' | null, todayRow: object|null }>} */
   async function getPendingActionForEmployee(employeeId) {
-    const response = await api.getAttendanceHistory(employeeId)
-    const rows = EmployeeAssembler.attendanceListFromResponse(response)
     const day = todayIsoLocal()
+    const response = await api.getAttendanceHistory(employeeId, {
+      dateFrom: day,
+      dateTo: day,
+      page: 0,
+      size: 10,
+    })
+    const rows = EmployeeAssembler.attendanceListFromResponse(response)
     return {
       action: pendingAttendanceAction(day, rows),
       todayRow: findTodayAttendanceRow(day, rows),

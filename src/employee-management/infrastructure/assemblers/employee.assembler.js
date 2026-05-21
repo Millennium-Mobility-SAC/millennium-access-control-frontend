@@ -52,11 +52,15 @@ export class EmployeeAssembler {
   }
 
   static attendanceListFromResponse(response) {
-    const body = Array.isArray(response?.data)
-      ? response.data
-      : Array.isArray(response)
-        ? response
-        : null
+    const data = response?.data
+    let body = null
+    if (Array.isArray(data)) {
+      body = data
+    } else if (Array.isArray(data?.content)) {
+      body = data.content
+    } else if (Array.isArray(response)) {
+      body = response
+    }
     if (!Array.isArray(body)) return []
     return body.map(r => EmployeeAssembler.attendanceFromResource(r))
   }
