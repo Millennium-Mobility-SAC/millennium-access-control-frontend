@@ -130,6 +130,7 @@ const emit = defineEmits([
   'row-select',
   'row-unselect',
   'import-data-requested-manager',
+  'delete-all-requested-manager',
   'page-changed',
 ])
 
@@ -238,6 +239,26 @@ function appendDeleteConfirmExtra(baseMessage) {
 }
 
 const confirmDeleteSelected = () => {
+  // Lazy mode + selectAll: the visible page is only a subset of all records.
+  // Emit a dedicated event so the parent can delete from the server side.
+  if (selectAll.value && props.lazy) {
+    const base = `¿Está seguro de que desea eliminar TODOS los ${props.totalRecords} ${props.title.plural}?`
+    confirm.require({
+      message: appendDeleteConfirmExtra(base),
+      header: 'Confirmación',
+      icon: 'pi pi-exclamation-triangle',
+      rejectProps:  { label: 'Cancelar', severity: 'secondary', outlined: true },
+      acceptProps:  { label: 'Eliminar todos', severity: 'danger' },
+      accept: () => {
+        selectAll.value     = false
+        selectedItems.value = []
+        emit('delete-all-requested-manager')
+      },
+      reject: () => {}
+    })
+    return
+  }
+
   const count = selectedItems.value.length
   const base = `¿Está seguro de que desea eliminar ${count} ${count === 1 ? props.title.singular : props.title.plural}?`
   confirm.require({
@@ -307,12 +328,29 @@ const onPage = (event) => {
 /**
  * Emite evento cuando se selecciona una fila
  */
-const onRowSelect = (event) => emit('row-select', event)
+const onRowSelect   = (event) => emit('row-select', event)
 
 /**
  * Emite evento cuando se deselecciona una fila
  */
-const onRowUnselect = (event) => emit('row-unselect', event)
+const onRowUnselect = (event) => {
+  emit('row-unselect', event)
+  if (selectAll.value) selectAll.value = false
+}
+
+// ── Select-all across all pages ──────────────────────────────────────────────
+/** Reflects whether ALL items (all pages) are currently selected. */
+const selectAll = ref(false)
+
+/**
+ * Fired when the DataTable header checkbox is toggled.
+ * Overrides PrimeVue's default behaviour (current page only) so the header
+ * checkbox selects / deselects every item in displayItems.
+ */
+function onSelectAllChange(event) {
+  selectAll.value    = event.checked
+  selectedItems.value = event.checked ? displayItems.value.slice() : []
+}
 
 // ===========================
 // LIFECYCLE HOOKS
@@ -422,7 +460,7 @@ onMounted(() => initFilters())
       v-if="showImport"
       v-model:visible="showImportDialog"
       :import-columns="importColumns"
-      @import-confirmed="(rows) => emit('import-data-requested-manager', rows)"
+      @import-confirmed="(rows, cols) => emit('import-data-requested-manager', rows, cols)"
     />
 
     <!-- Data Table Section -->
@@ -446,6 +484,8 @@ onMounted(() => initFilters())
         hover
         :lazy="lazy"
         :total-records="totalRecords"
+        :select-all="selectAll"
+        @select-all-change="onSelectAllChange"
         @page="onPage"
         @row-select="onRowSelect"
         @row-unselect="onRowUnselect"

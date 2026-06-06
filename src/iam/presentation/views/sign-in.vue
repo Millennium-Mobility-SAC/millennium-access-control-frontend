@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { ref } from 'vue';
+import { ref, computed, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useIamStore } from '../../application/iam.store.js';
 import { IAM_ROUTES } from '../iam.routes.js';
@@ -11,10 +11,50 @@ const iamStore = useIamStore();
 const username = ref('');
 const password = ref('');
 
+// ── Protección básica contra brute-force en el cliente ────────────────────
+// El backend DEBE implementar rate limiting real (Spring Security + bucket4j).
+// Esto es una capa defensiva de UX, no una medida de seguridad primaria.
+const COOLDOWN_SECONDS  = 5;
+const MAX_ATTEMPTS      = 5;
+const failedAttempts    = ref(0);
+const cooldownRemaining = ref(0);
+let _cooldownTimer = null;
+
+const isLockedOut = computed(() => cooldownRemaining.value > 0);
+const lockoutMessage = computed(() =>
+    isLockedOut.value
+        ? `Demasiados intentos. Espera ${cooldownRemaining.value}s para intentarlo de nuevo.`
+        : ''
+);
+
+function _startCooldown() {
+    cooldownRemaining.value = COOLDOWN_SECONDS * Math.min(failedAttempts.value, 6); // backoff progresivo
+    _cooldownTimer = setInterval(() => {
+        cooldownRemaining.value--;
+        if (cooldownRemaining.value <= 0) {
+            clearInterval(_cooldownTimer);
+            _cooldownTimer = null;
+        }
+    }, 1000);
+}
+
+onBeforeUnmount(() => {
+    if (_cooldownTimer) clearInterval(_cooldownTimer);
+});
+
 async function handleLogin() {
-  
-  const ok = await iamStore.login({ username: username.value, password: password.value });
-  if (ok) router.push('/stays');
+    if (isLockedOut.value || iamStore.isLoading) return;
+
+    const ok = await iamStore.login({ username: username.value, password: password.value });
+    if (ok) {
+        failedAttempts.value = 0;
+        router.push('/stays');
+    } else {
+        failedAttempts.value++;
+        if (failedAttempts.value >= MAX_ATTEMPTS) {
+            _startCooldown();
+        }
+    }
 }
 
 </script>
@@ -36,8 +76,14 @@ async function handleLogin() {
           <p class="text-sm m-0 text-color-secondary">Ingresa tus credenciales para acceder</p>
         </div>
 
-        <!-- Error del store -->
-        <div v-if="iamStore.error" class="login-error mb-3">
+          <!-- Aviso de bloqueo temporal -->
+          <div v-if="isLockedOut" class="login-error login-error--lockout mb-3">
+            <i class="pi pi-lock login-error__icon"></i>
+            <span class="login-error__text">{{ lockoutMessage }}</span>
+          </div>
+
+          <!-- Error del store -->
+          <div v-else-if="iamStore.error" class="login-error mb-3">
           <i class="pi pi-exclamation-circle login-error__icon"></i>
           <span class="login-error__text">{{ iamStore.error?.message ?? iamStore.error }}</span>
         </div>
@@ -78,7 +124,7 @@ async function handleLogin() {
             class="w-full mt-2"
             size="large"
             :loading="iamStore.isLoading"
-            :disabled="!username || !password || iamStore.isLoading"
+            :disabled="!username || !password || iamStore.isLoading || isLockedOut"
           />
 
           <!-- Olvidaste contrasena -->
@@ -132,5 +178,19 @@ a.link-primary:hover { opacity: 0.8; }
     font-size: 0.875rem;
     font-weight: 500;
     line-height: 1.4;
+}
+
+.login-error--lockout {
+    background: #fefce8;
+    border-color: #fde047;
+    border-left-color: #eab308;
+}
+
+.login-error--lockout .login-error__icon {
+    color: #a16207;
+}
+
+.login-error--lockout .login-error__text {
+    color: #713f12;
 }
 </style>

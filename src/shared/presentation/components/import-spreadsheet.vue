@@ -3,7 +3,8 @@
 // IMPORTS
 // ===========================
 import { ref, computed, watch } from 'vue'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import { useSpreadsheetImport } from '@/shared/composables/use-spreadsheet-import.js'
 
 // ===========================
@@ -69,7 +70,7 @@ const onDrop = (e) => {
 }
 
 const confirmImport = () => {
-  emit('import-confirmed', parsedRows.value)
+  emit('import-confirmed', parsedRows.value, props.importColumns)
   closeDialog()
 }
 
@@ -80,7 +81,7 @@ const closeDialog = () => emit('update:visible', false)
  * - Sin filas de ejemplo: fila de referencia (hints) + fila vacía (solo orientación; al importar conviene borrar esas filas).
  * - Con templateSampleRows: encabezados + filas de ejemplo importables (sin fila de hints, para que sheet_to_json sea válido).
  */
-const downloadTemplate = () => {
+const downloadTemplate = async () => {
   const headers = props.importColumns.map(col => col.header)
   const referenceRow = props.importColumns.map(col => {
     if (col.hint) return col.hint.replaceAll(' · ', ' | ')
@@ -103,10 +104,8 @@ const downloadTemplate = () => {
     aoa.push(referenceRow, props.importColumns.map(() => ''))
   }
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa)
-
   // Ancho de columna: encabezado, hints o celdas de ejemplo
-  ws['!cols'] = props.importColumns.map((col) => {
+  const colWidths = props.importColumns.map((col) => {
     const base = col.header.length + 4
     const hint = col.hint ? col.hint.length + 4 : 0
     let sampleLen = 0
@@ -116,16 +115,19 @@ const downloadTemplate = () => {
         if (cell != null && cell !== '') sampleLen = Math.max(sampleLen, String(cell).length + 2)
       }
     }
-    return { wch: Math.max(base, hint, sampleLen, 14) }
+    return Math.max(base, hint, sampleLen, 14)
   })
 
-  const wb = XLSX.utils.book_new()
+  const wb = new ExcelJS.Workbook()
   const sheetName = (props.templateSheetName || 'Plantilla').slice(0, 31)
-  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+  const ws = wb.addWorksheet(sheetName)
+  ws.columns = headers.map((_, i) => ({ key: String(i), width: colWidths[i] }))
+  aoa.forEach(row => ws.addRow(row))
 
   let outName = (props.templateDownloadFileName || 'plantilla-importacion.xlsx').trim()
   if (!outName.toLowerCase().endsWith('.xlsx')) outName = `${outName}.xlsx`
-  XLSX.writeFile(wb, outName)
+  const buffer = await wb.xlsx.writeBuffer()
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), outName)
 }
 
 // ===========================

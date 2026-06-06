@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia'
+import { batchSettled }     from '@/shared/infrustructure/batch-settled.js'
+import { humanizeApiError } from '@/shared/infrustructure/api-error-humanizer.js'
 import { computed, ref } from 'vue'
 import { EmployeeManagementApi } from '../infrastructure/api/employee-management.api.js'
 import { EmployeeAssembler } from '../infrastructure/assemblers/employee.assembler.js'
@@ -100,14 +102,25 @@ export const useEmployeeManagementStore = defineStore('employee-management', () 
   }
 
   async function bulkCreate(resources) {
-    const results = await Promise.allSettled(
-      resources.map(r => api.create(EmployeeAssembler.toResource(r)))
-    )
-    await _fetchEmpPage(0)
+    const results = await batchSettled(resources, r => api.create(EmployeeAssembler.toResource(r)))
     const success = results.filter(r => r.status === 'fulfilled').length
     const failed  = results.filter(r => r.status === 'rejected').length
-    if (success === 0) throw new Error('No se pudo importar ningún empleado.')
-    return { total: resources.length, success, failed }
+    const failedRows = results
+      .map((r, i) => r.status === 'rejected'
+        ? { row: resources[i], reason: humanizeApiError(r.reason) }
+        : null)
+      .filter(Boolean)
+    try { await _fetchEmpPage(0) } catch { /* ignore */ }
+    return { total: resources.length, success, failed, failedRows }
+  }
+
+  /** Elimina todos los empleados que coincidan con los filtros activos (sin paginación). */
+  async function deleteAll() {
+    const all = await exportEmployees()
+    if (all.length === 0) return 0
+    await Promise.all(all.map(item => api.delete(item.id)))
+    try { await _fetchEmpPage(0) } catch { /* ignore */ }
+    return all.length
   }
 
   // ── Attendance actions ────────────────────────────────────────────────────
@@ -157,6 +170,7 @@ export const useEmployeeManagementStore = defineStore('employee-management', () 
     update,
     remove,
     bulkCreate,
+    deleteAll,
     fetchAttendance,
     goToAttPage,
     exportAttendance,

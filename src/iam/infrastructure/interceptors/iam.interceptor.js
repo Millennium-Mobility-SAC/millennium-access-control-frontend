@@ -2,21 +2,24 @@
  * IAM Infrastructure - Auth Interceptors
  *
  * Toda la lógica de autenticación para el cliente HTTP:
- *   - Request: inyecta headers de autorización.
+ *   - Request: inyecta el header de autorización Bearer.
  *   - Response: maneja 401 (limpia sesión y redirige).
  *
  * Lee localStorage directamente para evitar dependencia circular:
  *   base-api → iam.interceptor → iam.store → iam.api → base-api
+ *
+ * SEGURIDAD: Solo se envía el JWT firmado por el servidor. Los claims de
+ * identidad (userId, roles) son extraídos por el backend desde el token,
+ * nunca desde headers construidos en el cliente.
  */
 
 const TOKEN_KEY = 'gs_token';
-const USER_KEY  = 'gs_user';
 
 // Endpoints que no requieren token de autorización
 const PUBLIC_URL_PATTERNS = ['/sign-in', '/register', '/forgot-password', '/reset-password'];
 
 /**
- * Interceptor de request: agrega Authorization, X-User-Id y X-Role.
+ * Interceptor de request: agrega el header Authorization con el JWT.
  * Se omite en endpoints públicos para evitar que un token expirado en
  * localStorage cause un 401 antes de que el backend procese las credenciales.
  * @param {import('axios').InternalAxiosRequestConfig} config
@@ -27,15 +30,6 @@ export function iamRequestInterceptor(config) {
 
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) config.headers['Authorization'] = `Bearer ${token}`;
-
-    try {
-        const raw = localStorage.getItem(USER_KEY);
-        if (raw) {
-            const user = JSON.parse(raw);
-            if (user?.id)         config.headers['X-User-Id'] = String(user.id);
-            if (user?.roles?.[0]) config.headers['X-Role']    = user.roles[0];
-        }
-    } catch { /* USER_KEY corrupto — ignorar headers opcionales */ }
 
     return config;
 }

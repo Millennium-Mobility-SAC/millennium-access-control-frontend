@@ -2,6 +2,8 @@ import { defineStore }       from 'pinia'
 import { ref, computed }     from 'vue'
 import { StaffManagementApi }  from '../infrastructure/api/staff-management.api.js'
 import { EmployeeAssembler }   from '../infrastructure/assemblers/employee.assembler.js'
+import { batchSettled }        from '@/shared/infrustructure/batch-settled.js'
+import { humanizeApiError }    from '@/shared/infrustructure/api-error-humanizer.js'
 
 export const useStaffManagementStore = defineStore('staff-management', () => {
   const api = new StaffManagementApi()
@@ -13,7 +15,6 @@ export const useStaffManagementStore = defineStore('staff-management', () => {
   const selected  = computed(() => _selected.value)
 
   async function fetchAll() {
-    const response = await api.getOthers()
     _employees.value = EmployeeAssembler.toEntitiesFromResponse(response)
   }
 
@@ -43,14 +44,16 @@ export const useStaffManagementStore = defineStore('staff-management', () => {
   }
 
   async function bulkCreate(resources) {
-    const results = await Promise.allSettled(
-      resources.map(r => api.create(EmployeeAssembler.toResource(r)))
-    )
-    await fetchAll()
+    const results = await batchSettled(resources, r => api.create(EmployeeAssembler.toResource(r)))
     const success = results.filter(r => r.status === 'fulfilled').length
     const failed  = results.filter(r => r.status === 'rejected').length
-    if (success === 0) throw new Error('No se pudo importar ningún colaborador.')
-    return { total: resources.length, success, failed }
+    const failedRows = results
+      .map((r, i) => r.status === 'rejected'
+        ? { row: resources[i], reason: humanizeApiError(r.reason) }
+        : null)
+      .filter(Boolean)
+    try { await fetchAll() } catch { /* ignore */ }
+    return { total: resources.length, success, failed, failedRows }
   }
 
   function select(employee) {

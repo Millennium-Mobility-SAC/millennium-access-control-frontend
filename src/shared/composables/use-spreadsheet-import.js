@@ -1,8 +1,8 @@
 import { ref } from 'vue'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 /**
- * Composable para parsear archivos Excel (.xlsx/.xls) y CSV,
+ * Composable para parsear archivos Excel (.xlsx) y CSV,
  * mapeando las filas a objetos usando una configuración de columnas.
  *
  * @example
@@ -34,26 +34,120 @@ export function useSpreadsheetImport() {
   const fileName    = ref('')
 
   // ===========================
+  // PRIVATE HELPERS
+  // ===========================
+
+  /**
+   * Parsea texto CSV (RFC 4180 básico) a un array de objetos con los encabezados de la primera fila.
+   * @param {ArrayBuffer} buffer
+   * @returns {Object[]}
+   */
+  function _parseCsvBuffer(buffer) {
+    const text = new TextDecoder('utf-8').decode(buffer)
+    const lines = text.split(/\r?\n/).filter(l => l.trim() !== '')
+    if (lines.length < 1) return []
+
+    const parseRow = (line) => {
+      const result = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+          else inQuotes = !inQuotes
+        } else if (ch === ',' && !inQuotes) {
+          result.push(current.trim())
+          current = ''
+        } else {
+          current += ch
+        }
+      }
+      result.push(current.trim())
+      return result
+    }
+
+    const headers = parseRow(lines[0])
+    return lines.slice(1).map(line => {
+      const vals = parseRow(line)
+      const obj = {}
+      headers.forEach((h, i) => { obj[h] = vals[i] ?? '' })
+      return obj
+    })
+  }
+
+  /**
+   * Parsea un buffer xlsx con ExcelJS y devuelve las filas como objetos
+   * con los encabezados de la primera fila como claves.
+   * @param {ArrayBuffer} buffer
+   * @returns {Promise<Object[]>}
+   */
+  async function _parseXlsxBuffer(buffer) {
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(buffer)
+    const ws = wb.worksheets[0]
+    if (!ws) return []
+
+    // Extraer encabezados de la primera fila
+    const headers = []
+    ws.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      headers[colNumber - 1] = String(cell.value ?? '').trim()
+    })
+
+    const raw = []
+    ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      if (rowNumber === 1) return
+      const obj = {}
+      headers.forEach((header, i) => {
+        if (!header) return
+        let val = row.getCell(i + 1).value
+        if (val === null || val === undefined) {
+          val = ''
+        } else if (val instanceof Date) {
+          // Mantener como Date para que el código consumidor lo trate igual que antes
+          val = val
+        } else if (typeof val === 'object') {
+          if (val.text !== undefined) val = val.text          // hipervínculo
+          else if (val.richText) val = val.richText.map(r => r.text).join('')
+          else if (val.result !== undefined) val = val.result // fórmula
+          else val = String(val)
+        }
+        obj[header] = val !== null && val !== undefined ? val : ''
+      })
+      raw.push(obj)
+    })
+
+    return raw
+  }
+
+  // ===========================
   // METHODS
   // ===========================
   /**
-   * Parsea un objeto File (Excel o CSV) y mapea sus filas según importColumns.
+   * Parsea un objeto File (Excel .xlsx o CSV) y mapea sus filas según importColumns.
    * Rellena parsedRows en éxito o parseErrors en fallo.
    *
    * @param {File}           file          - Archivo seleccionado por el usuario
    * @param {ImportColumn[]} importColumns - Definición de columnas esperadas
    */
   async function parseFile(file, importColumns) {
-    isLoading.value  = true
+    isLoading.value   = true
     parseErrors.value = []
     parsedRows.value  = []
     fileName.value    = file.name
 
     try {
-      const buffer   = await file.arrayBuffer()
-      const workbook = XLSX.read(buffer, { type: 'array' })
-      const sheet    = workbook.Sheets[workbook.SheetNames[0]]
-      const raw      = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+      const ext = file.name.toLowerCase().split('.').pop()
+
+      if (ext === 'xls') {
+        parseErrors.value = [
+          'El formato .xls (Excel 97-2003) no está soportado. Por favor guarda el archivo como .xlsx o .csv e intenta de nuevo.',
+        ]
+        return
+      }
+
+      const buffer = await file.arrayBuffer()
+      const raw = ext === 'csv' ? _parseCsvBuffer(buffer) : await _parseXlsxBuffer(buffer)
 
       if (raw.length === 0) {
         parseErrors.value = ['El archivo está vacío o no contiene datos en la primera hoja.']
@@ -87,7 +181,7 @@ export function useSpreadsheetImport() {
       })
     } catch {
       parseErrors.value = [
-        'No se pudo procesar el archivo. Asegúrate de que sea un Excel (.xlsx/.xls) o CSV válido.',
+        'No se pudo procesar el archivo. Asegúrate de que sea un Excel (.xlsx) o CSV válido.',
       ]
     } finally {
       isLoading.value = false

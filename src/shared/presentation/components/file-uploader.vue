@@ -125,6 +125,42 @@ const fileTypeIcon = computed(() => {
 })
 
 // ===========================
+// MAGIC BYTES VALIDATION
+// ===========================
+
+/**
+ * Tabla de firmas de archivo (magic bytes) por MIME type.
+ * Previene la carga de archivos maliciosos renombrados con extensión válida.
+ * Fuente: https://en.wikipedia.org/wiki/List_of_file_signatures
+ */
+const MAGIC_SIGNATURES = {
+  'image/jpeg': [[0xFF, 0xD8, 0xFF]],
+  'image/png':  [[0x89, 0x50, 0x4E, 0x47]],
+  'image/gif':  [[0x47, 0x49, 0x46, 0x38]],
+  'image/webp': [[0x52, 0x49, 0x46, 0x46]], // RIFF
+  'application/pdf': [[0x25, 0x50, 0x44, 0x46]], // %PDF
+  'application/msword': [[0xD0, 0xCF, 0x11, 0xE0]], // OLE2 (doc)
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [[0x50, 0x4B, 0x03, 0x04]], // ZIP (docx/xlsx)
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [[0x50, 0x4B, 0x03, 0x04]], // ZIP (xlsx)
+}
+
+/**
+ * Lee los primeros bytes del archivo y verifica que coincidan con las firmas conocidas.
+ * @param {File} file
+ * @returns {Promise<boolean>} true si la firma es válida o si el tipo no tiene firma registrada
+ */
+async function checkMagicBytes(file) {
+  const signatures = MAGIC_SIGNATURES[file.type]
+  if (!signatures) return true // sin firma registrada → dejar pasar (el backend validará)
+
+  const headerBytes = 8
+  const buffer = await file.slice(0, headerBytes).arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+
+  return signatures.some(sig => sig.every((byte, i) => bytes[i] === byte))
+}
+
+// ===========================
 // METHODS
 // ===========================
 const validateFile = (file) => {
@@ -147,16 +183,27 @@ const validateFile = (file) => {
   return errors
 }
 
-const handleFileSelect = (file) => {
+const handleFileSelect = async (file) => {
   if (!file || props.disabled) return
-  
+
   const validationErrors = validateFile(file)
   if (validationErrors.length) {
     emit('validation-error', validationErrors)
     if (fileInput.value) fileInput.value.value = ''
     return
   }
-  
+
+  // Verificar magic bytes — protege contra archivos maliciosos renombrados
+  const magicValid = await checkMagicBytes(file)
+  if (!magicValid) {
+    emit('validation-error', [{
+      type: 'format',
+      message: props.errorMessages.invalidFormat.replace('{formats}', allowedExtensions.value)
+    }])
+    if (fileInput.value) fileInput.value.value = ''
+    return
+  }
+
   emit('update:modelValue', file)
   emit('file-selected', file)
 }

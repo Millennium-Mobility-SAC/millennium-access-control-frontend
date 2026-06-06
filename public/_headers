@@ -1,9 +1,11 @@
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
-  # Las miniaturas de Google Drive en <img> usan referrerpolicy="no-referrer" por evidencia.
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  # CSP — permite scripts propios, conexiones al backend y miniaturas de Google Drive.
+  # Ajusta VITE_PLATFORM_API_URL en los dominios de connect-src antes de desplegar.
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://drive.google.com https://lh3.googleusercontent.com https://www.gstatic.com; font-src 'self' data:; connect-src 'self' https:; worker-src blob:; manifest-src 'self'; frame-ancestors 'none';
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

@@ -2,6 +2,8 @@ import { defineStore }        from 'pinia'
 import { ref, computed }      from 'vue'
 import { VehicleCatalogApi }  from '../infrastructure/api/vehicle-catalog.api.js'
 import { VehicleAssembler }   from '../infrastructure/assemblers/vehicle.assembler.js'
+import { batchSettled }       from '@/shared/infrustructure/batch-settled.js'
+import { humanizeApiError }   from '@/shared/infrustructure/api-error-humanizer.js'
 
 export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
   const api = new VehicleCatalogApi()
@@ -108,20 +110,28 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
 
   /**
    * Crea múltiples vehículos en paralelo.
-   * No lanza si alguno falla — devuelve { success, failed, total }.
-   * Solo lanza si TODOS fallan.
+   * No lanza si alguno falla — devuelve { success, failed, total, failedRows }.
    */
   async function bulkCreate(resources) {
-    const results = await Promise.allSettled(
-      resources.map(r => api.create(VehicleAssembler.toResource(r)))
-    )
+    const results = await batchSettled(resources, r => api.create(VehicleAssembler.toResource(r)))
     await fetchPage(0)
     const success = results.filter(r => r.status === 'fulfilled').length
     const failed  = results.filter(r => r.status === 'rejected').length
-    if (success === 0) {
-      throw new Error('No se pudo importar ningún registro. Verifica que las placas no estén duplicadas.')
-    }
-    return { total: resources.length, success, failed }
+    const failedRows = results
+      .map((r, i) => r.status === 'rejected'
+        ? { row: resources[i], reason: humanizeApiError(r.reason) }
+        : null)
+      .filter(Boolean)
+    return { total: resources.length, success, failed, failedRows }
+  }
+
+  /** Elimina todos los vehículos que coincidan con los filtros activos (sin paginación). */
+  async function deleteAll() {
+    const all = await exportAll()
+    if (all.length === 0) return 0
+    await Promise.all(all.map(item => api.delete(item.id)))
+    try { await fetchPage(0) } catch { /* ignore */ }
+    return all.length
   }
 
   /**
@@ -150,7 +160,7 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
   return {
     vehicles, selected, pagination,
     fetchByLicensePlate, fetchVehicleSuggestions, fetchVehicles, goToPage, exportAll, refreshLastQuery,
-    fetchById, create, update, remove, bulkCreate, bulkUpdate,
+    fetchById, create, update, remove, bulkCreate, bulkUpdate, deleteAll,
     select, clear,
   }
 })

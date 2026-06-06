@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted }             from 'vue'
 import { useRouter }                   from 'vue-router'
+import { downloadImportErrorReport }   from '@/shared/composables/use-import-error-report.js'
 import { useVehicleCatalogStore }      from '../../application/vehicle-catalog.store.js'
 import { useIamStore }                 from '@/iam/application/iam.store.js'
 import { useAsyncAction }              from '@/shared/composables/use-async-action.js'
@@ -143,7 +144,15 @@ async function handleDeleteSelected(items) {
   if (error.value) showError(error.value)
 }
 
-async function handleImport(rows) {
+async function handleDeleteAll() {
+  await run(async () => {
+    const count = await store.deleteAll()
+    showSuccess(`${count} vehículo(s) eliminado(s) correctamente.`)
+  })
+  if (error.value) showError(error.value)
+}
+
+async function handleImport(rows, importColumns) {
   let result = null
   await run(
     async () => { result = await store.bulkCreate(rows) },
@@ -153,7 +162,13 @@ async function handleImport(rows) {
     if (result.failed === 0) {
       showSuccess(`${result.success} vehículo(s) importado(s) correctamente.`)
     } else {
-      showError(`${result.success} importado(s), ${result.failed} no se procesó(aron) — posibles placas duplicadas.`)
+      const msg = result.success > 0
+        ? `${result.success} importado(s), ${result.failed} no se procesó(aron).`
+        : `No se pudo importar ningún vehículo (${result.failed} error(es)).`
+      showError(`${msg} Descargando reporte de errores...`)
+      if (importColumns?.length) {
+        await downloadImportErrorReport(result.failedRows, importColumns, 'errores-importacion-vehiculos')
+      }
     }
   } else if (error.value) {
     showError(error.value)
@@ -236,6 +251,7 @@ function formatUbicacionCatalog(row) {
       @edit-item-requested-manager="openEditDialog"
       @delete-item-requested-manager="handleDelete"
       @delete-selected-items-requested-manager="handleDeleteSelected"
+      @delete-all-requested-manager="handleDeleteAll"
       @import-data-requested-manager="handleImport"
       @clear-filters="clearAllFilters"
       @page-changed="handlePageChange"

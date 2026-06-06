@@ -13,7 +13,9 @@ import AccessRegisterReturn                     from '../components/access-regis
 import AccessImportDialog                        from '../components/access-import-dialog.vue'
 import AccessDetailDrawer                        from '../components/access-detail-drawer.vue'
 import { MOTIVOS_INGRESO, MOTIVO_SEVERITY, TIPOS_INGRESO, TIPOS_DOCUMENTO, ACCESS_STATUS, ACCESS_STATUS_SEVERITY, MOTIVOS_SALIDA_TEMPORAL } from '../constants/stays-ui.constants.js'
-import * as XLSX from 'xlsx'
+import { downloadImportErrorReport } from '@/shared/composables/use-import-error-report.js'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import { todayIsoLocal, toIsoDateString } from '@/shared/domain/employee-attendance-day.js'
 import {
   formatCalendarDateForUi,
@@ -351,8 +353,23 @@ async function handleReturn(returnData) {
 
 async function handleDeleteSelected(items) {
   await run(async () => {
-    await Promise.all(items.map(item => store.remove(item.id)))
-    showSuccess(`${items.length} registro(s) eliminado(s) correctamente.`)
+    const result = await store.bulkRemove(items)
+    if (result.failed === 0) {
+      showSuccess(`${result.success} registro(s) eliminado(s) correctamente.`)
+    } else {
+      const msg = result.success > 0
+        ? `${result.success} eliminado(s), ${result.failed} no se pudo(ieron) eliminar.`
+        : `No se pudo eliminar ningún registro (${result.failed} error(es)).`
+      showError(msg)
+    }
+  })
+  if (error.value) showError(error.value)
+}
+
+async function handleDeleteAll() {
+  await run(async () => {
+    const count = await store.deleteAll()
+    showSuccess(`${count} registro(s) eliminado(s) correctamente.`)
   })
   if (error.value) showError(error.value)
 }
@@ -360,7 +377,7 @@ async function handleDeleteSelected(items) {
 // Importación
 const importDialogVisible = ref(false)
 
-async function handleImport(rows) {
+async function handleImport(rows, importColumns) {
   let result = null
   await run(
     async () => { result = await store.bulkCreate(rows) },
@@ -370,7 +387,13 @@ async function handleImport(rows) {
     if (result.failed === 0) {
       showSuccess(`${result.success} ingreso(s) importado(s) correctamente.`)
     } else {
-      showError(`${result.success} importado(s), ${result.failed} no se procesó(aron) — verifica los datos.`)
+      const msg = result.success > 0
+        ? `${result.success} importado(s), ${result.failed} no se procesó(aron).`
+        : `No se pudo importar ningún registro (${result.failed} error(es)).`
+      showError(`${msg} Descargando reporte de errores...`)
+      if (importColumns?.length) {
+        await downloadImportErrorReport(result.failedRows, importColumns, 'errores-importacion-acceso')
+      }
     }
   } else if (error.value) {
     showError(error.value)
@@ -394,14 +417,12 @@ function label(list, value, fallback = value ?? '—') {
 }
 
 function applySheetStyles(ws, colWidths) {
-  ws['!cols'] = colWidths.map(wch => ({ wch }))
-  const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1')
-  for (let R = range.s.r; R <= range.e.r; R++) {
-    for (let C = range.s.c; C <= range.e.c; C++) {
-      const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })]
-      if (cell && cell.t === 'd') cell.z = 'DD/MM/YYYY'
-    }
-  }
+  colWidths.forEach((wch, i) => { ws.getColumn(i + 1).width = wch })
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    row.eachCell({ includeEmpty: false }, (cell) => {
+      if (cell.value instanceof Date) cell.numFmt = 'DD/MM/YYYY'
+    })
+  })
 }
 
 // Columnas compartidas (ingreso, registrado por, salida permanente, salida temporal)
@@ -485,21 +506,32 @@ async function handleExport() {
     const vehicles = entries.filter(e => e.type === 'VEHICULO')
     const persons  = entries.filter(e => e.type === 'PERSONA')
 
-    const wb = XLSX.utils.book_new()
+    const wb = new ExcelJS.Workbook()
 
     if (vehicles.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(flattenRows(vehicles, buildVehicleRow), { cellDates: true })
+      const ws = wb.addWorksheet('Vehículos')
+      const vRows = flattenRows(vehicles, buildVehicleRow)
+      if (vRows.length) {
+        const headers = Object.keys(vRows[0])
+        ws.addRow(headers)
+        vRows.forEach(r => ws.addRow(headers.map(h => r[h])))
+      }
       applySheetStyles(ws, VEHICLE_COL_WIDTHS)
-      XLSX.utils.book_append_sheet(wb, ws, 'Vehículos')
     }
     if (persons.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(flattenRows(persons, buildPersonRow), { cellDates: true })
+      const ws = wb.addWorksheet('Personas')
+      const pRows = flattenRows(persons, buildPersonRow)
+      if (pRows.length) {
+        const headers = Object.keys(pRows[0])
+        ws.addRow(headers)
+        pRows.forEach(r => ws.addRow(headers.map(h => r[h])))
+      }
       applySheetStyles(ws, PERSON_COL_WIDTHS)
-      XLSX.utils.book_append_sheet(wb, ws, 'Personas')
     }
 
     const date = todayIsoLocal()
-    XLSX.writeFile(wb, `control-acceso-${date}.xlsx`)
+    const buffer = await wb.xlsx.writeBuffer()
+    saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `control-acceso-${date}.xlsx`)
   }, { rethrow: false })
   if (error.value) showError(error.value)
 }
@@ -544,6 +576,7 @@ function handlePageChange({ page }) {
       @edit-item-requested-manager="openEditDialog"
       @delete-item-requested-manager="handleDelete"
       @delete-selected-items-requested-manager="handleDeleteSelected"
+      @delete-all-requested-manager="handleDeleteAll"
       @import-data-requested-manager="handleImport"
       @exit-item-requested-manager="openExitDialog"
       @return-item-requested-manager="openReturnDialog"

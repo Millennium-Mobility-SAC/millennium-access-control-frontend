@@ -1,7 +1,9 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import * as XLSX from 'xlsx'
+import { downloadImportErrorReport } from '@/shared/composables/use-import-error-report.js'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import DataManager from '@/shared/presentation/components/data-manager.vue'
 import ImportSpreadsheet from '@/shared/presentation/components/import-spreadsheet.vue'
 import { useAsyncAction } from '@/shared/composables/use-async-action.js'
@@ -84,11 +86,15 @@ async function exportEmployeesExcel() {
     Documento: e.documentNumber ?? '',
     Estado: statusLabel(e.status),
   }))
-  const ws = XLSX.utils.json_to_sheet(rows)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Empleados')
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Empleados')
+  if (rows.length) {
+    ws.addRow(Object.keys(rows[0]))
+    rows.forEach(r => ws.addRow(Object.values(r)))
+  }
   const date = todayIsoLocal()
-  XLSX.writeFile(wb, `empleados-${date}.xlsx`)
+  const buffer = await wb.xlsx.writeBuffer()
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `empleados-${date}.xlsx`)
 }
 
 function openNewDialog() {
@@ -138,11 +144,29 @@ async function handleDeleteSelected(items) {
   if (error.value) showError(error.value)
 }
 
-async function handleImport(rows) {
+async function handleDeleteAll() {
+  await run(async () => {
+    const count = await store.deleteAll()
+    showSuccess(`${count} empleado(s) eliminado(s) correctamente.`)
+  })
+  if (error.value) showError(error.value)
+}
+
+async function handleImport(rows, importColumns) {
   let result = null
   await run(async () => { result = await store.bulkCreate(rows) })
   if (result) {
-    showInfo(`${result.success} importado(s), ${result.failed} con error.`)
+    if (result.failed === 0) {
+      showSuccess(`${result.success} empleado(s) importado(s) correctamente.`)
+    } else {
+      const msg = result.success > 0
+        ? `${result.success} importado(s), ${result.failed} no se procesó(aron).`
+        : `No se pudo importar ningún empleado (${result.failed} error(es)).`
+      showError(`${msg} Descargando reporte de errores...`)
+      if (importColumns?.length) {
+        await downloadImportErrorReport(result.failedRows, importColumns, 'errores-importacion-empleados')
+      }
+    }
   } else if (error.value) showError(error.value)
 }
 
@@ -186,6 +210,7 @@ onMounted(async () => {
       @view-item-requested-manager="goToEmployeeDetail"
       @delete-item-requested-manager="handleDelete"
       @delete-selected-items-requested-manager="handleDeleteSelected"
+      @delete-all-requested-manager="handleDeleteAll"
       @clear-filters="clearAllFilters"
       @page-changed="handleEmpPageChange"
     >

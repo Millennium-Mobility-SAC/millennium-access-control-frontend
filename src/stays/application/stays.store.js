@@ -2,6 +2,8 @@ import { defineStore }          from 'pinia'
 import { ref, computed }        from 'vue'
 import { StaysApi }             from '../infrastructure/api/stays.api.js'
 import { AccessEntryAssembler } from '../infrastructure/assemblers/access-entry.assembler.js'
+import { batchSettled }         from '@/shared/infrustructure/batch-settled.js'
+import { humanizeApiError }     from '@/shared/infrustructure/api-error-humanizer.js'
 
 export const useStaysStore = defineStore('stays', () => {
   const api = new StaysApi()
@@ -194,25 +196,47 @@ export const useStaysStore = defineStore('stays', () => {
 
   /**
    * Crea múltiples entradas de acceso (tipo VEHICULO) en paralelo.
-   * No lanza si alguno falla — devuelve { success, failed, total }.
-   * Solo lanza si TODOS fallan.
+   * No lanza si alguno falla — devuelve { success, failed, total, failedRows }.
    */
   async function bulkCreate(resources) {
-    const results = await Promise.allSettled(
-      resources.map(r => api.create(AccessEntryAssembler.toResource({ ...r, type: r.type ?? 'VEHICULO' })))
+    const results = await batchSettled(
+      resources,
+      r => api.create(AccessEntryAssembler.toResource({ ...r, type: r.type ?? 'VEHICULO' }))
     )
-    // Reload page 0 with current filters after bulk import
-    await fetchPage(0)
     const success = results.filter(r => r.status === 'fulfilled').length
     const failed  = results.filter(r => r.status === 'rejected').length
-    if (success === 0) {
-      throw new Error('No se pudo importar ningún registro. Verifica los datos e inténtalo de nuevo.')
-    }
-    return { total: resources.length, success, failed }
+    const failedRows = results
+      .map((r, i) => r.status === 'rejected'
+        ? { row: resources[i], reason: humanizeApiError(r.reason) }
+        : null)
+      .filter(Boolean)
+    // Reload page — don't let a refresh error mask the import result
+    try { await fetchPage(0) } catch { /* ignore */ }
+    return { total: resources.length, success, failed, failedRows }
+  }
+
+  /**
+   * Elimina un subconjunto de registros en lotes para no saturar la conexión.
+   * No lanza si alguno falla — devuelve { success, failed, total }.
+   */
+  async function bulkRemove(items) {
+    const results = await batchSettled(items, item => api.delete(item.id))
+    const success = results.filter(r => r.status === 'fulfilled').length
+    const failed  = results.filter(r => r.status === 'rejected').length
+    try { await fetchPage(0) } catch { /* ignore */ }
+    return { total: items.length, success, failed }
+  }
+
+  /** Elimina todos los registros que coincidan con los filtros activos (sin paginación). */
+  async function deleteAll() {
+    const all = await exportAll()
+    if (all.length === 0) return 0
+    await batchSettled(all, item => api.delete(item.id))
+    try { await fetchPage(0) } catch { /* ignore */ }
+    return all.length
   }
 
   function select(item) {
-    _selected.value = item
   }
 
   function clear() {
@@ -239,6 +263,8 @@ export const useStaysStore = defineStore('stays', () => {
     update,
     remove,
     bulkCreate,
+    bulkRemove,
+    deleteAll,
     registerExit,
     registerReturn,
     fetchByVehicleId,

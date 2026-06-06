@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted }                               from 'vue'
-import * as XLSX from 'xlsx'
+import { downloadImportErrorReport }            from '@/shared/composables/use-import-error-report.js'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import { useStaffManagementStore }          from '../../application/staff-management.store.js'
 import { useIamStore }                      from '@/iam/application/iam.store.js'
 import { useAsyncAction }                   from '@/shared/composables/use-async-action.js'
@@ -88,7 +90,7 @@ function staffStatusLabel(active) {
 }
 
 /** Excel en cliente: respeta filtros de la tabla. */
-function exportStaffExcel() {
+async function exportStaffExcel() {
   const list = filteredItems.value
   if (!list.length) {
     showError('No hay colaboradores para exportar con los filtros actuales.')
@@ -104,11 +106,15 @@ function exportStaffExcel() {
     Usuario: (e.username ?? '').trim() || '—',
     Estado: staffStatusLabel(e.active),
   }))
-  const ws = XLSX.utils.json_to_sheet(rows)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores')
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Colaboradores')
+  if (rows.length) {
+    ws.addRow(Object.keys(rows[0]))
+    rows.forEach(r => ws.addRow(Object.values(r)))
+  }
   const date = todayIsoLocal()
-  XLSX.writeFile(wb, `colaboradores-${date}.xlsx`)
+  const buffer = await wb.xlsx.writeBuffer()
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `colaboradores-${date}.xlsx`)
 }
 
 function openNewDialog() {
@@ -157,7 +163,7 @@ async function handleDeleteSelected(items) {
   if (error.value) showError(error.value)
 }
 
-async function handleImport(rows) {
+async function handleImport(rows, importColumns) {
   let result = null
   await run(
     async () => { result = await store.bulkCreate(rows) },
@@ -167,7 +173,13 @@ async function handleImport(rows) {
     if (result.failed === 0) {
       showSuccess(`${result.success} colaborador(es) importado(s) correctamente.`)
     } else {
-      showError(`${result.success} importado(s), ${result.failed} no se procesó(aron) — verifica los datos.`)
+      const msg = result.success > 0
+        ? `${result.success} importado(s), ${result.failed} no se procesó(aron).`
+        : `No se pudo importar ningún colaborador (${result.failed} error(es)).`
+      showError(`${msg} Descargando reporte de errores...`)
+      if (importColumns?.length) {
+        await downloadImportErrorReport(result.failedRows, importColumns, 'errores-importacion-colaboradores')
+      }
     }
   } else if (error.value) {
     showError(error.value)

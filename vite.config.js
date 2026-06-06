@@ -11,6 +11,7 @@ export default defineConfig({
     },
   },
   build: {
+    sourcemap: false,   // nunca exponer código fuente en producción
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {

@@ -1,6 +1,14 @@
 import axios from 'axios';
 
-const platformApi = import.meta.env.VITE_PLATFORM_API_URL || 'http://localhost:8080/api/v1';
+// La URL del backend es obligatoria. Si no está definida, el build/runtime fallará
+// con un mensaje claro en lugar de conectarse silenciosamente a localhost en producción.
+const platformApi = import.meta.env.VITE_PLATFORM_API_URL ;
+if (!platformApi) {
+    throw new Error(
+        '[Config] La variable de entorno VITE_PLATFORM_API_URL es obligatoria. ' +
+        'Defínela en tu archivo .env o en las variables de entorno de Cloudflare Pages.'
+    );
+}
 
 // Global interceptors for all BaseApi instances. Set via BaseApi.configure() in main.js
 let _requestInterceptor       = null;

@@ -46,10 +46,10 @@ function confirmType() {
   importSpreadsheetVisible.value = true
 }
 
-function onImportConfirmed(rows) {
+function onImportConfirmed(rows, columns) {
   // Inyecta el type elegido en cada fila antes de emitir al padre
   const typedRows = rows.map(r => ({ ...r, type: importType.value }))
-  emit('import-confirmed', typedRows)
+  emit('import-confirmed', typedRows, columns)
 }
 </script>
 

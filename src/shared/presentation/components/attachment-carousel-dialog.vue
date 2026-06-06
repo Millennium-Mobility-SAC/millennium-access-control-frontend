@@ -1,7 +1,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
+import AttachmentImage from '@/shared/presentation/components/attachment-image.vue'
 import { useStayAttachmentMedia } from '@/stays/presentation/composables/use-stay-attachment-media.js'
+import { StorageFilesApi } from '@/stays/infrastructure/api/storage-files.api.js'
 
 const OPERATION_LABEL = {
   ENTRY: 'Ingreso',
@@ -11,17 +13,18 @@ const OPERATION_LABEL = {
 }
 
 const props = defineProps({
-  visible: { type: Boolean, required: true },
+  visible:     { type: Boolean, required: true },
   attachments: { type: Array, default: () => [] },
-  title: { type: String, default: 'Evidencias fotográficas' },
+  title:       { type: String, default: 'Evidencias fotográficas' },
 })
 
 const emit = defineEmits(['update:visible'])
 
-const { driveImgAttrs, getOpenUrl, getPreviewSrc, isImageAttachment, onAttachmentImageError } =
-  useStayAttachmentMedia()
+const { isImageAttachment, onAttachmentImageError } = useStayAttachmentMedia()
+const api = new StorageFilesApi()
 
 const currentIndex = ref(0)
+const downloading  = ref(false)
 
 const images = computed(() => (props.attachments ?? []).filter(isImageAttachment))
 
@@ -36,9 +39,7 @@ const counterLabel = computed(() => {
 
 watch(
   () => props.visible,
-  (open) => {
-    if (open) currentIndex.value = 0
-  },
+  (open) => { if (open) currentIndex.value = 0 },
 )
 
 watch(images, (list) => {
@@ -69,6 +70,16 @@ function showNext() {
 function close() {
   emit('update:visible', false)
 }
+
+async function downloadCurrent() {
+  if (!currentImage.value || downloading.value) return
+  downloading.value = true
+  try {
+    await api.downloadFile(currentImage.value)
+  } finally {
+    downloading.value = false
+  }
+}
 </script>
 
 <template>
@@ -81,13 +92,12 @@ function close() {
   >
     <template #content>
       <div v-if="currentImage" class="attachment-carousel">
-        <img
-          v-bind="driveImgAttrs"
-          :src="getPreviewSrc(currentImage)"
+        <attachment-image
+          :attachment="currentImage"
           :alt="attachmentName(currentImage)"
           class="attachment-carousel__image"
           @error="onAttachmentImageError"
-        >
+        />
         <div class="attachment-carousel__footer">
           <div class="attachment-carousel__meta">
             <div class="attachment-carousel__name">{{ attachmentName(currentImage) }}</div>
@@ -118,13 +128,11 @@ function close() {
             />
             <pv-button
               type="button"
-              icon="pi pi-external-link"
-              label="Abrir"
+              icon="pi pi-download"
+              label="Descargar"
               size="small"
-              :as="'a'"
-              :href="getOpenUrl(currentImage)"
-              target="_blank"
-              rel="noopener noreferrer"
+              :loading="downloading"
+              @click="downloadCurrent"
             />
           </div>
         </div>

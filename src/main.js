@@ -6,6 +6,18 @@ import { BaseApi } from './shared/infrustructure/base-api.js'
 import { iamRequestInterceptor, iamResponseErrorInterceptor } from './iam/infrastructure/interceptors/iam.interceptor.js'
 BaseApi.configure(iamRequestInterceptor, iamResponseErrorInterceptor)
 
+// ── Guardianes de producción — deben ejecutarse antes de montar la app ────────
+if (import.meta.env.PROD) {
+    // M1: Silenciar console en producción para no filtrar información interna
+    console.log  = () => {}
+    console.warn = () => {}
+    console.info = () => {}
+    console.debug = () => {}
+    // console.error se conserva — es capturado por monitores de errores (Sentry, etc.)
+    // pero no muestra stack traces internos al usuario en DevTools de producción
+    // ya que los source maps están deshabilitados (sourcemap: false en vite.config.js).
+}
+
 // PrimeVue Core
 import PrimeVue from 'primevue/config'
 import Aura from '@primeuix/themes/aura'

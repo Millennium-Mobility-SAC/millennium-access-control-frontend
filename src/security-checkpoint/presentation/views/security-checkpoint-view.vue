@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import DataManager from '@/shared/presentation/components/data-manager.vue'
 import { useAsyncAction } from '@/shared/composables/use-async-action.js'
 import { useNotification } from '@/shared/composables/use-notification.js'
@@ -175,11 +176,15 @@ async function exportAttendanceExcel() {
     Ingreso: formatTimeCell(r.checkInTime),
     Salida: formatCheckOutForExport(r),
   }))
-  const ws = XLSX.utils.json_to_sheet(rows)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Marcación')
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Marcación')
+  if (rows.length) {
+    ws.addRow(Object.keys(rows[0]))
+    rows.forEach(r => ws.addRow(Object.values(r)))
+  }
   const date = todayIsoLocal()
-  XLSX.writeFile(wb, `marcacion-personal-${date}.xlsx`)
+  const buffer = await wb.xlsx.writeBuffer()
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `marcacion-personal-${date}.xlsx`)
 }
 
 function handlePageChange({ page }) {

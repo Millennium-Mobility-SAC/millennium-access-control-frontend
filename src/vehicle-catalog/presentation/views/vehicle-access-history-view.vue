@@ -9,7 +9,8 @@ import { isImageAttachment }        from '@/stays/presentation/composables/use-s
 import AttachmentCarouselDialog     from '@/shared/presentation/components/attachment-carousel-dialog.vue'
 import { ACCESS_STATUS, ACCESS_STATUS_SEVERITY } from '@/shared/presentation/constants/access-status.constants.js'
 import { MOTIVOS_INGRESO, MOTIVOS_SALIDA_TEMPORAL, TIPOS_DOCUMENTO } from '@/stays/presentation/constants/stays-ui.constants.js'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import {
   formatCalendarDateForUiNullable,
   formatTimeHmAmPmForUi,
@@ -210,17 +211,15 @@ function lbl(list, value, fallback = value ?? '—') {
 const HISTORY_COL_WIDTHS = [6, 18, 18, 14, 12, 22, 12, 14, 16, 6, 14, 24, 22, 18, 18, 18, 18, 20, 22, 22, 20, 18, 18, 14, 12]
 
 function applySheetStyles(ws, colWidths) {
-  ws['!cols'] = colWidths.map(wch => ({ wch }))
-  const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1')
-  for (let R = range.s.r; R <= range.e.r; R++) {
-    for (let C = range.s.c; C <= range.e.c; C++) {
-      const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })]
-      if (cell && cell.t === 'd') cell.z = 'DD/MM/YYYY'
-    }
-  }
+  colWidths.forEach((wch, i) => { ws.getColumn(i + 1).width = wch })
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    row.eachCell({ includeEmpty: false }, (cell) => {
+      if (cell.value instanceof Date) cell.numFmt = 'DD/MM/YYYY'
+    })
+  })
 }
 
-function handleExport() {
+async function handleExport() {
   const rows = []
   for (const entry of historyItems.value) {
     const base = {
@@ -271,13 +270,18 @@ function handleExport() {
     }
   }
 
-  const ws = XLSX.utils.json_to_sheet(rows, { cellDates: true })
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Historial')
+  if (rows.length) {
+    const headers = Object.keys(rows[0])
+    ws.addRow(headers)
+    rows.forEach(r => ws.addRow(headers.map(h => r[h])))
+  }
   applySheetStyles(ws, HISTORY_COL_WIDTHS)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Historial')
   const plate = vehicle.value.licensePlate?.replace(/[^A-Z0-9]/gi, '') ?? 'vehiculo'
   const date = todayIsoLocal()
-  XLSX.writeFile(wb, `historial-${plate}-${date}.xlsx`)
+  const buffer = await wb.xlsx.writeBuffer()
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `historial-${plate}-${date}.xlsx`)
 }
 
 function rowPhotoKey(entryId, row) {

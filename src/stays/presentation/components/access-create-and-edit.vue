@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, watch, onUnmounted, ref, computed, nextTick } from 'vue'
 import CreateAndEdit        from '@/shared/presentation/components/create-and-edit.vue'
+import AttachmentImage      from '@/shared/presentation/components/attachment-image.vue'
 import StayImagePicker      from './stay-image-picker.vue'
 import { MOTIVOS_INGRESO, TIPOS_INGRESO, TIPOS_DOCUMENTO } from '../constants/stays-ui.constants.js'
 import { useVehicleCatalogStore } from '@/vehicle-catalog/application/vehicle-catalog.store.js'
@@ -9,13 +10,10 @@ import { useNotification }        from '@/shared/composables/use-notification.js
 import { normalizeApiError }      from '@/shared/infrustructure/error-normalizer.js'
 import { nowPeruTimeString, nowPeruDate } from '@/shared/domain/peru-time.js'
 import { useStayAttachmentMedia } from '../composables/use-stay-attachment-media.js'
+import { StorageFilesApi }        from '@/stays/infrastructure/api/storage-files.api.js'
 
-const {
-  driveImgAttrs,
-  getOpenUrl,
-  getPreviewSrc,
-  onAttachmentImageError,
-} = useStayAttachmentMedia()
+const { onAttachmentImageError } = useStayAttachmentMedia()
+const storageApi = new StorageFilesApi()
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -871,14 +869,17 @@ const aceForm = ref(null)
                     :key="attachment.id"
                     class="ace-existing-attachment"
                   >
-                    <a :href="getOpenUrl(attachment)" target="_blank" rel="noopener noreferrer">
-                      <img
-                        v-bind="driveImgAttrs"
-                        :src="getPreviewSrc(attachment, 'w1200')"
+                    <button
+                      type="button"
+                      class="ace-existing-attachment__thumb-btn"
+                      @click="storageApi.downloadFile(attachment)"
+                    >
+                      <attachment-image
+                        :attachment="attachment"
                         :alt="attachment.file_name ?? attachment.fileName"
                         @error="onAttachmentImageError"
-                      >
-                    </a>
+                      />
+                    </button>
                     <button
                       v-if="canManageAttachments"
                       type="button"

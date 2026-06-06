@@ -1,7 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import DataManager from '@/shared/presentation/components/data-manager.vue'
 import { useAsyncAction } from '@/shared/composables/use-async-action.js'
 import { useNotification } from '@/shared/composables/use-notification.js'
@@ -169,12 +170,16 @@ async function exportAttendanceExcel() {
     Ingreso: formatAttendanceTime(r.checkInTime),
     Salida: formatAttendanceTime(r.checkOutTime),
   }))
-  const ws = XLSX.utils.json_to_sheet(rows)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Asistencia')
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Asistencia')
+  if (rows.length) {
+    ws.addRow(Object.keys(rows[0]))
+    rows.forEach(r => ws.addRow(Object.values(r)))
+  }
   const slug = sanitizeFilePart(e.fullName) || 'empleado'
   const date = todayIsoLocal()
-  XLSX.writeFile(wb, `asistencia-${slug}-${date}.xlsx`)
+  const buffer = await wb.xlsx.writeBuffer()
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `asistencia-${slug}-${date}.xlsx`)
 }
 
 function getDocTypeLabel(value) {

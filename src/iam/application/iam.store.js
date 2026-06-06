@@ -80,6 +80,11 @@ export const useIamStore = defineStore('iam', () => {
         const token = localStorage.getItem(TOKEN_KEY);
         const raw   = localStorage.getItem(USER_KEY);
         if (!token || !raw) return;
+        // Verificar expiración del JWT antes de rehidratar (sin validar firma — eso es del backend)
+        if (_isTokenExpired(token)) {
+            _clearSession();
+            return;
+        }
         try {
             const { id, username, roles } = JSON.parse(raw);
             isSignedIn.value       = true;
@@ -88,6 +93,22 @@ export const useIamStore = defineStore('iam', () => {
             currentUserRoles.value = roles ?? [];
         } catch {
             _clearSession();
+        }
+    }
+
+    /**
+     * Decodifica el payload del JWT (sin verificar firma) para comprobar si expiró.
+     * La validación criptográfica real siempre la realiza el backend.
+     * @param {string} token
+     * @returns {boolean} true si el token ha expirado o no puede parsearse
+     */
+    function _isTokenExpired(token) {
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+            if (!payload?.exp) return false; // sin campo exp → dejar pasar (el backend lo rechazará si es inválido)
+            return payload.exp * 1000 < Date.now();
+        } catch {
+            return true; // token malformado → tratar como expirado
         }
     }
 

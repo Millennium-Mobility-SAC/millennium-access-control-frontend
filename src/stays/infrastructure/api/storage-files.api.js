@@ -20,4 +20,21 @@ export class StorageFilesApi extends BaseApi {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   }
+
+  getFileContent(fileId) {
+    return this.http.get(`${this.#endpoint}/${fileId}/content`, { responseType: 'blob' })
+  }
+
+  downloadFile(attachment) {
+    return this.getFileContent(attachment.id).then(res => {
+      const url = URL.createObjectURL(res.data)
+      const a   = document.createElement('a')
+      a.href     = url
+      a.download = attachment.file_name ?? attachment.fileName ?? 'archivo'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    })
+  }
 }
