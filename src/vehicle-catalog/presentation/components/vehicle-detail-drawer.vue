@@ -1,8 +1,9 @@
 <script setup>
+import { computed } from 'vue'
 import DetailDrawer from '@/shared/presentation/components/detail-drawer.vue'
 import { MOTIVOS_INGRESO } from '@/stays/presentation/constants/stays-ui.constants.js'
 import { getAccessStatusLabel, getAccessStatusSeverity } from '@/shared/presentation/constants/access-status.constants.js'
-import { formatVehicleUbicacion } from '../../domain/format-vehicle-ubicacion.js'
+import { resolveVehicleUbicacion } from '../../domain/format-vehicle-ubicacion.js'
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -25,7 +26,7 @@ function labelIngreso(v) {
   return MOTIVOS_INGRESO.find(m => m.value === v)?.label ?? v
 }
 
-const ubicacionText = formatVehicleUbicacion
+const ubicacion = computed(() => resolveVehicleUbicacion(props.item))
 </script>
 
 <template>
@@ -76,7 +77,10 @@ const ubicacionText = formatVehicleUbicacion
             </div>
             <div class="detail-row">
               <span class="detail-label">Ubicación</span>
-              <span class="detail-value">{{ ubicacionText(item) }}</span>
+              <pv-tag
+                :value="ubicacion.label"
+                :severity="ubicacion.severity"
+              />
             </div>
           </div>
         </div>

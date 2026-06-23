@@ -16,7 +16,7 @@ import {
 } from '@/shared/domain/format-datetime-ui.js'
 import { VEHICLE_ROUTE_NAMES }         from '../vehicle-catalog.routes.js'
 import { MOTIVOS_INGRESO } from '@/stays/presentation/constants/stays-ui.constants.js'
-import { formatVehicleUbicacion } from '../../domain/format-vehicle-ubicacion.js'
+import { resolveVehicleUbicacion } from '../../domain/format-vehicle-ubicacion.js'
 
 import { getAccessStatusLabel as VEHICLE_STATUS_LABEL_FN, getAccessStatusSeverity, ACCESS_STATUS } from '@/shared/presentation/constants/access-status.constants.js'
 
@@ -212,7 +212,10 @@ function labelMotivoIngreso(value) {
   return MOTIVOS_INGRESO.find(m => m.value === value)?.label ?? value
 }
 
-const formatUbicacionCatalog = formatVehicleUbicacion
+function ubicacionTagProps(row) {
+  const { label, severity } = resolveVehicleUbicacion(row)
+  return { value: label, severity }
+}
 </script>
 
 <template>
@@ -326,7 +329,7 @@ const formatUbicacionCatalog = formatVehicleUbicacion
       </template>
 
       <template #vehicle-ubicacion="{ data }">
-        <span class="vc-motivo">{{ formatUbicacionCatalog(data) }}</span>
+        <pv-tag v-bind="ubicacionTagProps(data)" class="vc-ubicacion-tag" />
       </template>
 
       <!-- Último ingreso: fecha DD/MM/YYYY + hora -->
@@ -520,6 +523,14 @@ const formatUbicacionCatalog = formatVehicleUbicacion
   line-height: 1.35;
   color: var(--text-body);
   word-break: break-word;
+}
+
+.vc-ubicacion-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.3;
 }
 
 /* ── Days-in-plant badge ─────────────────────────────────────────────────── */
