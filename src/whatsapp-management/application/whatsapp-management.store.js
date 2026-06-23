@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { WhatsAppManagementApi } from '../infrastructure/api/whatsapp-management.api.js'
+
+const SYNC_POLL_MS = 3000
 
 export const useWhatsAppManagementStore = defineStore('whatsapp-management', () => {
     const api = new WhatsAppManagementApi()
@@ -10,6 +12,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
     const error        = ref(null)   // mensaje amigable para el usuario
     const rawError     = ref(null)   // mensaje técnico para reportar
     const connected    = ref(null)   // null = no consultado aún
+    const chatsSynced  = ref(null)   // null = N/A; false = sincronizando; true = listo
     const enabled      = ref(false)
     const groupId      = ref('')
     const hasKey       = ref(false)
@@ -19,6 +22,9 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
     const groups       = ref([])    // [{ id, name, participants }]
     const isLoadingGroups = ref(false)
     let _qrPollingId   = null
+    let _syncPollingId = null
+
+    const chatsSyncing = computed(() => connected.value === true && chatsSynced.value === false)
 
     function _clearError() { error.value = null; rawError.value = null }
 
@@ -39,6 +45,8 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
         if (status === 401) return 'No autorizado. Verifica que tu sesión esté activa.'
         if (status === 403) return 'No tienes permisos para realizar esta acción.'
         if (status === 404) return 'El recurso solicitado no existe en el servidor.'
+        if (status === 425 || /sincroniza/i.test(lc))
+            return 'WhatsApp todavía está sincronizando los chats. Espera unos segundos.'
         if (status === 503) return 'El servicio no está disponible en este momento. Intenta de nuevo en unos segundos.'
         if (status >= 500 && status < 600) return 'Error interno del servidor. Si persiste, contacta al administrador.'
 
@@ -48,8 +56,6 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             return 'La operación tardó demasiado. El servicio puede estar sobrecargado. Intenta de nuevo.'
         if (/network error/i.test(lc))
             return 'Error de red. Verifica tu conexión y que el servidor esté disponible.'
-        if (/sincroniza|425/i.test(lc))
-            return 'WhatsApp todavía está sincronizando. Espera unos segundos e intenta de nuevo.'
 
         // Fallback: el mensaje tal como viene pero sin traceback de Spring
         const cleaned = (e?.response?.data?.message || e?.message || 'Error inesperado')
@@ -71,6 +77,41 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
         maskedKey.value = data.maskedApiKey || null
     }
 
+    function _applyStatus(data) {
+        connected.value = !!data.connected
+        if (data.connected) {
+            chatsSynced.value = !!data.chatsSynced
+            if (data.chatsSynced) {
+                stopSyncPolling()
+            } else {
+                startSyncPolling()
+            }
+            qrString.value = null
+            stopQrPolling()
+        } else {
+            chatsSynced.value = null
+            stopSyncPolling()
+        }
+    }
+
+    function startSyncPolling() {
+        if (_syncPollingId || chatsSynced.value) return
+        _syncPollingId = setInterval(async () => {
+            if (!connected.value) {
+                stopSyncPolling()
+                return
+            }
+            await fetchStatus({ silent: true })
+        }, SYNC_POLL_MS)
+    }
+
+    function stopSyncPolling() {
+        if (_syncPollingId) {
+            clearInterval(_syncPollingId)
+            _syncPollingId = null
+        }
+    }
+
     // ── Acciones ──────────────────────────────────────────────────────────
 
     async function fetchConfiguration() {
@@ -86,17 +127,14 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
         }
     }
 
-    async function fetchStatus() {
-        _clearError()
+    async function fetchStatus(options = {}) {
+        const { silent = false } = options
+        if (!silent) _clearError()
         try {
             const { data } = await api.getStatus()
-            connected.value = !!data.connected
-            if (data.connected) {
-                qrString.value = null
-                stopQrPolling()
-            }
+            _applyStatus(data)
         } catch (e) {
-            _setError(e)
+            if (!silent) _setError(e)
         }
     }
 
@@ -106,6 +144,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             qrString.value = data.qr || null
             if (data.qr && connected.value === null) {
                 connected.value = false
+                chatsSynced.value = null
             }
         } catch {
             // silencioso: el QR no es crítico
@@ -123,7 +162,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             await fetchQr()
             // Si aún no tenemos QR (Node está regenerando), también re-chequea estado
             if (!qrString.value) {
-                await fetchStatus()
+                await fetchStatus({ silent: true })
             }
         }, 5000)
     }
@@ -190,7 +229,10 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             await api.resetSession()
             qrString.value = null
             connected.value = false
+            chatsSynced.value = null
+            groups.value = []
             // Reinicia el polling para capturar el nuevo QR cuando Node lo emita
+            stopSyncPolling()
             stopQrPolling()
             startQrPolling()
             return true
@@ -207,6 +249,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
     }
 
     async function fetchGroups() {
+        if (chatsSyncing.value) return false
         _clearError()
         isLoadingGroups.value = true
         try {
@@ -216,6 +259,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
         } catch (e) {
             _setError(e)
             groups.value = []
+            if (e?.response?.status === 425) startSyncPolling()
             return false
         } finally {
             isLoadingGroups.value = false
@@ -224,10 +268,12 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
 
     return {
         // estado
-        isLoading, error, rawError, connected, enabled, groupId, hasKey, maskedKey, generatedKey, qrString,
+        isLoading, error, rawError, connected, chatsSynced, chatsSyncing,
+        enabled, groupId, hasKey, maskedKey, generatedKey, qrString,
         groups, isLoadingGroups,
         // acciones
         fetchConfiguration, fetchStatus, fetchQr, startQrPolling, stopQrPolling,
+        startSyncPolling, stopSyncPolling,
         rotateApiKey, updateGroupId, setEnabled, resetSession, clearGeneratedKey, fetchGroups,
     }
 })

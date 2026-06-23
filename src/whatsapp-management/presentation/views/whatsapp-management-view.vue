@@ -118,27 +118,39 @@ watch(() => store.qrString, async (qr, prev) => {
 
 const statusIcon = computed(() => {
     if (store.connected === null) return 'pi pi-spin pi-spinner'
+    if (store.chatsSyncing) return 'pi pi-spin pi-spinner'
     return store.connected ? 'pi pi-whatsapp' : 'pi pi-times'
 })
 const statusText = computed(() => {
     if (store.connected === null) return 'Verificando conexión...'
+    if (store.chatsSyncing) return 'Sincronizando chats de WhatsApp...'
     return store.connected ? 'Conectado a WhatsApp' : 'Desconectado'
 })
 const statusTextClass = computed(() => {
     if (store.connected === null) return ''
+    if (store.chatsSyncing) return 'wa-status__text--syncing'
     return store.connected ? 'wa-status__text--online' : 'wa-status__text--offline'
 })
 const statusCardClass = computed(() => {
     if (store.connected === null) return ''
+    if (store.chatsSyncing) return 'wa-card--status-syncing'
     return store.connected ? 'wa-card--status-online' : 'wa-card--status-offline'
 })
 const statusIndicatorClass = computed(() => {
     if (store.connected === null) return 'wa-status__indicator--loading'
+    if (store.chatsSyncing) return 'wa-status__indicator--syncing'
     return store.connected ? 'wa-status__indicator--online' : 'wa-status__indicator--offline'
 })
 const statusPillClass = computed(() => {
     if (store.connected === null) return 'wa-status__pill--loading'
+    if (store.chatsSyncing) return 'wa-status__pill--syncing'
     return store.connected ? 'wa-status__pill--online' : 'wa-status__pill--offline'
+})
+const groupsButtonDisabled = computed(() => !store.connected || store.chatsSyncing || store.isLoadingGroups)
+const groupsButtonTooltip = computed(() => {
+    if (!store.connected) return 'Conecta WhatsApp escaneando el QR primero'
+    if (store.chatsSyncing) return 'Espera a que termine la sincronización de chats'
+    return undefined
 })
 
 onMounted(async () => {
@@ -150,6 +162,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     store.stopQrPolling()
+    store.stopSyncPolling()
     stopQrCountdown()
     if (qrFlashTimer) { clearTimeout(qrFlashTimer); qrFlashTimer = null }
 })
@@ -190,14 +203,13 @@ async function handleLoadGroups() {
         showError('WhatsApp no está conectado. Escanea el QR primero.')
         return
     }
+    if (store.chatsSyncing) {
+        showError('WhatsApp todavía está sincronizando los chats. Espera unos segundos.')
+        return
+    }
     const ok = await store.fetchGroups()
     if (!ok) {
-        const msg = store.error || ''
-        if (/sincroniza|425/i.test(msg)) {
-            showError('WhatsApp todavía está sincronizando los chats. Intenta de nuevo en unos segundos.')
-        } else {
-            showError(msg || 'No se pudieron obtener los grupos')
-        }
+        showError(store.error || 'No se pudieron obtener los grupos')
     } else if (store.groups.length === 0) {
         showError('No se encontraron grupos en la cuenta vinculada')
     } else {
@@ -325,9 +337,14 @@ async function handleResetSession() {
                         <span v-if="store.connected === false" class="wa-status__hint">
                             Escanea el código QR que aparece más abajo desde <strong>WhatsApp → Dispositivos vinculados</strong>.
                         </span>
+                        <span v-else-if="store.chatsSyncing" class="wa-status__hint wa-status__hint--syncing">
+                            <i class="pi pi-info-circle" />
+                            Los chats se están descargando. Podrás buscar tus grupos cuando termine (normalmente unos segundos).
+                        </span>
                     </div>
                     <div class="wa-status__pill" :class="statusPillClass">
                         <span v-if="store.connected === null"><i class="pi pi-spin pi-spinner" /> Verificando</span>
+                        <span v-else-if="store.chatsSyncing"><i class="pi pi-spin pi-spinner" /> Sincronizando</span>
                         <span v-else-if="store.connected"><i class="pi pi-check" /> En línea</span>
                         <span v-else><i class="pi pi-times" /> Sin conexión</span>
                     </div>
@@ -464,13 +481,18 @@ async function handleResetSession() {
                         </div>
 
                         <div class="wa-config__group-input">
+                            <div v-if="store.chatsSyncing" class="wa-sync-banner" role="status" aria-live="polite">
+                                <i class="pi pi-spin pi-spinner" />
+                                <span>Sincronizando chats de WhatsApp. El botón se habilitará automáticamente al terminar.</span>
+                            </div>
                             <pv-button
                                 label="Buscar mis grupos"
                                 icon="pi pi-search"
                                 outlined
                                 size="small"
                                 :loading="store.isLoadingGroups"
-                                :disabled="!store.connected"
+                                :disabled="groupsButtonDisabled"
+                                v-tooltip.top="groupsButtonTooltip"
                                 @click="handleLoadGroups"
                             />
                         </div>
@@ -790,12 +812,45 @@ async function handleResetSession() {
 .wa-status__text   { display: block; font-size: 1.05rem; font-weight: 600; color: #111827; }
 .wa-status__text--online  { color: #15803d; }
 .wa-status__text--offline { color: #dc2626; }
+.wa-status__text--syncing { color: #b45309; }
 .wa-status__hint   {
     display: block;
     font-size: 0.8rem;
     color: #6b7280;
     margin-top: 0.3rem;
     line-height: 1.5;
+}
+.wa-status__hint--syncing {
+    color: #b45309;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+}
+
+.wa-card--status-syncing {
+    border-color: #fcd34d;
+    background: linear-gradient(135deg, #fffbeb 0%, #ffffff 60%);
+}
+
+.wa-status__indicator--syncing { background: #fef3c7; color: #d97706; }
+
+.wa-sync-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    margin-bottom: 0.65rem;
+    border-radius: 0.5rem;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    color: #92400e;
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+.wa-sync-banner .pi-spinner {
+    margin-top: 0.1rem;
+    flex-shrink: 0;
 }
 
 /* ── QR Card ────────────────────────────────────────────────── */
@@ -986,6 +1041,7 @@ async function handleResetSession() {
 .wa-status__pill--online  { background: #dcfce7; color: #15803d; }
 .wa-status__pill--offline { background: #fee2e2; color: #b91c1c; }
 .wa-status__pill--loading { background: #f3f4f6; color: #6b7280; }
+.wa-status__pill--syncing { background: #fef3c7; color: #b45309; }
 
 .wa-status__actions {
     margin-top: 1rem;
