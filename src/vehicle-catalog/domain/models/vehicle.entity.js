@@ -1,4 +1,5 @@
 import { toIsoDateString } from '../../../shared/domain/employee-attendance-day.js'
+import { formatVehicleUbicacion } from '../format-vehicle-ubicacion.js'
 
 export class Vehicle {
   constructor({
@@ -47,8 +48,8 @@ export class Vehicle {
     return diff >= 0 ? diff : null
   }
 
-  /** Código de motivo para ordenar/filtrar: salida temporal activa si existe, si no el de ingreso. */
+  /** Ubicación operativa legible (derivada de currentStatus y salida temporal activa). */
   get catalogUbicacion() {
-    return this.catalogActiveTemporalExitReason || this.catalogFlowEntryReason || ''
+    return formatVehicleUbicacion(this)
   }
 }

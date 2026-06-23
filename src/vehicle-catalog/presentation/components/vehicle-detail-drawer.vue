@@ -1,7 +1,8 @@
 <script setup>
 import DetailDrawer from '@/shared/presentation/components/detail-drawer.vue'
-import { MOTIVOS_INGRESO, MOTIVOS_SALIDA_TEMPORAL } from '@/stays/presentation/constants/stays-ui.constants.js'
+import { MOTIVOS_INGRESO } from '@/stays/presentation/constants/stays-ui.constants.js'
 import { getAccessStatusLabel, getAccessStatusSeverity } from '@/shared/presentation/constants/access-status.constants.js'
+import { formatVehicleUbicacion } from '../../domain/format-vehicle-ubicacion.js'
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -24,16 +25,7 @@ function labelIngreso(v) {
   return MOTIVOS_INGRESO.find(m => m.value === v)?.label ?? v
 }
 
-function labelTemporal(v) {
-  if (v == null || v === '') return '—'
-  return MOTIVOS_SALIDA_TEMPORAL.find(m => m.value === v)?.label ?? v
-}
-
-function ubicacionText(it) {
-  if (!it) return '—'
-  if (it.catalogActiveTemporalExitReason) return labelTemporal(it.catalogActiveTemporalExitReason)
-  return labelIngreso(it.catalogFlowEntryReason)
-}
+const ubicacionText = formatVehicleUbicacion
 </script>
 
 <template>
