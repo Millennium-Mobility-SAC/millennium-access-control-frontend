@@ -59,9 +59,9 @@ export class StaysApi extends BaseApi {
     return this.http.get(`${this.#endpoint.endpointPath}/by-profile/${profileId}`)
   }
 
-  /** @param {number} vehicleId */
-  getByVehicleId(vehicleId) {
-    return this.http.get(`${this.#endpoint.endpointPath}/by-vehicle/${vehicleId}`)
+  /** @param {number} vehicleId  @param {Object} [params] */
+  getByVehicleId(vehicleId, params = { page: 0, size: 100 }) {
+    return this.http.get(`${this.#endpoint.endpointPath}/by-vehicle/${vehicleId}`, { params })
   }
 
   getAttachments(stayId) {

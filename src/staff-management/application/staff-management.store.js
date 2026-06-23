@@ -15,7 +15,9 @@ export const useStaffManagementStore = defineStore('staff-management', () => {
   const selected  = computed(() => _selected.value)
 
   async function fetchAll() {
-    _employees.value = EmployeeAssembler.toEntitiesFromResponse(response)
+    const response = await api.getAll({ page: 0, size: 200 })
+    const rows = response?.content ?? response
+    _employees.value = EmployeeAssembler.toEntitiesFromResponse(rows)
   }
 
   async function fetchById(id) {

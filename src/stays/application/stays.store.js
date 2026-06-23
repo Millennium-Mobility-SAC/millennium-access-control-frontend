@@ -147,7 +147,8 @@ export const useStaysStore = defineStore('stays', () => {
 
   async function fetchByVehicleId(vehicleId) {
     const response = await api.getByVehicleId(vehicleId)
-    return AccessEntryAssembler.toEntitiesFromResponse(response)
+    const rows = response?.content ?? response
+    return AccessEntryAssembler.toEntitiesFromResponse(rows)
   }
 
   /**
