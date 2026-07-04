@@ -5,6 +5,7 @@ import { useIamStore }                          from '@/iam/application/iam.stor
 import { useAsyncAction }                       from '@/shared/composables/use-async-action.js'
 import { useNotification }                      from '@/shared/composables/use-notification.js'
 import { usePermissions }                       from '@/shared/composables/use-permissions.js'
+import { normalizeApiError }                    from '@/shared/infrustructure/error-normalizer.js'
 import { StorageFilesApi }                      from '../../infrastructure/api/storage-files.api.js'
 import DataManager                              from '@/shared/presentation/components/data-manager.vue'
 import AccessCreateAndEdit                      from '../components/access-create-and-edit.vue'
@@ -137,12 +138,14 @@ async function openDrawer(item) {
   drawerWhatsappAttempts.value = []
   drawerWhatsappLoading.value = true
   stopWhatsappPolling()
-  await run(async () => {
+  try {
     await store.fetchById(item.id)
     drawerAttachments.value = await store.fetchAttachments(item.id)
-  }, { errorMessage: 'No se pudieron cargar las evidencias del registro.' })
-  if (error.value && drawerVisible.value) {
-    showError(error.value)
+  } catch (e) {
+    drawerAttachments.value = []
+    if (drawerVisible.value) {
+      showError(normalizeApiError(e, 'No se pudieron cargar las evidencias del registro.'))
+    }
   }
   if (store.selected) drawerItem.value = store.selected
   await refreshWhatsappStatus(item.id)

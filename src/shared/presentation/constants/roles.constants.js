@@ -73,3 +73,13 @@ export function hasRouteAccess(role, path) {
     if (!allowed) return false;
     return allowed.some(r => path.startsWith(r));
 }
+
+/**
+ * Devuelve la primera ruta permitida para un rol autenticado.
+ * Si el rol no existe en la matriz de permisos, no hay fallback seguro.
+ * @param {string} role
+ * @returns {string|null}
+ */
+export function getDefaultRouteForRole(role) {
+    return ROLE_ALLOWED_ROUTES[role]?.[0] ?? null;
+}
