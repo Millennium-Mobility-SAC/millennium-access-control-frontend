@@ -482,6 +482,7 @@ const errors = reactive({
   lastName:             '',
   entryReason:          '',
   mileage:              '',
+  attachments:          '',
 })
 
 function clearErrors() {
@@ -491,6 +492,7 @@ function clearErrors() {
   errors.lastName             = ''
   errors.entryReason          = ''
   errors.mileage              = ''
+  errors.attachments          = ''
 }
 
 function validate() {
@@ -536,6 +538,11 @@ function validate() {
     valid = false
   }
 
+  if (!props.edit && form.type === 'VEHICULO' && form.attachments.length === 0) {
+    errors.attachments = 'Debes adjuntar al menos una foto de la unidad.'
+    valid = false
+  }
+
   if (form.type === 'VEHICULO' && form.mileage != null && lastMileage.value != null) {
     if (form.mileage <= lastMileage.value) {
       errors.mileage = `El kilometraje debe ser mayor al último registrado (${lastMileage.value.toLocaleString()} km)`
@@ -549,7 +556,7 @@ function validate() {
 function onSave(formData) {
   if (!validate()) {
     nextTick(() => {
-      const el = aceForm.value?.querySelector('.p-invalid, [aria-invalid="true"]')
+      const el = aceForm.value?.querySelector('.p-invalid, [aria-invalid="true"], .sip__dropzone--invalid')
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
         const focusable = el.matches('input,select,textarea,button,[tabindex]') ? el : el.querySelector('input,select,textarea,button,[tabindex]')
@@ -842,7 +849,7 @@ const aceForm = ref(null)
         <div class="ace-section">
           <div class="ace-section-header">
             <i class="pi pi-images ace-section-icon" />
-            <span>Evidencias (opcional)</span>
+            <span>{{ !edit && form.type === 'VEHICULO' ? 'Evidencias fotográficas obligatorias' : 'Evidencias (opcional)' }}</span>
           </div>
           <div v-if="edit && groupedExistingAttachmentSections.length" class="ace-existing-attachments">
             <div class="ace-existing-attachments__title">Evidencias registradas</div>
@@ -903,6 +910,8 @@ const aceForm = ref(null)
                 v-model="form.attachments"
                 label="Imágenes del ingreso"
                 hint="Desde celular podrás abrir la cámara o elegir fotos guardadas."
+                :required="!edit && form.type === 'VEHICULO'"
+                :error="errors.attachments"
               />
             </div>
           </div>

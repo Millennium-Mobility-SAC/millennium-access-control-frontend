@@ -202,7 +202,7 @@ export const useStaysStore = defineStore('stays', () => {
   async function bulkCreate(resources) {
     const results = await batchSettled(
       resources,
-      r => api.create(AccessEntryAssembler.toResource({ ...r, type: r.type ?? 'VEHICULO' }))
+      r => api.createFromImport(AccessEntryAssembler.toResource({ ...r, type: r.type ?? 'VEHICULO' }))
     )
     const success = results.filter(r => r.status === 'fulfilled').length
     const failed  = results.filter(r => r.status === 'rejected').length

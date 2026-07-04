@@ -6,6 +6,8 @@ const props = defineProps({
   label: { type: String, default: 'Imágenes' },
   hint: { type: String, default: 'Puedes subir múltiples imágenes o tomar fotos al momento.' },
   capture: { type: String, default: 'environment' },
+  required: { type: Boolean, default: false },
+  error: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -68,12 +70,15 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="sip">
-    <div class="sip__dropzone" role="button" tabindex="0" @click="openGalleryPicker" @keydown.enter.prevent="openGalleryPicker" @keydown.space.prevent="openGalleryPicker">
+    <div class="sip__dropzone" :class="{ 'sip__dropzone--invalid': !!error }" role="button" tabindex="0" @click="openGalleryPicker" @keydown.enter.prevent="openGalleryPicker" @keydown.space.prevent="openGalleryPicker">
       <div class="sip__icon-wrap">
         <i class="pi pi-camera sip__icon" />
       </div>
       <div class="sip__content">
-        <div class="sip__title">{{ label }}</div>
+        <div class="sip__title">
+          {{ label }}
+          <span v-if="required" class="sip__required">*</span>
+        </div>
         <div class="sip__subtitle">{{ hint }}</div>
         <div class="sip__actions">
           <button type="button" class="sip__action sip__action--primary" @click.stop="openCameraPicker">
@@ -112,6 +117,8 @@ onBeforeUnmount(() => {
       <span>{{ files.length }} archivo(s) seleccionado(s)</span>
       <button type="button" class="sip__clear" @click="emit('update:modelValue', [])">Limpiar</button>
     </div>
+
+    <small v-if="error" class="sip__error">{{ error }}</small>
 
     <div v-if="files.length" class="sip__grid">
       <article v-for="(file, index) in files" :key="`${file.name}-${index}`" class="sip__card">
@@ -155,6 +162,11 @@ onBeforeUnmount(() => {
   outline: none;
 }
 
+.sip__dropzone--invalid {
+  border-color: #dc2626;
+  background: linear-gradient(180deg, #fff7f7 0%, #fee2e2 100%);
+}
+
 .sip__icon-wrap {
   display: flex;
   align-items: center;
@@ -179,6 +191,10 @@ onBeforeUnmount(() => {
   font-size: 0.95rem;
   font-weight: 700;
   color: #1f2937;
+}
+
+.sip__required {
+  color: #dc2626;
 }
 
 .sip__subtitle {
@@ -249,6 +265,11 @@ onBeforeUnmount(() => {
   color: #dc2626;
   font-weight: 600;
   cursor: pointer;
+}
+
+.sip__error {
+  color: #dc2626;
+  font-size: 0.75rem;
 }
 
 .sip__grid {

@@ -141,6 +141,7 @@ const errors = reactive({
   customerDni:             '',
   customerFirstName:       '',
   customerLastName:        '',
+  attachments:             '',
 })
 
 function clearErrors() {
@@ -149,6 +150,7 @@ function clearErrors() {
   errors.customerDni             = ''
   errors.customerFirstName       = ''
   errors.customerLastName        = ''
+  errors.attachments             = ''
 }
 
 function validate() {
@@ -179,6 +181,11 @@ function validate() {
       errors.replacementLicensePlate = 'La placa del vehículo de reemplazo es requerida'
       valid = false
     }
+  }
+
+  if (form.type === 'VEHICULO' && form.attachments.length === 0) {
+    errors.attachments = 'Debes adjuntar al menos una foto de la unidad.'
+    valid = false
   }
 
   return valid
@@ -351,7 +358,7 @@ function onSaved(formData) {
         <div class="ace-section">
           <div class="ace-section-header">
             <i class="pi pi-images ace-section-icon" />
-            <span>Evidencias (opcional)</span>
+            <span>{{ form.type === 'VEHICULO' ? 'Evidencias fotográficas obligatorias' : 'Evidencias (opcional)' }}</span>
           </div>
           <div class="ace-row">
             <div class="ace-field ace-field--full">
@@ -359,6 +366,8 @@ function onSaved(formData) {
                 v-model="form.attachments"
                 label="Imágenes de salida"
                 hint="Ideal para evidencias rápidas desde la cámara del celular."
+                :required="form.type === 'VEHICULO'"
+                :error="errors.attachments"
               />
             </div>
           </div>

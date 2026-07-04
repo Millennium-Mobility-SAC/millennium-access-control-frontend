@@ -24,6 +24,11 @@ export class StaysApi extends BaseApi {
     return this.#endpoint.create(resource)
   }
 
+  /** @param {Object} resource */
+  createFromImport(resource) {
+    return this.http.post(`${this.#endpoint.endpointPath}/import`, resource)
+  }
+
   /** @param {number} id  @param {Object} resource */
   update(id, resource) {
     return this.#endpoint.update(id, resource)

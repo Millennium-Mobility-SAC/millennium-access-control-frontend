@@ -410,8 +410,14 @@ onMounted(async () => {
 async function uploadAttachments(files, naming = {}) {
   if (!Array.isArray(files) || files.length === 0) return []
   const response = await storageFilesApi.upload(files, naming)
-  if (!Array.isArray(response?.data)) return []
-  return response.data.map(file => file.id).filter(Boolean)
+  if (!Array.isArray(response?.data)) {
+    throw new Error('No se pudieron registrar las evidencias. Inténtalo nuevamente.')
+  }
+  const ids = response.data.map(file => file.id).filter(Boolean)
+  if (ids.length === 0) {
+    throw new Error('No se pudieron registrar las evidencias. Inténtalo nuevamente.')
+  }
+  return ids
 }
 
 // Exportación a Excel
