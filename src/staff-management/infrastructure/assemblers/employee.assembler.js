@@ -27,7 +27,13 @@ export class EmployeeAssembler {
 
   static toEntitiesFromResponse(response) {
     if (response.status !== 200) return []
-    return response.data.map(r => EmployeeAssembler.toEntityFromResource(r))
+    const data = response.data
+    const rows = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.content)
+        ? data.content
+        : []
+    return rows.map(r => EmployeeAssembler.toEntityFromResource(r))
   }
 
   /**
