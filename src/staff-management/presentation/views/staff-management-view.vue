@@ -69,13 +69,83 @@ function openDrawer(item) {
 }
 
 const columns = [
-  { field: 'fullName',       header: 'Colaborador', sortable: true, style: 'min-width: 9rem; font-weight: 600;', template: 'nombre-template'    },
-  { field: 'documentNumber', header: 'Documento',   sortable: true, style: 'min-width: 7rem',                   template: 'documento-template' },
-  { field: 'position',       header: 'Cargo',       sortable: true, style: 'min-width: 6.5rem'                                                   },
-  { field: 'department',     header: 'Área',        sortable: true, style: 'min-width: 6rem',                   template: 'area-template'      },
-  { field: 'email',          header: 'Correo',      sortable: true, style: 'min-width: 9rem'                                                   },
-  { field: 'active',         header: 'Estado',      sortable: true, style: 'min-width: 5.5rem',                   template: 'estado-template'    },
+  {
+    field: 'fullName',
+    header: 'Colaborador',
+    sortable: true,
+    template: 'nombre-template',
+    style: 'min-width: 12rem',
+    headerStyle: 'text-align: left;',
+    bodyStyle: 'text-align: left; vertical-align: middle;',
+  },
+  {
+    field: 'documentNumber',
+    header: 'Documento',
+    sortable: true,
+    template: 'documento-template',
+    style: 'min-width: 8.5rem',
+    headerStyle: 'text-align: left;',
+    bodyStyle: 'text-align: left; vertical-align: middle;',
+  },
+  {
+    field: 'position',
+    header: 'Cargo',
+    sortable: true,
+    template: 'cargo-template',
+    style: 'min-width: 8rem',
+    headerStyle: 'text-align: left;',
+    bodyStyle: 'text-align: left; vertical-align: middle;',
+  },
+  {
+    field: 'department',
+    header: 'Área',
+    sortable: true,
+    template: 'area-template',
+    style: 'min-width: 7rem',
+    headerStyle: 'text-align: left;',
+    bodyStyle: 'text-align: left; vertical-align: middle;',
+  },
+  {
+    field: 'active',
+    header: 'Estado',
+    sortable: true,
+    template: 'estado-template',
+    style: 'min-width: 6.5rem',
+    headerStyle: 'text-align: left;',
+    bodyStyle: 'text-align: left; vertical-align: middle;',
+  },
 ]
+
+const AVATAR_PALETTE = [
+  { bg: '#ede9fe', color: '#6d28d9' },
+  { bg: '#dbeafe', color: '#1d4ed8' },
+  { bg: '#ffedd5', color: '#c2410c' },
+  { bg: '#dcfce7', color: '#15803d' },
+  { bg: '#fee2e2', color: '#b91c1c' },
+  { bg: '#fce7f3', color: '#be185d' },
+]
+
+function avatarPaletteFor(data) {
+  const key = String(data?.id ?? data?.fullName ?? '')
+  let idx = 0
+  for (let i = 0; i < key.length; i++) idx = (idx + key.charCodeAt(i)) % AVATAR_PALETTE.length
+  return AVATAR_PALETTE[idx]
+}
+
+function collaboratorInitials(data) {
+  if (!data) return '?'
+  const a = (data.firstName || '').trim().charAt(0)
+  const b = (data.lastName || '').trim().charAt(0)
+  const pair = `${a}${b}`.toUpperCase()
+  if (pair.length >= 2) return pair
+  const n = (data.fullName || '').trim()
+  return n ? n.slice(0, 2).toUpperCase() : '?'
+}
+
+function getAvatarStyle(data) {
+  const palette = avatarPaletteFor(data)
+  return { backgroundColor: palette.bg, color: palette.color }
+}
 
 function getDepartmentLabel(value) {
   return DEPARTAMENTOS.find(d => d.value === value)?.label ?? value ?? '—'
@@ -274,28 +344,41 @@ onMounted(async () => {
       </template>
       <template #nombre-template="{ data }">
         <div v-if="data" class="collab-name-cell">
-          <span class="collab-avatar">{{ data.firstName?.[0] ?? '?' }}{{ data.lastName?.[0] ?? '' }}</span>
-          <span>{{ data.fullName || '—' }}</span>
+          <span class="collab-avatar" :style="getAvatarStyle(data)">
+            {{ collaboratorInitials(data) }}
+          </span>
+          <div class="collab-name-text min-w-0">
+            <span class="collab-name-primary">{{ data.fullName || '—' }}</span>
+            <span class="collab-name-email">{{ data.email || '—' }}</span>
+          </div>
         </div>
         <span v-else>—</span>
       </template>
 
       <template #documento-template="{ data }">
-        <span v-if="data" class="sm-doc-cell">
+        <div v-if="data" class="sm-doc-cell">
           <span class="doc-type-badge">{{ getDocumentTypeLabel(data.documentType) }}</span>
           <span class="sm-doc-num">{{ data.documentNumber || '—' }}</span>
-        </span>
+        </div>
+        <span v-else>—</span>
       </template>
 
-      <template #area-template="{ value }">
-        {{ getDepartmentLabel(value) || '—' }}
+      <template #cargo-template="{ data }">
+        <span class="sm-cell-text">{{ data?.position?.trim() || '—' }}</span>
+      </template>
+
+      <template #area-template="{ data }">
+        <span class="sm-cell-text">{{ getDepartmentLabel(data?.department) || '—' }}</span>
       </template>
 
       <template #estado-template="{ value }">
-        <pv-tag
-          :value="value ? 'Activo' : 'Inactivo'"
-          :severity="value ? 'success' : 'secondary'"
-        />
+        <span
+          class="sm-status-pill"
+          :class="value ? 'sm-status-pill--active' : 'sm-status-pill--inactive'"
+        >
+          <span class="sm-status-pill__dot" aria-hidden="true" />
+          {{ staffStatusLabel(value) }}
+        </span>
       </template>
     </DataManager>
 
@@ -370,58 +453,146 @@ onMounted(async () => {
 .collab-name-cell {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.collab-name-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.collab-name-primary {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.collab-name-email {
+  font-size: 0.75rem;
+  color: #6b7280;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .collab-avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2.1rem;
+  height: 2.1rem;
   border-radius: 50%;
-  background-color: #dbeafe;
-  color: #1d4ed8;
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   flex-shrink: 0;
+  letter-spacing: 0.02em;
 }
+
 .collab-avatar--lg {
   width: 2.25rem;
   height: 2.25rem;
   font-size: 0.75rem;
 }
 
+.sm-cell-text {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #374151;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
 .doc-type-badge {
-  display: inline-block;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 5px;
   background: #f3f4f6;
   color: #6b7280;
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
 
 .sm-doc-cell {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   max-width: 100%;
   line-height: 1.35;
-  word-break: break-word;
-  overflow-wrap: anywhere;
 }
 
 .sm-doc-num {
-  display: inline;
+  font-size: 0.8125rem;
   font-weight: 600;
+  color: #374151;
   font-variant-numeric: tabular-nums;
+  word-break: break-word;
 }
 
-@media (min-width: 768px) {
-  .sm-doc-cell {
-    display: inline;
-    overflow-wrap: normal;
-    word-break: normal;
-  }
+.sm-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.sm-status-pill__dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sm-status-pill--active {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+.sm-status-pill--active .sm-status-pill__dot {
+  background: #16a34a;
+}
+
+.sm-status-pill--inactive {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+.sm-status-pill--inactive .sm-status-pill__dot {
+  background: #9ca3af;
+}
+
+/* Tabla: más aire y alineación como referencia */
+.sm-page :deep(.p-datatable .p-datatable-thead > tr > th) {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.65rem 0.75rem;
+}
+
+.sm-page :deep(.p-datatable .p-datatable-tbody > tr > td) {
+  padding: 0.8rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.sm-page :deep(.p-datatable .p-datatable-tbody > tr:hover) {
+  background: #f8fafc;
 }
 </style>

@@ -54,13 +54,64 @@ watch(searchText, () => {
   }, 350)
 })
 
-/** Anchos mínimos moderados: scroll horizontal suave en móvil/tablet. */
+/** Anchos y plantillas alineados con la tabla de Colaboradores. */
 const columns = [
-  { field: 'fullName', header: 'Empleado', style: 'min-width: 9rem' },
-  { field: 'position', header: 'Cargo', style: 'min-width: 6.5rem' },
-  { field: 'documentNumber', header: 'Documento', style: 'min-width: 7.5rem', template: 'document-template' },
-  { field: 'status', header: 'Estado', style: 'min-width: 5.5rem', template: 'status-template' },
+  {
+    field: 'fullName',
+    header: 'Empleado',
+    template: 'empleado-template',
+    style: 'min-width: 12rem',
+    headerStyle: 'text-align: left;',
+    bodyStyle: 'text-align: left; vertical-align: middle;',
+  },
+  {
+    field: 'documentNumber',
+    header: 'Documento',
+    template: 'document-template',
+    style: 'min-width: 8.5rem',
+    headerStyle: 'text-align: left;',
+    bodyStyle: 'text-align: left; vertical-align: middle;',
+  },
+  {
+    field: 'status',
+    header: 'Estado',
+    template: 'status-template',
+    style: 'min-width: 6.5rem',
+    headerStyle: 'text-align: left;',
+    bodyStyle: 'text-align: left; vertical-align: middle;',
+  },
 ]
+
+const AVATAR_PALETTE = [
+  { bg: '#ede9fe', color: '#6d28d9' },
+  { bg: '#dbeafe', color: '#1d4ed8' },
+  { bg: '#ffedd5', color: '#c2410c' },
+  { bg: '#dcfce7', color: '#15803d' },
+  { bg: '#fee2e2', color: '#b91c1c' },
+  { bg: '#fce7f3', color: '#be185d' },
+]
+
+function avatarPaletteFor(data) {
+  const key = String(data?.id ?? data?.fullName ?? '')
+  let idx = 0
+  for (let i = 0; i < key.length; i++) idx = (idx + key.charCodeAt(i)) % AVATAR_PALETTE.length
+  return AVATAR_PALETTE[idx]
+}
+
+function employeeInitials(data) {
+  if (!data) return '?'
+  const a = (data.firstName || '').trim().charAt(0)
+  const b = (data.lastName || '').trim().charAt(0)
+  const pair = `${a}${b}`.toUpperCase()
+  if (pair.length >= 2) return pair
+  const n = (data.fullName || '').trim()
+  return n ? n.slice(0, 2).toUpperCase() : '?'
+}
+
+function getAvatarStyle(data) {
+  const palette = avatarPaletteFor(data)
+  return { backgroundColor: palette.bg, color: palette.color }
+}
 
 function getDocTypeLabel(value) {
   return DOCUMENT_TYPES.find(t => t.value === value)?.label ?? value
@@ -255,14 +306,35 @@ onMounted(async () => {
           />
         </div>
       </template>
-      <template #document-template="{ data }">
-        <span class="em-doc-cell">
-          <span class="doc-badge">{{ getDocTypeLabel(data.documentType) }}</span>
-          <span class="em-doc-num">{{ data.documentNumber }}</span>
-        </span>
+      <template #empleado-template="{ data }">
+        <div v-if="data" class="em-name-cell">
+          <span class="em-avatar" :style="getAvatarStyle(data)">
+            {{ employeeInitials(data) }}
+          </span>
+          <div class="em-name-text min-w-0">
+            <span class="em-name-primary">{{ data.fullName || '—' }}</span>
+            <span class="em-name-sub">{{ data.position?.trim() || '—' }}</span>
+          </div>
+        </div>
+        <span v-else>—</span>
       </template>
+
+      <template #document-template="{ data }">
+        <div v-if="data" class="em-doc-cell">
+          <span class="doc-type-badge">{{ getDocTypeLabel(data.documentType) }}</span>
+          <span class="em-doc-num">{{ data.documentNumber || '—' }}</span>
+        </div>
+        <span v-else>—</span>
+      </template>
+
       <template #status-template="{ value }">
-        <pv-tag :value="value === 'ACTIVE' ? 'Activo' : 'Inactivo'" :severity="value === 'ACTIVE' ? 'success' : 'secondary'" />
+        <span
+          class="em-status-pill"
+          :class="value === 'ACTIVE' ? 'em-status-pill--active' : 'em-status-pill--inactive'"
+        >
+          <span class="em-status-pill__dot" aria-hidden="true" />
+          {{ statusLabel(value) }}
+        </span>
       </template>
     </DataManager>
 
@@ -330,35 +402,135 @@ onMounted(async () => {
   width: 100%;
 }
 
-.doc-badge {
-  display: inline-block;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  font-size: 0.7rem;
+.em-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.em-name-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.em-name-primary {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.em-name-sub {
+  font-size: 0.75rem;
+  color: #6b7280;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.em-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.doc-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 5px;
   background: #f3f4f6;
-  vertical-align: middle;
+  color: #6b7280;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
 
 .em-doc-cell {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   max-width: 100%;
   line-height: 1.35;
-  word-break: break-word;
-  overflow-wrap: anywhere;
 }
 
 .em-doc-num {
-  display: inline;
+  font-size: 0.8125rem;
   font-weight: 600;
+  color: #374151;
   font-variant-numeric: tabular-nums;
+  word-break: break-word;
 }
 
-@media (min-width: 768px) {
-  .em-doc-cell {
-    display: inline;
-    overflow-wrap: normal;
-    word-break: normal;
-  }
+.em-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.em-status-pill__dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.em-status-pill--active {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+.em-status-pill--active .em-status-pill__dot {
+  background: #16a34a;
+}
+
+.em-status-pill--inactive {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+.em-status-pill--inactive .em-status-pill__dot {
+  background: #9ca3af;
+}
+
+.em-page :deep(.p-datatable .p-datatable-thead > tr > th) {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.65rem 0.75rem;
+}
+
+.em-page :deep(.p-datatable .p-datatable-tbody > tr > td) {
+  padding: 0.8rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.em-page :deep(.p-datatable .p-datatable-tbody > tr:hover) {
+  background: #f8fafc;
 }
 </style>
 
