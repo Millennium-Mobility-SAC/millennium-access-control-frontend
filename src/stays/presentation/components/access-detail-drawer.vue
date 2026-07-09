@@ -2,7 +2,9 @@
 import { computed, ref, watch } from 'vue'
 import DetailDrawer from '@/shared/presentation/components/detail-drawer.vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
+import AttachmentImage from '@/shared/presentation/components/attachment-image.vue'
 import { useConfirmDialog } from '@/shared/composables/use-confirm-dialog.js'
+import { StorageFilesApi } from '@/stays/infrastructure/api/storage-files.api.js'
 import {
   MOTIVOS_INGRESO,
   MOTIVO_SEVERITY,
@@ -17,13 +19,8 @@ import {
 } from '@/shared/domain/format-datetime-ui.js'
 import { useStayAttachmentMedia } from '../composables/use-stay-attachment-media.js'
 
-const {
-  driveImgAttrs,
-  getOpenUrl,
-  getPreviewSrc,
-  isImageAttachment,
-  onAttachmentImageError,
-} = useStayAttachmentMedia()
+const { isImageAttachment, onAttachmentImageError } = useStayAttachmentMedia()
+const storageApi = new StorageFilesApi()
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -309,6 +306,18 @@ function closePreview() {
   previewImage.value = null
 }
 
+async function openAttachmentInBrowser(attachment) {
+  if (!attachment?.id) return
+  try {
+    const res = await storageApi.getFileContent(attachment.id)
+    const url = URL.createObjectURL(res.data)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  } catch {
+    await storageApi.downloadFile(attachment)
+  }
+}
+
 function requestRemoveAttachment(attachment) {
   if (!attachment) return
   const fileName =
@@ -480,13 +489,11 @@ function getDocumentTypeLabel(value) {
 
               <div v-if="section.historyExpanded && section.latestImage" class="attachments-viewer">
                 <div class="attachments-hero" @click="openPreview(section)">
-                  <img
-                    v-bind="driveImgAttrs"
-                    :src="getPreviewSrc(section.latestImage)"
+                  <attachment-image
+                    :attachment="section.latestImage"
                     :alt="section.latestImage?.file_name ?? section.latestImage?.fileName"
-                    class="attachments-hero__image"
                     @error="onAttachmentImageError"
-                  >
+                  />
                   <button
                     v-if="canManageAttachments && section.latestImage"
                     type="button"
@@ -511,13 +518,11 @@ function getDocumentTypeLabel(value) {
                   class="attachments-thumb"
                   @click="openPreview(section, attachment)"
                 >
-                  <img
-                    v-bind="driveImgAttrs"
-                    :src="getPreviewSrc(attachment)"
+                  <attachment-image
+                    :attachment="attachment"
                     :alt="attachment.file_name ?? attachment.fileName"
-                    class="attachments-thumb__image"
                     @error="onAttachmentImageError"
-                  >
+                  />
                   <button
                     v-if="canManageAttachments"
                     type="button"
@@ -753,13 +758,11 @@ function getDocumentTypeLabel(value) {
   >
     <template #content>
       <div v-if="previewImage" class="preview-dialog">
-        <img
-          v-bind="driveImgAttrs"
-          :src="getPreviewSrc(previewImage)"
+        <attachment-image
+          :attachment="previewImage"
           :alt="previewImage.file_name ?? previewImage.fileName"
-          class="preview-dialog__image"
           @error="onAttachmentImageError"
-        >
+        />
         <div class="preview-dialog__footer">
           <div class="preview-dialog__meta">
             <div class="attachment-name">{{ previewImage.file_name ?? previewImage.fileName }}</div>
@@ -792,10 +795,7 @@ function getDocumentTypeLabel(value) {
               icon="pi pi-external-link"
               label="Abrir"
               size="small"
-              :as="'a'"
-              :href="getOpenUrl(previewImage)"
-              target="_blank"
-              rel="noopener noreferrer"
+              @click="openAttachmentInBrowser(previewImage)"
             />
           </div>
         </div>
@@ -925,11 +925,17 @@ function getDocumentTypeLabel(value) {
   cursor: pointer;
   z-index: 3;
 }
-.attachments-hero__image {
+.attachments-hero :deep(img) {
   width: 100%;
   height: 260px;
   object-fit: contain;
   background: #f3f4f6;
+  display: block;
+}
+.attachments-hero :deep(.attachment-image-wrapper__placeholder) {
+  width: 100%;
+  height: 260px;
+  border-radius: 0;
 }
 .attachments-hero__hint {
   position: absolute;
@@ -981,12 +987,17 @@ function getDocumentTypeLabel(value) {
 .attachments-thumb--active {
   border-color: #2563eb;
 }
-.attachments-thumb__image {
+.attachments-thumb :deep(img) {
   width: 64px;
   height: 64px;
   object-fit: cover;
   border-radius: 8px;
   display: block;
+}
+.attachments-thumb :deep(.attachment-image-wrapper__placeholder) {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
 }
 .attachments-thumb__remove {
   position: absolute;
@@ -1028,11 +1039,17 @@ function getDocumentTypeLabel(value) {
 :deep(.p-dialog-title) {
   color: #111827 !important;
 }
-.preview-dialog__image {
+.preview-dialog :deep(img) {
   width: 100%;
   max-height: 70vh;
   object-fit: contain;
   background: #f3f4f6;
+  border-radius: 12px;
+  display: block;
+}
+.preview-dialog :deep(.attachment-image-wrapper__placeholder) {
+  width: 100%;
+  min-height: 240px;
   border-radius: 12px;
 }
 .whatsapp-section {
