@@ -17,7 +17,9 @@ export class VehicleCatalogApi extends BaseApi {
   buildParams(filters = {}, page = 0, size = 20) {
     const params = { page, size }
     if (filters.statuses?.length)             params.statuses              = filters.statuses.join(',')
+    if (filters.flowEntryReasons?.length)     params.flow_entry_reasons    = filters.flowEntryReasons.join(',')
     if (filters.temporalExitReasons?.length)  params.temporal_exit_reasons = filters.temporalExitReasons.join(',')
+    if (filters.external?.length)             params.external              = filters.external.join(',')
     if (filters.daysRange)                    params.days_range            = filters.daysRange
     if (filters.search?.trim())              params.search                = filters.search.trim()
     return params
@@ -35,9 +37,12 @@ export class VehicleCatalogApi extends BaseApi {
   }
 
   /** Lista de vehículos para autocompletado (mín. 2 caracteres en servidor). */
-  getSuggestions(term, limit = 15) {
+  getSuggestions(term, limit = 15, external = null) {
+    const params = { term, limit }
+    if (external === true) params.external = true
+    if (external === false) params.external = false
     return this.http.get(`${this.#endpoint.endpointPath}/suggestions`, {
-      params: { term, limit },
+      params,
     })
   }
 
@@ -45,7 +50,9 @@ export class VehicleCatalogApi extends BaseApi {
   exportVehicles(filters = {}) {
     const params = {}
     if (filters.statuses?.length)            params.statuses              = filters.statuses.join(',')
+    if (filters.flowEntryReasons?.length)    params.flow_entry_reasons    = filters.flowEntryReasons.join(',')
     if (filters.temporalExitReasons?.length) params.temporal_exit_reasons = filters.temporalExitReasons.join(',')
+    if (filters.external?.length)            params.external              = filters.external.join(',')
     if (filters.daysRange)                   params.days_range            = filters.daysRange
     if (filters.search?.trim())             params.search                = filters.search.trim()
     return this.http.get(`${this.#endpoint.endpointPath}/export`, { params })

@@ -84,6 +84,7 @@ export class VehicleAssembler {
       catalogFlowEntryReason: resource.catalog_flow_entry_reason ?? resource.catalogFlowEntryReason ?? null,
       catalogActiveTemporalExitReason:
         resource.catalog_active_temporal_exit_reason ?? resource.catalogActiveTemporalExitReason ?? null,
+      external:      resource.external ?? false,
     })
   }
 

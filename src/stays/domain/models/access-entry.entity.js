@@ -30,7 +30,8 @@ export class AccessEntry {
    * @param {string|null}    data.customerDni
    * @param {string|null}    data.customerFirstName
    * @param {string|null}    data.customerLastName
-   * @param {TemporalExit[]} data.temporalExits
+  /** @param {boolean}        data.external
+   * @param {string|null}    data.externalDescription
    */
   constructor({
     id                       = null,
@@ -60,6 +61,8 @@ export class AccessEntry {
     customerDni              = null,
     customerFirstName        = null,
     customerLastName         = null,
+    external                 = false,
+    externalDescription      = null,
     temporalExits            = [],
   } = {}) {
     this.id                    = id
@@ -89,6 +92,8 @@ export class AccessEntry {
     this.customerDni           = customerDni
     this.customerFirstName     = customerFirstName
     this.customerLastName      = customerLastName
+    this.external              = Boolean(external)
+    this.externalDescription   = externalDescription
     this.temporalExits         = Array.isArray(temporalExits)
       ? temporalExits.map(t => (t instanceof TemporalExit ? t : new TemporalExit(t)))
       : []

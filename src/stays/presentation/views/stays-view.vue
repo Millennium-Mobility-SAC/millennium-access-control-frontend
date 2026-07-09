@@ -13,7 +13,7 @@ import AccessRegisterExit                       from '../components/access-regis
 import AccessRegisterReturn                     from '../components/access-register-return.vue'
 import AccessImportDialog                        from '../components/access-import-dialog.vue'
 import AccessDetailDrawer                        from '../components/access-detail-drawer.vue'
-import { MOTIVOS_INGRESO, MOTIVO_SEVERITY, TIPOS_INGRESO, TIPOS_DOCUMENTO, ACCESS_STATUS, ACCESS_STATUS_SEVERITY, MOTIVOS_SALIDA_TEMPORAL } from '../constants/stays-ui.constants.js'
+import { MOTIVOS_INGRESO, MOTIVO_SEVERITY, TIPOS_INGRESO, TIPOS_DOCUMENTO, ACCESS_STATUS, ACCESS_STATUS_SEVERITY, MOTIVOS_SALIDA_TEMPORAL, VEHICLE_ORIGIN_FILTER } from '../constants/stays-ui.constants.js'
 import { getAccessStatusFilterOptions } from '@/shared/presentation/constants/access-status.constants.js'
 import { downloadImportErrorReport } from '@/shared/composables/use-import-error-report.js'
 import ExcelJS from 'exceljs'
@@ -104,6 +104,7 @@ const returnEntity        = ref(null)
 const filterStatus = ref([])
 const filterType   = ref([])
 const filterMotivo = ref([])
+const filterOrigin = ref([])
 const searchText   = ref('')
 
 const statusFilterOptions = computed(() =>
@@ -119,6 +120,7 @@ function applyAllFilters() {
     types:        filterType.value,
     entryReasons: filterMotivo.value,
     search:       searchText.value,
+    external:     filterOrigin.value,
   })
 }
 
@@ -127,7 +129,7 @@ watch(searchText, () => {
   _searchDebounceTimer = setTimeout(applyAllFilters, 400)
 })
 
-watch([filterStatus, filterType, filterMotivo], applyAllFilters, { deep: true })
+watch([filterStatus, filterType, filterMotivo, filterOrigin], applyAllFilters, { deep: true })
 
 watch(statusFilterOptions, (options) => {
   const allowed = new Set(options.map(option => option.value))
@@ -138,8 +140,9 @@ function clearAllFilters() {
   filterStatus.value = []
   filterType.value   = []
   filterMotivo.value = []
+  filterOrigin.value = []
   searchText.value   = ''
-  store.applyFilters({ statuses: [], types: [], entryReasons: [], search: '' })
+  store.applyFilters({ statuses: [], types: [], entryReasons: [], search: '', external: [] })
 }
 
 async function openDrawer(item) {
@@ -198,16 +201,68 @@ onBeforeUnmount(() => {
 })
 
 const columns = [
-  { field: 'status',      header: 'Estado',        sortable: true, style: 'min-width: 100px', template: 'status-template'   },
-  { field: 'type',        header: 'Tipo',           sortable: true, style: 'min-width: 100px', template: 'tipo-template'     },
-  { field: 'licensePlate', header: 'Placa / Nombre', sortable: true, style: 'min-width: 150px', template: 'identidad-template' },
-  { field: 'entryReason', header: 'Motivo',          sortable: true, style: 'min-width: 140px', template: 'motivo-template'   },
-  { field: 'entryDate',   header: 'Ingreso',         sortable: true, style: 'min-width: 160px', template: 'ingreso-template'  },
-  { field: 'exitDate',    header: 'Salida',          sortable: true, style: 'min-width: 160px', template: 'salida-template'   },
+  {
+    field: 'status',
+    header: 'Estado',
+    sortable: true,
+    style: 'width: 8rem; min-width: 8rem; max-width: 8rem',
+    headerStyle: 'text-align: center',
+    bodyStyle: 'text-align: center',
+    template: 'status-template',
+  },
+  {
+    field: 'type',
+    header: 'Tipo',
+    sortable: true,
+    style: 'width: 8.5rem; min-width: 8.5rem; max-width: 8.5rem',
+    headerStyle: 'text-align: center',
+    bodyStyle: 'text-align: center',
+    template: 'tipo-template',
+  },
+  {
+    field: 'licensePlate',
+    header: 'Placa / Nombre',
+    sortable: true,
+    style: 'width: 9.5rem; min-width: 9.5rem; max-width: 10.5rem',
+    headerStyle: 'text-align: left',
+    bodyStyle: 'text-align: left',
+    template: 'identidad-template',
+  },
+  {
+    field: 'entryReason',
+    header: 'Motivo',
+    sortable: true,
+    style: 'width: 6.5rem; min-width: 6.5rem; max-width: 6.5rem',
+    headerStyle: 'text-align: left',
+    bodyStyle: 'text-align: left',
+    headerClass: 'stays-col-motivo',
+    bodyClass: 'stays-col-motivo',
+    template: 'motivo-template',
+  },
+  {
+    field: 'entryDate',
+    header: 'Ingreso',
+    sortable: true,
+    style: 'width: 6.25rem; min-width: 6.25rem; max-width: 6.25rem',
+    headerStyle: 'text-align: center',
+    bodyStyle: 'text-align: center',
+    headerClass: 'stays-col-ingreso',
+    bodyClass: 'stays-col-ingreso',
+    template: 'ingreso-template',
+  },
+  {
+    field: 'exitDate',
+    header: 'Salida',
+    sortable: true,
+    style: 'width: 8.25rem; min-width: 8.25rem; max-width: 8.25rem',
+    headerStyle: 'text-align: center',
+    bodyStyle: 'text-align: center',
+    template: 'salida-template',
+  },
 ]
 
 const formatDate = (value) => formatCalendarDateForUi(value, '-')
-const formatTime = (value) => formatTimeHmAmPmForUi(value, { seconds: 'auto' })
+const formatTime = (value) => formatTimeHmAmPmForUi(value, { seconds: 'never' })
 
 function getEntryReasonLabel(value) {
   return MOTIVOS_INGRESO.find(m => m.value === value)?.label ?? value ?? '-'
@@ -231,6 +286,22 @@ function getStatusSeverity(value) {
 
 function getDocumentTypeLabel(value) {
   return TIPOS_DOCUMENTO.find(t => t.value === value)?.label ?? value ?? 'DNI'
+}
+
+function getTypeLabel(data) {
+  if (data.type === 'PERSONA') return 'Persona'
+  if (data.external) return 'Vehículo Exte.'
+  return 'Vehículo'
+}
+
+function getTypeSeverity(data) {
+  if (data.type === 'PERSONA') return 'info'
+  if (data.external) return 'danger'
+  return 'secondary'
+}
+
+function getTypeIcon(data) {
+  return data.type === 'PERSONA' ? 'pi pi-user' : 'pi pi-car'
 }
 
 function openNewDialog() {
@@ -624,39 +695,51 @@ function handlePageChange({ page }) {
 
       <template #filters="{ clearFilters }">
         <div class="ac-filters">
-          <pv-multi-select
-            v-model="filterStatus"
-            :options="statusFilterOptions"
-            option-label="label"
-            option-value="value"
-            placeholder="Estado"
-            :max-selected-labels="1"
-            selected-items-label="{0} estados"
-          />
-          <pv-multi-select
-            v-model="filterType"
-            :options="TIPOS_INGRESO"
-            option-label="label"
-            option-value="value"
-            placeholder="Tipo"
-            :max-selected-labels="1"
-            selected-items-label="{0} tipos"
-          />
-          <pv-multi-select
-            v-model="filterMotivo"
-            :options="MOTIVOS_INGRESO"
-            option-label="label"
-            option-value="value"
-            placeholder="Motivo"
-            :max-selected-labels="1"
-            selected-items-label="{0} motivos"
-          />
+          <div class="ac-filters__fields">
+            <pv-multi-select
+              v-model="filterStatus"
+              :options="statusFilterOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="Estado"
+              :max-selected-labels="1"
+              selected-items-label="{0} estados"
+            />
+            <pv-multi-select
+              v-model="filterType"
+              :options="TIPOS_INGRESO"
+              option-label="label"
+              option-value="value"
+              placeholder="Tipo"
+              :max-selected-labels="1"
+              selected-items-label="{0} tipos"
+            />
+            <pv-multi-select
+              v-model="filterMotivo"
+              :options="MOTIVOS_INGRESO"
+              option-label="label"
+              option-value="value"
+              placeholder="Motivo"
+              :max-selected-labels="1"
+              selected-items-label="{0} motivos"
+            />
+            <pv-multi-select
+              v-model="filterOrigin"
+              :options="VEHICLE_ORIGIN_FILTER"
+              option-label="label"
+              option-value="value"
+              placeholder="Origen"
+              :max-selected-labels="1"
+              selected-items-label="{0} orígenes"
+            />
+          </div>
           <pv-button
             type="button"
-            label="Limpiar filtros"
+            label="Limpiar"
+            icon="pi pi-filter-slash"
             text
             size="small"
-            class="flex-shrink-0"
+            class="ac-filters__clear"
             @click="clearFilters"
           />
         </div>
@@ -666,44 +749,69 @@ function handlePageChange({ page }) {
         <pv-tag
           :value="getStatusLabel(data.status)"
           :severity="getStatusSeverity(data.status)"
+          class="stays-status-tag"
         />
       </template>
 
       <template #tipo-template="{ data }">
         <pv-tag
-          :value="data.type === 'PERSONA' ? 'Persona' : 'Vehículo'"
-          :severity="data.type === 'PERSONA' ? 'info' : 'secondary'"
-          :icon="data.type === 'PERSONA' ? 'pi pi-user' : 'pi pi-car'"
+          :value="getTypeLabel(data)"
+          :severity="getTypeSeverity(data)"
+          :icon="getTypeIcon(data)"
+          class="stays-type-tag"
         />
       </template>
 
       <template #identidad-template="{ data }">
-        <span v-if="data.type === 'PERSONA'" style="color: var(--color-gray-900); font-weight: 500">
+        <span
+          v-if="data.type === 'PERSONA'"
+          class="stays-person-name"
+          :title="data.fullName || data.clientDocumentNumber || ''"
+        >
           {{ data.fullName || data.clientDocumentNumber || '—' }}
         </span>
-        <span v-else class="font-bold" style="letter-spacing: 0.04em">
+        <span
+          v-else
+          class="stays-plate"
+          :title="data.licensePlate || data.clientDocumentNumber || ''"
+        >
           {{ data.licensePlate || data.clientDocumentNumber || '—' }}
         </span>
       </template>
 
-      <template #motivo-template="{ value }">
+      <template #motivo-template="{ data, value }">
+        <span
+          v-if="data.external && data.externalDescription"
+          class="stays-ext-desc"
+          :title="data.externalDescription"
+        >
+          {{ data.externalDescription }}
+        </span>
         <pv-tag
+          v-else-if="data.external"
+          value="Externo"
+          severity="danger"
+          class="stays-motivo-tag"
+        />
+        <pv-tag
+          v-else
           :value="getEntryReasonLabel(value)"
           :severity="getEntryReasonSeverity(value)"
+          class="stays-motivo-tag"
         />
       </template>
 
       <template #ingreso-template="{ data }">
-        <div class="flex flex-column" style="line-height: 1.4">
-          <span style="font-weight: 600">{{ formatDate(data.entryDate) }}</span>
-          <span style="font-size: 0.8rem; color: #6b7280">{{ formatTime(data.entryTime) || '—' }}</span>
+        <div class="stays-datetime">
+          <span class="stays-datetime__date">{{ formatDate(data.entryDate) }}</span>
+          <span class="stays-datetime__time">{{ formatTime(data.entryTime) || '—' }}</span>
         </div>
       </template>
 
       <template #salida-template="{ data }">
-        <div v-if="data.exitDate || data.exitTime" class="flex flex-column" style="line-height: 1.4">
-          <span style="font-weight: 600; color: var(--color-success)">{{ formatDate(data.exitDate) }}</span>
-          <span style="font-size: 0.8rem; color: #6b7280">{{ formatTime(data.exitTime) || '—' }}</span>
+        <div v-if="data.exitDate || data.exitTime" class="stays-datetime stays-datetime--exit">
+          <span class="stays-datetime__date">{{ formatDate(data.exitDate) }}</span>
+          <span class="stays-datetime__time">{{ formatTime(data.exitTime) || '—' }}</span>
         </div>
         <span v-else class="exit-badge-active">Pendiente</span>
       </template>
@@ -768,6 +876,129 @@ function handlePageChange({ page }) {
 </template>
 
 <style scoped>
+.stays-page :deep(.p-datatable .p-datatable-table) {
+  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+}
+
+.stays-page :deep(.stays-col-motivo) {
+  width: 6.5rem !important;
+  min-width: 6.5rem !important;
+  max-width: 6.5rem !important;
+  padding-inline: 0.4rem !important;
+  overflow: hidden;
+}
+
+.stays-page :deep(.stays-col-ingreso) {
+  width: 6.25rem !important;
+  min-width: 6.25rem !important;
+  max-width: 6.25rem !important;
+  padding-inline: 0.35rem !important;
+  overflow: hidden;
+}
+
+.stays-page :deep(.p-datatable .p-datatable-tbody > tr > td) {
+  padding: 0.5rem 0.65rem !important;
+  vertical-align: middle;
+}
+
+.stays-page :deep(.p-datatable .p-datatable-thead > tr > th) {
+  padding: 0.55rem 0.65rem !important;
+  white-space: nowrap;
+}
+
+.stays-page :deep(.p-datatable .p-datatable-thead > tr > th:last-child),
+.stays-page :deep(.p-datatable .p-datatable-tbody > tr > td:last-child) {
+  width: 7.5rem;
+  min-width: 7.5rem;
+  max-width: 7.5rem;
+  padding-inline: 0.35rem !important;
+}
+
+.stays-page :deep(.p-datatable .p-datatable-tbody > tr > td:last-child .p-button) {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+
+.stays-status-tag,
+.stays-type-tag,
+.stays-motivo-tag {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  white-space: nowrap;
+}
+
+.stays-plate {
+  display: block;
+  font-weight: 700;
+  font-size: 0.84rem;
+  letter-spacing: 0.06em;
+  color: var(--color-gray-900, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stays-person-name {
+  display: block;
+  font-weight: 500;
+  font-size: 0.84rem;
+  color: var(--color-gray-900, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stays-ext-desc {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--text-body, #374151);
+}
+
+.stays-motivo-tag {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.stays-page :deep(.stays-col-motivo .p-tag-label) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 5.5rem;
+}
+
+.stays-datetime {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  line-height: 1.2;
+  font-size: 0.78rem;
+}
+
+.stays-datetime__date {
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.stays-datetime__time {
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.stays-datetime--exit .stays-datetime__date {
+  color: var(--color-success, #16a34a);
+}
+
 .exit-badge-active {
   display: inline-block;
   padding: 0.2rem 0.55rem;
@@ -780,23 +1011,61 @@ function handlePageChange({ page }) {
   white-space: nowrap;
 }
 
-/* ── Filtros Control de acceso: ocupan todo el ancho junto a la búsqueda global ── */
+.stays-page :deep(.app-filters-row.dm-filters-row:has(> .dm-global-search)) {
+  grid-template-columns: minmax(12rem, 1.1fr) minmax(0, 2.4fr);
+  gap: 0.625rem;
+  align-items: center;
+}
+
+.stays-page :deep(.dm-filters-slot) {
+  flex-wrap: nowrap;
+  gap: 0;
+}
+
 .stays-page {
   flex: 1 1 auto;
 }
 
 .ac-filters {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr) auto;
-  gap: 0.75rem;
+  display: flex;
   align-items: center;
+  gap: 0.5rem;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
 }
 
-@media (max-width: 767px) {
+.ac-filters__fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.ac-filters__clear {
+  flex-shrink: 0;
+  align-self: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
   .ac-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ac-filters__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ac-filters__clear {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 767px) {
+  .ac-filters__fields {
     grid-template-columns: 1fr;
   }
 }

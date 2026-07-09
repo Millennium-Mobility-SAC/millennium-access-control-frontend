@@ -149,6 +149,8 @@ export class AccessEntryAssembler {
       customerDni:           resource.customer_document_number  ?? resource.customerDni            ?? null,
       customerFirstName:     resource.customer_first_name       ?? resource.customerFirstName      ?? null,
       customerLastName:      resource.customer_last_name        ?? resource.customerLastName       ?? null,
+      external:              resource.external                ?? false,
+      externalDescription:   resource.external_description    ?? resource.externalDescription  ?? null,
       temporalExits,
     })
   }
@@ -162,12 +164,15 @@ export class AccessEntryAssembler {
    */
   static toResource(form) {
     const entryDate = toPeruCalendarDate(form.entryDate)
+    const isExternal = form.type === 'VEHICULO' && form.vehicleOrigin === 'EXTERNO'
 
     return {
       type:                   form.type                 ?? 'VEHICULO',
       entry_date:             entryDate,
       entry_time:             entryTimeTo24h(form.entryTime) ?? null,
-      entry_reason:           normalizeEntryReason(form.entryReason) ?? null,
+      entry_reason:           isExternal ? 'EXTERNO' : (normalizeEntryReason(form.entryReason) ?? null),
+      external:               isExternal,
+      external_description:   isExternal ? (form.externalDescription?.trim() || null) : (form.externalDescription?.trim() || null),
       document_type:          form.documentType         ?? null,
       client_document_number: form.clientDocumentNumber || null,
       license_plate:          form.licensePlate         || null,

@@ -404,32 +404,41 @@ function getDocumentTypeLabel(value) {
         <!-- Vehículo -->
         <template v-if="item.type !== 'PERSONA'">
           <div class="detail-section">
-            <p class="detail-section-title">Vehículo</p>
+            <p class="detail-section-title">
+              Vehículo
+              <pv-tag v-if="item.external" value="Externo" severity="danger" class="ml-2" />
+            </p>
             <div class="detail-grid">
               <div class="detail-row">
                 <span class="detail-label">Placa</span>
                 <span class="detail-value font-bold">{{ item.licensePlate || '—' }}</span>
               </div>
-              <div class="detail-row">
-                <span class="detail-label">Marca</span>
-                <span class="detail-value">{{ item.brand || '—' }}</span>
+              <div v-if="item.external" class="detail-row detail-row--full">
+                <span class="detail-label">Descripción</span>
+                <span class="detail-value">{{ item.externalDescription || '—' }}</span>
               </div>
-              <div class="detail-row">
-                <span class="detail-label">Modelo</span>
-                <span class="detail-value">{{ item.model || '—' }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Año</span>
-                <span class="detail-value">{{ item.year || '—' }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Kilometraje</span>
-                <span class="detail-value">{{ item.mileage != null ? item.mileage + ' km' : '—' }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Color</span>
-                <span class="detail-value">{{ item.color || '—' }}</span>
-              </div>
+              <template v-if="!item.external">
+                <div class="detail-row">
+                  <span class="detail-label">Marca</span>
+                  <span class="detail-value">{{ item.brand || '—' }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Modelo</span>
+                  <span class="detail-value">{{ item.model || '—' }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Año</span>
+                  <span class="detail-value">{{ item.year || '—' }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Kilometraje</span>
+                  <span class="detail-value">{{ item.mileage != null ? item.mileage + ' km' : '—' }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Color</span>
+                  <span class="detail-value">{{ item.color || '—' }}</span>
+                </div>
+              </template>
             </div>
           </div>
         </template>

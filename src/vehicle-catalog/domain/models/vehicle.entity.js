@@ -14,6 +14,7 @@ export class Vehicle {
     lastEntryTime = null,
     catalogFlowEntryReason = null,
     catalogActiveTemporalExitReason = null,
+    external        = false,
   } = {}) {
     this.id            = id
     this.licensePlate  = licensePlate
@@ -26,9 +27,11 @@ export class Vehicle {
     this.lastEntryTime = lastEntryTime
     this.catalogFlowEntryReason = catalogFlowEntryReason
     this.catalogActiveTemporalExitReason = catalogActiveTemporalExitReason
+    this.external = Boolean(external)
   }
 
   get displayName() {
+    if (this.external) return 'Vehículo externo'
     return [this.brand, this.model, this.year].filter(Boolean).join(' ')
   }
 

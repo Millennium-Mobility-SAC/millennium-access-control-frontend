@@ -513,6 +513,8 @@ onMounted(() => initFilters())
           :style="column.style || 'min-width: 150px;'"
           :header-style="column.headerStyle || 'text-align: center;'"
           :body-style="column.bodyStyle || 'text-align: center;'"
+          :header-class="column.headerClass"
+          :body-class="column.bodyClass"
         >
           <template v-if="column.template" #body="slotProps">
             <slot :name="column.template" :data="slotProps.data" :value="slotProps.data[column.field]" />

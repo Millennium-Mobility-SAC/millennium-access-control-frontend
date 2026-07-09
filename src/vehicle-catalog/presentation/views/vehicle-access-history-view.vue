@@ -39,14 +39,27 @@ const attachmentsCache = ref(new Map())
 // ── Vehicle id from route ─────────────────────────────────────────────────────
 const vehicleId = Number(route.params.vehicleId)
 
-const vehicle = computed(() =>
-  vehicleStore.vehicles.find(v => v.id === vehicleId) ?? {
+const vehicle = computed(() => {
+  if (vehicleStore.selected?.id === vehicleId) return vehicleStore.selected
+  const cached = vehicleStore.vehicles.find(v => v.id === vehicleId)
+  if (cached) return cached
+  return {
     licensePlate:  route.query.plate  ?? '—',
     brand:         route.query.brand  ?? '',
     model:         route.query.model  ?? '',
+    year:          null,
+    color:         '',
     currentStatus: null,
   }
-)
+})
+
+const vehicleSubtitle = computed(() => {
+  const v = vehicle.value
+  const main = [v.brand, v.model, v.year].filter(Boolean).join(' ')
+  if (!main && !v.color) return 'Vehículo'
+  if (v.color) return main ? `${main} · ${v.color}` : v.color
+  return main
+})
 
 // ── History items (sorted most-recent first) ──────────────────────────────────
 const historyItems = ref([])
@@ -67,7 +80,10 @@ function toggleStayExpanded(entryId) {
 
 onMounted(async () => {
   await run(async () => {
-    const items = await accessStore.fetchByVehicleId(vehicleId)
+    const [items] = await Promise.all([
+      accessStore.fetchByVehicleId(vehicleId),
+      vehicleStore.fetchById(vehicleId).catch(() => null),
+    ])
     historyItems.value = [...items].sort((a, b) => {
       const da = (a.entryDate ?? '') + (a.entryTime ?? '')
       const db = (b.entryDate ?? '') + (b.entryTime ?? '')
@@ -76,9 +92,6 @@ onMounted(async () => {
     const list = historyItems.value
     expandedStayIds.value = list.length ? new Set([list[0].id]) : new Set()
   })
-  if (!vehicleStore.vehicles.length) {
-    vehicleStore.fetchAll().catch(() => {})
-  }
 })
 
 // ── Label helpers ─────────────────────────────────────────────────────────────
@@ -233,6 +246,7 @@ async function handleExport() {
       'Marca':                   entry.brand        ?? '',
       'Modelo':                  entry.model        ?? '',
       'Año':                     entry.year         ?? '',
+      'Color':                   entry.color        ?? '',
       'Kilometraje':             entry.mileage      ?? '',
       'Fecha Salida Permanente': calendarDateToExcelLocalDate(entry.permanentExitDate),
       'Hora Salida Permanente':  formatWallClockTimeForExcel(entry.permanentExitTime),
@@ -363,11 +377,9 @@ const processedHistory = computed(() =>
       <div class="detail-header-icon">
         <i class="pi pi-car" />
       </div>
-      <div class="flex flex-column gap-1 flex-1">
+      <div class="flex flex-column gap-1 flex-1 min-w-0">
         <span class="vh-plate">{{ vehicle.licensePlate }}</span>
-        <span class="vh-sub">
-          {{ [vehicle.brand, vehicle.model].filter(Boolean).join(' ') || 'Vehículo' }}
-        </span>
+        <span class="vh-sub">{{ vehicleSubtitle }}</span>
       </div>
       <pv-tag
         v-if="vehicle.currentStatus"

@@ -29,9 +29,9 @@ const vehicleCatalogRoutes = [
     name: 'vehicle-access-history',
     component: VehicleAccessHistoryView,
     meta: {
-      title: 'Historial de Accesos',
-      module: 'Historial de Accesos',
-      description: 'Movimientos del vehículo en planta',
+      title: 'Detalle del Vehículo',
+      module: 'Detalle del Vehículo',
+      description: 'Historial de ingresos y movimientos en planta',
       showBackButton: true,
     },
   },

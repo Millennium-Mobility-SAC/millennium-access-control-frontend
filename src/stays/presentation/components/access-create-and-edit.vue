@@ -3,7 +3,7 @@ import { reactive, watch, onUnmounted, ref, computed } from 'vue'
 import CreateAndEdit        from '@/shared/presentation/components/create-and-edit.vue'
 import AttachmentImage      from '@/shared/presentation/components/attachment-image.vue'
 import StayImagePicker      from './stay-image-picker.vue'
-import { MOTIVOS_INGRESO, TIPOS_INGRESO, TIPOS_DOCUMENTO } from '../constants/stays-ui.constants.js'
+import { MOTIVOS_INGRESO, TIPOS_INGRESO, TIPOS_DOCUMENTO, VEHICLE_ORIGIN_OPTIONS } from '../constants/stays-ui.constants.js'
 import { useVehicleCatalogStore } from '@/vehicle-catalog/application/vehicle-catalog.store.js'
 import { useStaysStore }          from '@/stays/application/stays.store.js'
 import { useNotification }        from '@/shared/composables/use-notification.js'
@@ -36,6 +36,7 @@ const { guardValidated } = useFormValidation()
 
 const VALIDATION_FIELD_ORDER = [
   'licensePlate',
+  'externalDescription',
   'clientDocumentNumber',
   'firstName',
   'lastName',
@@ -108,6 +109,8 @@ const form = reactive({
   firstName:            null,
   lastName:             null,
   entryReason:          null,
+  vehicleOrigin:        'MILLENNIUM',
+  externalDescription:  '',
   exitTime:             '',
   exitDate:             null,
   exitType:             null,
@@ -144,6 +147,8 @@ watch(() => props.visible, (val) => {
     firstName:            src.customerFirstName     ?? src.firstName ?? null,
     lastName:             src.customerLastName      ?? src.lastName  ?? null,
     entryReason:          src.entryReason           ?? null,
+    vehicleOrigin:        src.external ? 'EXTERNO' : 'MILLENNIUM',
+    externalDescription:  src.externalDescription   ?? '',
     exitDate:             src.exitDate   ? new Date(src.exitDate)  : (!isNew ? nowPeruDate() : null),
     exitTime:             src.exitTime   ? to12h(src.exitTime)   : (!isNew ? to12h(nowTimeString()) : ''),
     exitType:             src.exitType   ?? (!isNew ? 'PERMANENTE' : null),
@@ -156,7 +161,7 @@ watch(() => props.visible, (val) => {
   hasClient.value = !!(src.clientDocumentNumber || src.customerFirstName || src.firstName)
 
   resetPlateLookup()
-  if (form.type === 'VEHICULO' && form.licensePlate) {
+  if (form.type === 'VEHICULO' && form.vehicleOrigin === 'MILLENNIUM' && form.licensePlate) {
     selectedPlateWrap.value = toPlateRow({
       id: form.vehicleId,
       licensePlate: form.licensePlate,
@@ -324,11 +329,37 @@ function onTypeChange(newType) {
     form.year         = null
     form.color        = null
     form.mileage      = null
+    form.vehicleOrigin = 'MILLENNIUM'
+    form.externalDescription = ''
   } else {
     form.firstName = null
     form.lastName  = null
     hasClient.value = false
   }
+}
+
+const isExternalVehicle = computed(() =>
+  form.type === 'VEHICULO' && form.vehicleOrigin === 'EXTERNO',
+)
+
+const millenniumEntryReasons = computed(() =>
+  MOTIVOS_INGRESO.filter(m => m.value !== 'EXTERNO'),
+)
+
+function onVehicleOriginChange(origin) {
+  form.vehicleOrigin = origin
+  resetPlateLookup()
+  form.vehicleId = null
+  form.licensePlate = null
+  form.brand = null
+  form.model = null
+  form.year = null
+  form.color = null
+  form.mileage = null
+  form.externalDescription = ''
+  form.entryReason = null
+  hasClient.value = false
+  showSaveVehicle.value = false
 }
 
 function hasValue(value) {
@@ -490,6 +521,7 @@ function onClientToggle(enabled) {
 // ── Validación del formulario ─────────────────────────────────────────────────
 const errors = reactive({
   licensePlate:         '',
+  externalDescription:  '',
   clientDocumentNumber: '',
   firstName:            '',
   lastName:             '',
@@ -500,6 +532,7 @@ const errors = reactive({
 
 function clearErrors() {
   errors.licensePlate         = ''
+  errors.externalDescription  = ''
   errors.clientDocumentNumber = ''
   errors.firstName            = ''
   errors.lastName             = ''
@@ -517,7 +550,12 @@ function validate() {
       errors.licensePlate = 'La placa es requerida'
       valid = false
     }
-    if (hasClient.value) {
+    if (isExternalVehicle.value) {
+      if (!form.externalDescription?.trim()) {
+        errors.externalDescription = 'La descripción es requerida'
+        valid = false
+      }
+    } else if (hasClient.value) {
       if (!form.clientDocumentNumber?.trim()) {
         errors.clientDocumentNumber = 'El número de documento es requerido'
         valid = false
@@ -546,7 +584,7 @@ function validate() {
     }
   }
 
-  if (!form.entryReason) {
+  if (!isExternalVehicle.value && !form.entryReason) {
     errors.entryReason = 'El motivo de ingreso es requerido'
     valid = false
   }
@@ -556,7 +594,7 @@ function validate() {
     valid = false
   }
 
-  if (form.type === 'VEHICULO' && form.mileage != null && lastMileage.value != null) {
+  if (!isExternalVehicle.value && form.type === 'VEHICULO' && form.mileage != null && lastMileage.value != null) {
     if (form.mileage <= lastMileage.value) {
       errors.mileage = `El kilometraje debe ser mayor al último registrado (${lastMileage.value.toLocaleString()} km)`
       valid = false
@@ -624,111 +662,166 @@ async function onSave(formData) {
               <i class="pi pi-car ace-section-icon" />
               <span>Vehículo</span>
             </div>
+            <div v-if="!edit" class="ace-type-switcher ace-origin-switcher">
+              <button
+                v-for="opt in VEHICLE_ORIGIN_OPTIONS"
+                :key="opt.value"
+                class="ace-type-btn"
+                :class="{
+                  'ace-type-btn--active': form.vehicleOrigin === opt.value,
+                  'ace-type-btn--external': opt.value === 'EXTERNO' && form.vehicleOrigin === opt.value,
+                }"
+                type="button"
+                @click="onVehicleOriginChange(opt.value)"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+            <div v-else class="ace-origin-readonly">
+              <pv-tag
+                :value="form.vehicleOrigin === 'EXTERNO' ? 'Externo' : 'Millennium'"
+                :severity="form.vehicleOrigin === 'EXTERNO' ? 'danger' : 'info'"
+              />
+            </div>
+
             <div class="ace-row">
               <div class="ace-field ace-field--flex ace-field--highlight">
                 <label class="ace-label">
                   Placa
-                  <span v-if="plateMatched" class="ace-plate-matched">
+                  <span v-if="plateMatched && !isExternalVehicle" class="ace-plate-matched">
                     <i class="pi pi-check-circle" /> datos cargados
                   </span>
                 </label>
-                <div class="input-icon-wrapper ace-plate-search">
-                  <i class="pi pi-search input-icon-wrapper__icon" aria-hidden="true" />
-                  <pv-auto-complete
-                    id="ace-plate-ac"
-                    v-model="selectedPlateWrap"
-                    :suggestions="plateSuggestionRows"
-                    option-label="line"
-                    data-key="id"
-                    :min-length="2"
-                    :delay="280"
-                    :force-selection="true"
-                    :loading="plateSuggestLoading"
-                    :show-clear="true"
-                    empty-search-message="Sin coincidencias para esta búsqueda."
-                    placeholder="Escriba la placa (mín. 2 caracteres)…"
+                <template v-if="isExternalVehicle">
+                  <pv-input-text
+                    v-model="form.licensePlate"
+                    placeholder="Ej. ABC-123"
                     class="w-full ace-input-plate"
                     :invalid="!!errors.licensePlate"
-                    fluid
-                    @complete="onPlateComplete"
-                  >
-                    <template #empty>
-                      <span class="ace-plate-empty-msg">
-                        <i class="pi pi-search-minus" aria-hidden="true" />
-                        Sin coincidencias. Revise la placa o guárdela en el catálogo.
-                      </span>
-                    </template>
-                  </pv-auto-complete>
+                    @input="form.licensePlate = ($event.target?.value ?? form.licensePlate)?.toUpperCase()"
+                  />
+                  <small class="ace-field-hint">
+                    Vehículo externo: solo placas registradas previamente como externas se reutilizan en catálogo.
+                  </small>
+                </template>
+                <template v-else>
+                  <div class="input-icon-wrapper ace-plate-search">
+                    <i class="pi pi-search input-icon-wrapper__icon" aria-hidden="true" />
+                    <pv-auto-complete
+                      id="ace-plate-ac"
+                      v-model="selectedPlateWrap"
+                      :suggestions="plateSuggestionRows"
+                      option-label="line"
+                      data-key="id"
+                      :min-length="2"
+                      :delay="280"
+                      :force-selection="true"
+                      :loading="plateSuggestLoading"
+                      :show-clear="true"
+                      empty-search-message="Sin coincidencias para esta búsqueda."
+                      placeholder="Escriba la placa (mín. 2 caracteres)…"
+                      class="w-full ace-input-plate"
+                      :invalid="!!errors.licensePlate"
+                      fluid
+                      @complete="onPlateComplete"
+                    >
+                      <template #empty>
+                        <span class="ace-plate-empty-msg">
+                          <i class="pi pi-search-minus" aria-hidden="true" />
+                          Sin coincidencias. Revise la placa o guárdela en el catálogo.
+                        </span>
+                      </template>
+                    </pv-auto-complete>
+                  </div>
+                  <small v-if="!plateMatched && !showSaveVehicle" class="ace-field-hint">
+                    Escriba y elija una coincidencia de la lista.
+                  </small>
+                </template>
+                <small v-if="errors.licensePlate" class="ace-field-error">{{ errors.licensePlate }}</small>
+              </div>
+            </div>
+
+            <div v-if="isExternalVehicle" class="ace-row">
+              <div class="ace-field ace-field--flex">
+                <label class="ace-label">Descripción <span class="ace-label-opt">(motivo / qué deja o hace)</span></label>
+                <pv-textarea
+                  v-model="form.externalDescription"
+                  rows="3"
+                  auto-resize
+                  placeholder="Ej. Entrega de repuestos para taller, retiro de documentación…"
+                  class="w-full"
+                  :invalid="!!errors.externalDescription"
+                />
+                <small v-if="errors.externalDescription" class="ace-field-error">{{ errors.externalDescription }}</small>
+              </div>
+            </div>
+
+            <template v-if="!isExternalVehicle">
+              <div class="ace-row">
+                <div class="ace-field ace-field--flex">
+                  <label class="ace-label">Marca</label>
+                  <pv-input-text v-model="form.brand" placeholder="Ej. Toyota" class="w-full" />
                 </div>
-                <small v-if="!plateMatched && !showSaveVehicle" class="ace-field-hint">
-                  Escriba y elija una coincidencia de la lista.
-                </small>
+                <div class="ace-field ace-field--flex">
+                  <label class="ace-label">Modelo</label>
+                  <pv-input-text v-model="form.model" placeholder="Ej. Corolla" class="w-full" />
+                </div>
               </div>
-            </div>
-            <div class="ace-row">
-              <div class="ace-field ace-field--flex">
-                <label class="ace-label">Marca</label>
-                <pv-input-text v-model="form.brand" placeholder="Ej. Toyota" class="w-full" />
+              <div class="ace-row">
+                <div class="ace-field ace-field--flex">
+                  <label class="ace-label">Año</label>
+                  <pv-input-number
+                    v-model="form.year"
+                    :use-grouping="false"
+                    :min="1900"
+                    :max="2100"
+                    placeholder="2022"
+                    class="w-full"
+                  />
+                </div>
+                <div class="ace-field ace-field--flex">
+                  <label class="ace-label">Color</label>
+                  <pv-input-text v-model="form.color" placeholder="Ej. Blanco" class="w-full" />
+                </div>
               </div>
-              <div class="ace-field ace-field--flex">
-                <label class="ace-label">Modelo</label>
-                <pv-input-text v-model="form.model" placeholder="Ej. Corolla" class="w-full" />
+              <div class="ace-row">
+                <div class="ace-field ace-field--flex">
+                 <label class="ace-label">Kilometraje <span class="ace-label-opt">(km)</span></label>
+                  <pv-input-number
+                    v-model="form.mileage"
+                    :use-grouping="true"
+                    :min="0"
+                    placeholder="Ej. 45000"
+                    class="w-full"
+                    :invalid="!!errors.mileage"
+                  />
+                  <small v-if="lastMileage != null && !errors.mileage" class="ace-field-hint">
+                    Último registrado: {{ lastMileage.toLocaleString() }} km
+                  </small>
+                  <small v-if="errors.mileage" class="ace-field-error">
+                    {{ errors.mileage }}
+                  </small>
+                </div>
               </div>
-            </div>
-            <div class="ace-row">
-              <div class="ace-field ace-field--flex">
-                <label class="ace-label">Año</label>
-                <pv-input-number
-                  v-model="form.year"
-                  :use-grouping="false"
-                  :min="1900"
-                  :max="2100"
-                  placeholder="2022"
-                  class="w-full"
+              <div v-if="showSaveVehicle" class="ace-save-vehicle">
+                <span class="ace-save-vehicle__msg">
+                  <i class="pi pi-info-circle" /> Vehículo no encontrado. Completa los datos y guárdalo en el catálogo.
+                </span>
+                <pv-button
+                  label="Guardar en catálogo"
+                  icon="pi pi-save"
+                  severity="warning"
+                  size="small"
+                  type="button"
+                  :loading="savingVehicle"
+                  @click="saveVehicle"
                 />
               </div>
-              <div class="ace-field ace-field--flex">
-                <label class="ace-label">Color</label>
-                <pv-input-text v-model="form.color" placeholder="Ej. Blanco" class="w-full" />
-              </div>
-            </div>
-            <div class="ace-row">
-              <div class="ace-field ace-field--flex">
-               <label class="ace-label">Kilometraje <span class="ace-label-opt">(km)</span></label>
-                <pv-input-number
-                  v-model="form.mileage"
-                  :use-grouping="true"
-                  :min="0"
-                  placeholder="Ej. 45000"
-                  class="w-full"
-                  :invalid="!!errors.mileage"
-                />
-                <small v-if="lastMileage != null && !errors.mileage" class="ace-field-hint">
-                  Último registrado: {{ lastMileage.toLocaleString() }} km
-                </small>
-                <small v-if="errors.mileage" class="ace-field-error">
-                  {{ errors.mileage }}
-                </small>
-              </div>
-            </div>
-            <div v-if="showSaveVehicle" class="ace-save-vehicle">
-              <span class="ace-save-vehicle__msg">
-                <i class="pi pi-info-circle" /> Vehículo no encontrado. Completa los datos y guárdalo en el catálogo.
-              </span>
-              <pv-button
-                label="Guardar en catálogo"
-                icon="pi pi-save"
-                severity="warning"
-                size="small"
-                type="button"
-                :loading="savingVehicle"
-                @click="saveVehicle"
-              />
-            </div>
+            </template>
           </div>
 
           <!-- 2. Cliente -->
-          <div class="ace-section">
+          <div v-if="!isExternalVehicle" class="ace-section">
             <div class="ace-section-header">
               <i class="pi pi-id-card ace-section-icon" />
               <span>Cliente</span>
@@ -775,7 +868,7 @@ async function onSave(formData) {
           </div>
 
           <!-- 3. Motivo -->
-          <div class="ace-section">
+          <div v-if="!isExternalVehicle" class="ace-section">
             <div class="ace-section-header">
               <i class="pi pi-tag ace-section-icon" />
               <span>Motivo</span>
@@ -783,7 +876,7 @@ async function onSave(formData) {
             <div class="ace-row">
               <div class="ace-field ace-field--flex">
                 <label class="ace-label">Motivo de ingreso</label>
-                <pv-select v-model="form.entryReason" :options="MOTIVOS_INGRESO" option-label="label" option-value="value" placeholder="Selecciona" class="w-full" :invalid="!!errors.entryReason" />
+                <pv-select v-model="form.entryReason" :options="millenniumEntryReasons" option-label="label" option-value="value" placeholder="Selecciona" class="w-full" :invalid="!!errors.entryReason" />
                 <small v-if="errors.entryReason" class="ace-error">{{ errors.entryReason }}</small>
               </div>
             </div>
@@ -842,7 +935,7 @@ async function onSave(formData) {
             <div class="ace-row">
               <div class="ace-field ace-field--flex">
                 <label class="ace-label">Motivo de ingreso</label>
-                <pv-select v-model="form.entryReason" :options="MOTIVOS_INGRESO" option-label="label" option-value="value" placeholder="Selecciona" class="w-full" :invalid="!!errors.entryReason" />
+                <pv-select v-model="form.entryReason" :options="millenniumEntryReasons" option-label="label" option-value="value" placeholder="Selecciona" class="w-full" :invalid="!!errors.entryReason" />
                 <small v-if="errors.entryReason" class="ace-error">{{ errors.entryReason }}</small>
               </div>
             </div>
@@ -1021,6 +1114,12 @@ async function onSave(formData) {
 .ace-type-btn--active {
   background: #1A6BC2;
   color: #ffffff;
+}
+.ace-type-btn--external.ace-type-btn--active {
+  background: #dc2626;
+}
+.ace-origin-switcher {
+  margin-bottom: 0.75rem;
 }
 .ace-type-btn:not(.ace-type-btn--active):hover {
   background: #f3f4f6;

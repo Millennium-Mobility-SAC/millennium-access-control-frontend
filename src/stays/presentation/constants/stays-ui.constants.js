@@ -24,6 +24,19 @@ export const MOTIVOS_INGRESO = [
   { label: '0KM',           value: '0KM'           },
   { label: 'GPS',           value: 'GPS'           },
   { label: 'Otro',          value: 'OTRO'          },
+  { label: 'Externo',       value: 'EXTERNO'       },
+]
+
+/** Origen del vehículo en ingreso tipo VEHÍCULO */
+export const VEHICLE_ORIGIN_OPTIONS = [
+  { label: 'Millennium', value: 'MILLENNIUM' },
+  { label: 'Externo',  value: 'EXTERNO'    },
+]
+
+/** Filtro de listado: origen del vehículo */
+export const VEHICLE_ORIGIN_FILTER = [
+  { label: 'Millennium', value: 'false' },
+  { label: 'Externo',  value: 'true'  },
 ]
 
 export const MOTIVO_SEVERITY = {
@@ -36,6 +49,7 @@ export const MOTIVO_SEVERITY = {
   GPS:           'contrast',
   OTRO:          'secondary',
   AREA_VENTAS:   'primary',
+  EXTERNO:       'contrast',
 }
 
 export const TIPOS_SALIDA = [

@@ -15,7 +15,7 @@ import {
   formatTimeHmAmPmForUi,
 } from '@/shared/domain/format-datetime-ui.js'
 import { VEHICLE_ROUTE_NAMES }         from '../vehicle-catalog.routes.js'
-import { MOTIVOS_INGRESO } from '@/stays/presentation/constants/stays-ui.constants.js'
+import { MOTIVOS_INGRESO, MOTIVOS_SALIDA_TEMPORAL, VEHICLE_ORIGIN_FILTER } from '@/stays/presentation/constants/stays-ui.constants.js'
 import { resolveVehicleUbicacion } from '../../domain/format-vehicle-ubicacion.js'
 
 import { getAccessStatusLabel as VEHICLE_STATUS_LABEL_FN, getAccessStatusSeverity, ACCESS_STATUS } from '@/shared/presentation/constants/access-status.constants.js'
@@ -37,10 +37,15 @@ const bulkUpdateResult         = ref(null)
 const bulkUpdateLoading        = ref(false)
 
 // Filtros
-const filterStatus = ref([])
-const filterMotivo = ref([])
-const filterDays   = ref(null)
-const searchText   = ref('')
+const filterStatus        = ref([])
+const filterOrigin        = ref([])
+const filterEntryMotivo   = ref([])
+const filterTemporalExit  = ref([])
+const filterDays          = ref(null)
+const searchText          = ref('')
+
+/** Motivos de ingreso en catálogo (origen externo se filtra aparte). */
+const MOTIVOS_INGRESO_CATALOG = MOTIVOS_INGRESO.filter(m => m.value !== 'EXTERNO')
 
 /** Estados disponibles en catálogo de vehículos (sin Retornado, que regresa a En planta) */
 const VEHICLE_CATALOG_STATUS = ACCESS_STATUS.filter(s => s.value !== 'RETORNADO')
@@ -55,14 +60,16 @@ const DAYS_RANGES = [
 function buildFilters() {
   return {
     statuses:            filterStatus.value.length ? [...filterStatus.value] : undefined,
-    temporalExitReasons: filterMotivo.value.length ? [...filterMotivo.value] : undefined,
-    daysRange:           filterDays.value   ?? undefined,
+    flowEntryReasons:    filterEntryMotivo.value.length ? [...filterEntryMotivo.value] : undefined,
+    temporalExitReasons: filterTemporalExit.value.length ? [...filterTemporalExit.value] : undefined,
+    external:            filterOrigin.value.length ? [...filterOrigin.value] : undefined,
+    daysRange:           filterDays.value ?? undefined,
     search:              searchText.value.trim() || undefined,
   }
 }
 
 // Push new filters to the backend on any filter change
-watch([filterStatus, filterMotivo, filterDays], () => {
+watch([filterStatus, filterOrigin, filterEntryMotivo, filterTemporalExit, filterDays], () => {
   run(() => store.fetchVehicles(buildFilters()))
 }, { deep: true })
 
@@ -76,10 +83,12 @@ watch(searchText, () => {
 })
 
 function clearAllFilters() {
-  filterStatus.value = []
-  filterMotivo.value = []
-  filterDays.value   = null
-  searchText.value   = ''
+  filterStatus.value       = []
+  filterOrigin.value       = []
+  filterEntryMotivo.value  = []
+  filterTemporalExit.value = []
+  filterDays.value         = null
+  searchText.value         = ''
   // watchers will fire and call fetchVehicles with empty filters
 }
 
@@ -263,58 +272,81 @@ function ubicacionTagProps(row) {
       </template>
 
       <template #filters="{ clearFilters }">
-        <div class="app-filters-row app-filters-row--stack-sm vc-filters w-full">
+        <div class="vc-filters-wrap w-full">
           <pv-icon-field class="vc-filter-search">
             <pv-input-icon class="pi pi-search" />
             <pv-input-text
               v-model="searchText"
-              placeholder="Buscar por placa"
+              placeholder="Buscar por placa, marca, modelo o color"
               class="w-full"
               autocomplete="off"
             />
           </pv-icon-field>
-          <pv-multi-select
-            v-model="filterStatus"
-            :options="VEHICLE_CATALOG_STATUS"
-            option-label="label"
-            option-value="value"
-            placeholder="Estado"
-            :max-selected-labels="1"
-            selected-items-label="{0} estados"
-            class="vc-filter-select w-full"
-          />
-          <pv-multi-select
-            v-model="filterMotivo"
-            :options="MOTIVOS_SALIDA_TEMPORAL"
-            option-label="label"
-            option-value="value"
-            placeholder="Motivo / Ubicación"
-            :max-selected-labels="1"
-            selected-items-label="{0} motivos"
-            class="vc-filter-select w-full"
-          />
-          <pv-select
-            v-model="filterDays"
-            :options="DAYS_RANGES"
-            option-label="label"
-            option-value="value"
-            placeholder="Días en planta"
-            show-clear
-            class="vc-filter-select w-full"
-          />
-          <pv-button
-            type="button"
-            label="Limpiar filtros"
-            text
-            size="small"
-            class="w-full sm:w-auto"
-            @click="clearFilters"
-          />
+          <div class="vc-filters">
+            <div class="vc-filters__fields">
+              <pv-multi-select
+                v-model="filterStatus"
+                :options="VEHICLE_CATALOG_STATUS"
+                option-label="label"
+                option-value="value"
+                placeholder="Estado"
+                :max-selected-labels="1"
+                selected-items-label="{0} estados"
+              />
+              <pv-multi-select
+                v-model="filterOrigin"
+                :options="VEHICLE_ORIGIN_FILTER"
+                option-label="label"
+                option-value="value"
+                placeholder="Origen"
+                :max-selected-labels="1"
+                selected-items-label="{0} orígenes"
+              />
+              <pv-multi-select
+                v-model="filterEntryMotivo"
+                :options="MOTIVOS_INGRESO_CATALOG"
+                option-label="label"
+                option-value="value"
+                placeholder="Motivo ingreso"
+                :max-selected-labels="1"
+                selected-items-label="{0} motivos"
+              />
+              <pv-multi-select
+                v-model="filterTemporalExit"
+                :options="MOTIVOS_SALIDA_TEMPORAL"
+                option-label="label"
+                option-value="value"
+                placeholder="Salida temporal"
+                :max-selected-labels="1"
+                selected-items-label="{0} motivos"
+              />
+              <pv-select
+                v-model="filterDays"
+                :options="DAYS_RANGES"
+                option-label="label"
+                option-value="value"
+                placeholder="Días en planta"
+                show-clear
+              />
+            </div>
+            <pv-button
+              type="button"
+              label="Limpiar"
+              icon="pi pi-filter-slash"
+              text
+              size="small"
+              class="vc-filters__clear"
+              @click="clearFilters"
+            />
+          </div>
         </div>
       </template>
 
       <template #vehicle-plate-template="{ data }">
-        <span class="vc-plate" :title="data.licensePlate || undefined">{{ data.licensePlate || '—' }}</span>
+        <div class="vc-plate-cell">
+          <span class="vc-plate" :title="data.licensePlate || undefined">{{ data.licensePlate || '—' }}</span>
+          <pv-tag v-if="data.external" value="Ext." severity="danger" class="vc-ext-tag" />
+        </div>
       </template>
 
       <template #vehicle-status="{ value }">
@@ -435,23 +467,62 @@ function ubicacionTagProps(row) {
   flex: 1 1 auto;
 }
 
-.vc-filters {
-  align-items: stretch;
+.vc-filters-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
   width: 100%;
 }
 
-/* Escritorio: búsqueda flexible + Estado + Motivo + Días + botón */
-@media (min-width: 768px) {
+.vc-filter-search {
+  width: 100%;
+}
+
+.vc-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.vc-filters__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.vc-filters__clear {
+  flex-shrink: 0;
+  align-self: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 1023px) {
   .vc-filters {
-    display: grid;
-    grid-template-columns: minmax(10rem, 1.75fr) minmax(9rem, 11rem) minmax(9rem, 11rem) minmax(9rem, 11rem) auto;
-    gap: 0.75rem;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vc-filters__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .vc-filters__clear {
+    align-self: flex-end;
   }
 }
 
-.vc-filter-select :deep(.p-select),
-.vc-filter-select :deep(.p-multiselect) {
+@media (max-width: 639px) {
+  .vc-filters__fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vc-filters :deep(.p-select),
+.vc-filters :deep(.p-multiselect) {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -461,7 +532,7 @@ function ubicacionTagProps(row) {
   align-items: center;
 }
 
-.vc-filter-select :deep(.p-multiselect-label) {
+.vc-filters :deep(.p-multiselect-label) {
   padding: 0 0.625rem;
   font-size: 0.875rem;
   line-height: 1;
@@ -498,6 +569,17 @@ function ubicacionTagProps(row) {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+.vc-plate-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+.vc-ext-tag {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
 }
 
 /* ── Entry date/time cell ────────────────────────────────────────────────── */

@@ -37,8 +37,8 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
   }
 
   /** @param {string} term */
-  async function fetchVehicleSuggestions(term) {
-    const response = await api.getSuggestions(term.trim(), 15)
+  async function fetchVehicleSuggestions(term, { external = null } = {}) {
+    const response = await api.getSuggestions(term.trim(), 15, external)
     return VehicleAssembler.toEntitiesFromResponse(response)
   }
 

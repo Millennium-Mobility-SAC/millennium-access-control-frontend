@@ -23,6 +23,7 @@ export const useStaysStore = defineStore('stays', () => {
     types:        [],
     entryReasons: [],
     search:       '',
+    external:     [],
   })
 
   // ── Getters ───────────────────────────────────────────────────────
@@ -43,6 +44,7 @@ export const useStaysStore = defineStore('stays', () => {
     if (filters.types?.length)        params.type         = filters.types.join(',')
     if (filters.entryReasons?.length) params.entry_reason = filters.entryReasons.join(',')
     if (filters.search?.trim())       params.search       = filters.search.trim()
+    if (filters.external?.length)   params.external     = filters.external.join(',')
     return params
   }
 
@@ -74,7 +76,7 @@ export const useStaysStore = defineStore('stays', () => {
 
   /** Load the first page with no active filters (used on mount). */
   async function fetchAll() {
-    _activeFilters.value = { statuses: [], types: [], entryReasons: [], search: '' }
+    _activeFilters.value = { statuses: [], types: [], entryReasons: [], search: '', external: [] }
     await fetchPage(0)
   }
 
@@ -86,6 +88,7 @@ export const useStaysStore = defineStore('stays', () => {
     if (f.types?.length)        params.type         = f.types.join(',')
     if (f.entryReasons?.length) params.entry_reason = f.entryReasons.join(',')
     if (f.search?.trim())       params.search       = f.search.trim()
+    if (f.external?.length)     params.external     = f.external.join(',')
     const response = await api.exportAll(params)
     return Array.isArray(response.data)
       ? response.data.map(r => AccessEntryAssembler.toEntityFromResource(r))
@@ -246,7 +249,7 @@ export const useStaysStore = defineStore('stays', () => {
     _page.value          = 0
     _totalElements.value = 0
     _totalPages.value    = 0
-    _activeFilters.value = { statuses: [], types: [], entryReasons: [], search: '' }
+    _activeFilters.value = { statuses: [], types: [], entryReasons: [], search: '', external: [] }
   }
 
   return {
