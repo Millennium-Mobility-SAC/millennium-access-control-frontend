@@ -13,6 +13,8 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
     const rawError     = ref(null)   // mensaje técnico para reportar
     const connected    = ref(null)   // null = no consultado aún
     const chatsSynced  = ref(null)   // null = N/A; false = sincronizando; true = listo
+    const sessionStatus = ref(null)  // CONNECTED | CONNECTING | QR_PENDING | DISCONNECTED
+    const qrAvailable  = ref(false)
     const enabled      = ref(false)
     const groupId      = ref('')
     const hasKey       = ref(false)
@@ -25,6 +27,9 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
     let _syncPollingId = null
 
     const chatsSyncing = computed(() => connected.value === true && chatsSynced.value === false)
+    const restoringSession = computed(() =>
+        connected.value === false && sessionStatus.value === 'CONNECTING' && !qrAvailable.value && !qrString.value
+    )
 
     function _clearError() { error.value = null; rawError.value = null }
 
@@ -79,6 +84,8 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
 
     function _applyStatus(data) {
         connected.value = !!data.connected
+        sessionStatus.value = data.sessionStatus || (data.connected ? 'CONNECTED' : 'DISCONNECTED')
+        qrAvailable.value = !!data.qrAvailable
         if (data.connected) {
             chatsSynced.value = !!data.chatsSynced
             if (data.chatsSynced) {
@@ -91,6 +98,10 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
         } else {
             chatsSynced.value = null
             stopSyncPolling()
+            // Sigue restaurando sesión o esperando QR: mantener polling de estado/QR
+            if (restoringSession.value || sessionStatus.value === 'QR_PENDING' || sessionStatus.value === 'DISCONNECTED') {
+                startQrPolling()
+            }
         }
     }
 
@@ -229,6 +240,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             await api.resetSession()
             qrString.value = null
             connected.value = false
+            sessionStatus.value = 'DISCONNECTED'
             chatsSynced.value = null
             groups.value = []
             // Reinicia el polling para capturar el nuevo QR cuando Node lo emita
@@ -268,7 +280,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
 
     return {
         // estado
-        isLoading, error, rawError, connected, chatsSynced, chatsSyncing,
+        isLoading, error, rawError, connected, chatsSynced, chatsSyncing, sessionStatus, qrAvailable, restoringSession,
         enabled, groupId, hasKey, maskedKey, generatedKey, qrString,
         groups, isLoadingGroups,
         // acciones

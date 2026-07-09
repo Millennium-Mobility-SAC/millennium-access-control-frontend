@@ -119,31 +119,37 @@ watch(() => store.qrString, async (qr, prev) => {
 const statusIcon = computed(() => {
     if (store.connected === null) return 'pi pi-spin pi-spinner'
     if (store.chatsSyncing) return 'pi pi-spin pi-spinner'
+    if (store.restoringSession) return 'pi pi-spin pi-spinner'
     return store.connected ? 'pi pi-whatsapp' : 'pi pi-times'
 })
 const statusText = computed(() => {
     if (store.connected === null) return 'Verificando conexión...'
     if (store.chatsSyncing) return 'Sincronizando chats de WhatsApp...'
+    if (store.restoringSession) return 'Restaurando sesión guardada...'
     return store.connected ? 'Conectado a WhatsApp' : 'Desconectado'
 })
 const statusTextClass = computed(() => {
     if (store.connected === null) return ''
     if (store.chatsSyncing) return 'wa-status__text--syncing'
+    if (store.restoringSession) return 'wa-status__text--syncing'
     return store.connected ? 'wa-status__text--online' : 'wa-status__text--offline'
 })
 const statusCardClass = computed(() => {
     if (store.connected === null) return ''
     if (store.chatsSyncing) return 'wa-card--status-syncing'
+    if (store.restoringSession) return 'wa-card--status-syncing'
     return store.connected ? 'wa-card--status-online' : 'wa-card--status-offline'
 })
 const statusIndicatorClass = computed(() => {
     if (store.connected === null) return 'wa-status__indicator--loading'
     if (store.chatsSyncing) return 'wa-status__indicator--syncing'
+    if (store.restoringSession) return 'wa-status__indicator--syncing'
     return store.connected ? 'wa-status__indicator--online' : 'wa-status__indicator--offline'
 })
 const statusPillClass = computed(() => {
     if (store.connected === null) return 'wa-status__pill--loading'
     if (store.chatsSyncing) return 'wa-status__pill--syncing'
+    if (store.restoringSession) return 'wa-status__pill--syncing'
     return store.connected ? 'wa-status__pill--online' : 'wa-status__pill--offline'
 })
 const groupsButtonDisabled = computed(() => !store.connected || store.chatsSyncing || store.isLoadingGroups)
@@ -334,7 +340,11 @@ async function handleResetSession() {
                     <div class="wa-status__body">
                         <span class="wa-status__eyebrow">Estado del bot</span>
                         <span class="wa-status__text" :class="statusTextClass">{{ statusText }}</span>
-                        <span v-if="store.connected === false" class="wa-status__hint">
+                        <span v-if="store.restoringSession" class="wa-status__hint wa-status__hint--syncing">
+                            <i class="pi pi-info-circle" />
+                            El servicio está reutilizando la sesión guardada en disco. No escanees un QR nuevo; suele tardar hasta un minuto tras reiniciar los servidores.
+                        </span>
+                        <span v-else-if="store.connected === false" class="wa-status__hint">
                             Escanea el código QR que aparece más abajo desde <strong>WhatsApp → Dispositivos vinculados</strong>.
                         </span>
                         <span v-else-if="store.chatsSyncing" class="wa-status__hint wa-status__hint--syncing">
@@ -345,6 +355,7 @@ async function handleResetSession() {
                     <div class="wa-status__pill" :class="statusPillClass">
                         <span v-if="store.connected === null"><i class="pi pi-spin pi-spinner" /> Verificando</span>
                         <span v-else-if="store.chatsSyncing"><i class="pi pi-spin pi-spinner" /> Sincronizando</span>
+                        <span v-else-if="store.restoringSession"><i class="pi pi-spin pi-spinner" /> Restaurando</span>
                         <span v-else-if="store.connected"><i class="pi pi-check" /> En línea</span>
                         <span v-else><i class="pi pi-times" /> Sin conexión</span>
                     </div>
@@ -417,7 +428,24 @@ async function handleResetSession() {
                     </div>
                 </div>
 
-                <!-- Card: QR pendiente (desconectado pero QR aún no disponible) -->
+                <!-- Card: restaurando sesión guardada (sin QR todavía) -->
+                <div v-else-if="store.connected === false && store.restoringSession" class="wa-card wa-card--qr wa-card--qr-loading">
+                    <div class="wa-qr__head">
+                        <div class="wa-qr__head-icon">
+                            <i class="pi pi-history" />
+                        </div>
+                        <div>
+                            <p class="wa-qr__title">Restaurando sesión</p>
+                            <p class="wa-qr__desc">Reutilizando la sesión guardada en el servicio WhatsApp. Esto es normal después de reiniciar backend o Node.</p>
+                        </div>
+                    </div>
+                    <div class="wa-qr__canvas-wrap wa-qr__canvas-wrap--empty">
+                        <i class="pi pi-spin pi-spinner wa-qr__spinner" />
+                        <span class="wa-qr__spinner-text">Conectando con WhatsApp...</span>
+                    </div>
+                </div>
+
+                <!-- Card: QR pendiente (desconectado, esperando emisión de QR) -->
                 <div v-else-if="store.connected === false && !store.qrString" class="wa-card wa-card--qr wa-card--qr-loading">
                     <div class="wa-qr__head">
                         <div class="wa-qr__head-icon">
