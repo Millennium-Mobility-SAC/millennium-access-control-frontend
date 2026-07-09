@@ -49,6 +49,25 @@ function _statusToMessage(status) {
 
 /** Traduce frases técnicas de validación de Spring / Java al español. */
 function _translateBackendTerms(msg) {
+  const storagePatterns = [
+    [/Failed to upload file to Google Drive.*|Google Drive credentials.*|credentials file not found.*/i,
+      'No se pudo guardar el archivo. El almacenamiento no está disponible en este momento. Contacta al administrador.'],
+    [/Failed to (delete|download) file from (Google Drive|storage).*/i,
+      'No se pudo completar la operación con el archivo. Intenta de nuevo en unos momentos.'],
+    [/File type not allowed.*/i,
+      'Tipo de archivo no permitido. Solo se aceptan imágenes (JPEG, PNG, GIF, WebP, HEIC) y PDF.'],
+    [/At least one photo is required/i, 'Se requiere al menos una foto del vehículo.'],
+    [/Only image files are valid as required vehicle photos/i,
+      'Las fotos del vehículo deben ser imágenes (JPEG, PNG, GIF, WebP o HEIC).'],
+    [/One or more uploaded file ids were not found/i,
+      'No se encontraron uno o más archivos adjuntos. Vuelve a subirlos e intenta de nuevo.'],
+    [/[A-Za-z]:\\[^\s]+|\/[\w./\\-]+\.(json|png|jpe?g)/i,
+      'No se pudo guardar el archivo. El almacenamiento no está disponible en este momento. Contacta al administrador.'],
+  ]
+  for (const [pattern, replacement] of storagePatterns) {
+    if (pattern.test(msg)) return replacement
+  }
+
   const replacements = [
     [/must not be (blank|empty|null)/gi,              'el campo es obligatorio'],
     [/must be positive/gi,                            'el valor debe ser positivo'],

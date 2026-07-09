@@ -48,6 +48,35 @@ function translateBusinessMessage(message) {
     return 'La salida de este empleado ya fue registrada hoy.'
   }
 
+  if (/Failed to upload file to Google Drive|Google Drive credentials|credentials file not found|Unable to (initialize|load) Google Drive/i.test(message)) {
+    return 'No se pudo guardar el archivo. El almacenamiento no está disponible en este momento. Contacta al administrador.'
+  }
+
+  if (/Failed to (delete|download) file from (Google Drive|storage)/i.test(message)) {
+    return 'No se pudo completar la operación con el archivo. Intenta de nuevo en unos momentos.'
+  }
+
+  if (/File type not allowed/i.test(message)) {
+    return 'Tipo de archivo no permitido. Solo se aceptan imágenes (JPEG, PNG, GIF, WebP, HEIC) y PDF.'
+  }
+
+  if (/At least one photo is required/i.test(message)) {
+    return 'Se requiere al menos una foto del vehículo.'
+  }
+
+  if (/Only image files are valid as required vehicle photos/i.test(message)) {
+    return 'Las fotos del vehículo deben ser imágenes (JPEG, PNG, GIF, WebP o HEIC).'
+  }
+
+  if (/One or more uploaded file ids were not found/i.test(message)) {
+    return 'No se encontraron uno o más archivos adjuntos. Vuelve a subirlos e intenta de nuevo.'
+  }
+
+  // Ocultar rutas de archivo del sistema que no aportan al usuario final
+  if (/[A-Za-z]:\\[^\s]+|\/[\w./\\-]+\.(json|png|jpe?g)/i.test(message)) {
+    return 'No se pudo guardar el archivo. El almacenamiento no está disponible en este momento. Contacta al administrador.'
+  }
+
   return message
 }
 

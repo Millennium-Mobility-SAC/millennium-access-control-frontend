@@ -1,6 +1,12 @@
 import { useToast } from 'primevue/usetoast'
 import { normalizeApiError, toUserMessage } from '../infrustructure/error-normalizer.js'
 
+function isStorageRelatedMessage(message) {
+    if (!message || typeof message !== 'string') return false
+    return /almacenamiento|archivo adjunto|subir|evidencia|foto del vehículo/i.test(message)
+        || /Google Drive|credentials file/i.test(message)
+}
+
 /**
  * Composable para gestionar notificaciones con PrimeVue Toast.
  * Proporciona funciones para mostrar distintos tipos de mensajes.
@@ -23,7 +29,7 @@ export function useNotification() {
             ? { message, type: 'business' }
             : (message?.type && message?.message ? message : normalizeApiError(message))
         const typedTitle = normalized.type === 'validation'
-            ? 'Error de validación'
+            ? (isStorageRelatedMessage(normalized.message) ? 'No se pudo guardar el archivo' : 'Error de validación')
             : normalized.type === 'auth'
                 ? 'Error de autenticación'
                 : normalized.type === 'infrastructure'
