@@ -1,7 +1,8 @@
 <script setup>
-import { reactive, watch } from 'vue'
+import { reactive, watch, ref } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
 import { useFormRules } from '@/shared/composables/use-form-rules.js'
+import { useFormValidation } from '@/shared/composables/use-form-validation.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -12,6 +13,10 @@ const props = defineProps({
 
 const emit = defineEmits(['canceled-shared', 'saved-shared'])
 const rules = useFormRules()
+const vehicleFormRef = ref(null)
+const { guardValidated } = useFormValidation()
+
+const VALIDATION_FIELD_ORDER = ['licensePlate', 'brand', 'model', 'year']
 
 const form = reactive({
   id:           null,
@@ -72,8 +77,11 @@ function validate() {
   return valid
 }
 
-function onSave(payload) {
-  if (!validate()) return
+async function onSave(payload) {
+  if (!await guardValidated(validate(), errors, {
+    containerRef: vehicleFormRef,
+    fieldOrder: VALIDATION_FIELD_ORDER,
+  })) return
   emit('saved-shared', payload)
 }
 </script>
@@ -91,7 +99,7 @@ function onSave(payload) {
     @saved-shared="onSave($event)"
   >
     <template #content>
-      <div class="vce-form">
+      <div ref="vehicleFormRef" class="vce-form">
 
         <!-- Identificación -->
         <div class="vce-section">

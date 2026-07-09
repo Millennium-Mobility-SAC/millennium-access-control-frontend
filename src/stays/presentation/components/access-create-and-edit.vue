@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, watch, onUnmounted, ref, computed, nextTick } from 'vue'
+import { reactive, watch, onUnmounted, ref, computed } from 'vue'
 import CreateAndEdit        from '@/shared/presentation/components/create-and-edit.vue'
 import AttachmentImage      from '@/shared/presentation/components/attachment-image.vue'
 import StayImagePicker      from './stay-image-picker.vue'
@@ -7,6 +7,7 @@ import { MOTIVOS_INGRESO, TIPOS_INGRESO, TIPOS_DOCUMENTO } from '../constants/st
 import { useVehicleCatalogStore } from '@/vehicle-catalog/application/vehicle-catalog.store.js'
 import { useStaysStore }          from '@/stays/application/stays.store.js'
 import { useNotification }        from '@/shared/composables/use-notification.js'
+import { useFormValidation }      from '@/shared/composables/use-form-validation.js'
 import { normalizeApiError }      from '@/shared/infrustructure/error-normalizer.js'
 import { nowPeruTimeString, nowPeruDate } from '@/shared/domain/peru-time.js'
 import { useStayAttachmentMedia } from '../composables/use-stay-attachment-media.js'
@@ -30,6 +31,18 @@ const emit = defineEmits(['canceled-shared', 'saved-shared', 'remove-existing-at
 const store           = useVehicleCatalogStore()
 const staysStore      = useStaysStore()
 const { showError }   = useNotification()
+const aceForm = ref(null)
+const { guardValidated } = useFormValidation()
+
+const VALIDATION_FIELD_ORDER = [
+  'licensePlate',
+  'clientDocumentNumber',
+  'firstName',
+  'lastName',
+  'entryReason',
+  'mileage',
+  'attachments',
+]
 const plateMatched    = ref(false)
 const showSaveVehicle = ref(false)
 const savingVehicle   = ref(false)
@@ -553,22 +566,14 @@ function validate() {
   return valid
 }
 
-function onSave(formData) {
-  if (!validate()) {
-    nextTick(() => {
-      const el = aceForm.value?.querySelector('.p-invalid, [aria-invalid="true"], .sip__dropzone--invalid')
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        const focusable = el.matches('input,select,textarea,button,[tabindex]') ? el : el.querySelector('input,select,textarea,button,[tabindex]')
-        focusable?.focus()
-      }
-    })
-    return
-  }
+async function onSave(formData) {
+  if (!await guardValidated(validate(), errors, {
+    containerRef: aceForm,
+    fieldOrder: VALIDATION_FIELD_ORDER,
+    fieldSelectors: { attachments: '.sip__dropzone--invalid' },
+  })) return
   emit('saved-shared', formData)
 }
-
-const aceForm = ref(null)
 
 </script>
 

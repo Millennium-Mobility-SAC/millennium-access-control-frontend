@@ -1,10 +1,11 @@
 <script setup>
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import logoMillenniumMobility from '@/assets/img/logo-millennium-mobility.png';
 import { useIamStore } from '../../application/iam.store.js';
 import { IAM_ROUTES } from '../iam.routes.js';
 import { useFormRules } from '@/shared/composables/use-form-rules.js';
+import { useFormValidation } from '@/shared/composables/use-form-validation.js';
 import {
   PROFILE_DOCUMENT_TYPES,
   PROFILE_DEPARTMENTS,
@@ -14,6 +15,21 @@ import {
 const router   = useRouter();
 const iamStore = useIamStore();
 const rules    = useFormRules();
+const profileFormRef = ref(null);
+const { guardValidated } = useFormValidation();
+
+const VALIDATION_FIELD_ORDER = [
+  'firstName',
+  'lastName',
+  'documentNumber',
+  'email',
+  'phoneNumber',
+  'position',
+  'department',
+  'username',
+  'password',
+  'role',
+];
 
 const form = reactive({
   firstName:      '',
@@ -98,7 +114,10 @@ function validate() {
 }
 
 async function handleSubmit() {
-  if (!validate()) return;
+  if (!await guardValidated(validate(), errors, {
+    containerRef: profileFormRef,
+    fieldOrder: VALIDATION_FIELD_ORDER,
+  })) return;
 
   const payload = {
     username:       form.username.trim(),
@@ -156,7 +175,7 @@ async function handleSubmit() {
         </div>
 
         <!-- Formulario -->
-        <form v-else @submit.prevent="handleSubmit">
+        <form v-else ref="profileFormRef" @submit.prevent="handleSubmit">
 
           <!-- Error global -->
           <pv-message v-if="iamStore.error" severity="error" class="w-full mb-4">

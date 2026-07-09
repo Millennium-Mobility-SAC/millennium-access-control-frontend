@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
 import { DOCUMENT_TYPES, EMPLOYEE_STATUS_OPTIONS } from '../constants/employee-management-ui.constants.js'
+import { useFormValidation } from '@/shared/composables/use-form-validation.js'
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -11,6 +12,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['canceled-shared', 'saved-shared'])
+const employeeFormRef = ref(null)
+const { guardValidated } = useFormValidation()
+
+const VALIDATION_FIELD_ORDER = ['firstName', 'lastName', 'position', 'documentNumber']
 
 const form = ref(defaultForm())
 const errors = ref({})
@@ -43,8 +48,11 @@ function validate() {
   return Object.keys(next).length === 0
 }
 
-function submit() {
-  if (!validate()) return
+async function submit() {
+  if (!await guardValidated(validate(), errors, {
+    containerRef: employeeFormRef,
+    fieldOrder: VALIDATION_FIELD_ORDER,
+  })) return
   emit('saved-shared', { ...form.value })
 }
 </script>
@@ -62,7 +70,7 @@ function submit() {
     @saved-shared="submit"
   >
     <template #content>
-      <div class="ece-form">
+      <div ref="employeeFormRef" class="ece-form">
         <div class="ece-section">
           <div class="ece-section-header">
             <i class="pi pi-id-card ece-section-icon" />

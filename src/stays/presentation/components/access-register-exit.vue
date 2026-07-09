@@ -1,9 +1,10 @@
 <script setup>
-import { reactive, watch, onUnmounted } from 'vue'
+import { reactive, watch, onUnmounted, ref } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
 import StayImagePicker from './stay-image-picker.vue'
 import { TIPOS_SALIDA, MOTIVOS_SALIDA_TEMPORAL, TIPOS_DOCUMENTO } from '../constants/stays-ui.constants.js'
 import { nowPeruTimeString, nowPeruDate } from '@/shared/domain/peru-time.js'
+import { useFormValidation } from '@/shared/composables/use-form-validation.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -12,6 +13,17 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['canceled', 'saved'])
+const exitFormRef = ref(null)
+const { guardValidated } = useFormValidation()
+
+const VALIDATION_FIELD_ORDER = [
+  'customerDni',
+  'customerFirstName',
+  'customerLastName',
+  'temporaryExitReason',
+  'replacementLicensePlate',
+  'attachments',
+]
 
 // ── Helpers ────────────────────────────────────────────────
 function pad(n) { return String(n).padStart(2, '0') }
@@ -191,8 +203,12 @@ function validate() {
   return valid
 }
 
-function onSaved(formData) {
-  if (!validate()) return
+async function onSaved(formData) {
+  if (!await guardValidated(validate(), errors, {
+    containerRef: exitFormRef,
+    fieldOrder: VALIDATION_FIELD_ORDER,
+    fieldSelectors: { attachments: '.sip__dropzone--invalid' },
+  })) return
   stopClock()
   emit('saved', { ...formData })
 }
@@ -213,7 +229,7 @@ function onSaved(formData) {
     @saved-shared="onSaved($event)"
   >
     <template #content>
-      <div class="ace-form">
+      <div ref="exitFormRef" class="ace-form">
 
         <!-- ── 1. Tipo de salida ── -->
         <div class="ace-section">
@@ -290,20 +306,20 @@ function onSaved(formData) {
               </div>
               <div class="ace-field ace-field--flex">
                 <label class="ace-label">N.º de documento</label>
-                <pv-input-text v-model="form.customerDni" placeholder="Ej. 12345678" class="w-full" :disabled="form.type === 'PERSONA'" :invalid="!!errors.customerDni && form.type !== 'PERSONA'" />
-                <small v-if="errors.customerDni && form.type !== 'PERSONA'" class="ace-error">{{ errors.customerDni }}</small>
+                <pv-input-text v-model="form.customerDni" data-field="customerDni" placeholder="Ej. 12345678" class="w-full" :disabled="form.type === 'PERSONA'" :invalid="!!errors.customerDni" />
+                <small v-if="errors.customerDni" class="ace-error">{{ errors.customerDni }}</small>
               </div>
             </div>
             <div class="ace-row">
               <div class="ace-field ace-field--flex">
                 <label class="ace-label">Nombre</label>
-                <pv-input-text v-model="form.customerFirstName" placeholder="Ej. Juan" class="w-full" :disabled="form.type === 'PERSONA'" :invalid="!!errors.customerFirstName && form.type !== 'PERSONA'" />
-                <small v-if="errors.customerFirstName && form.type !== 'PERSONA'" class="ace-error">{{ errors.customerFirstName }}</small>
+                <pv-input-text v-model="form.customerFirstName" data-field="customerFirstName" placeholder="Ej. Juan" class="w-full" :disabled="form.type === 'PERSONA'" :invalid="!!errors.customerFirstName" />
+                <small v-if="errors.customerFirstName" class="ace-error">{{ errors.customerFirstName }}</small>
               </div>
               <div class="ace-field ace-field--flex">
                 <label class="ace-label">Apellido</label>
-                <pv-input-text v-model="form.customerLastName" placeholder="Ej. Pérez" class="w-full" :disabled="form.type === 'PERSONA'" :invalid="!!errors.customerLastName && form.type !== 'PERSONA'" />
-                <small v-if="errors.customerLastName && form.type !== 'PERSONA'" class="ace-error">{{ errors.customerLastName }}</small>
+                <pv-input-text v-model="form.customerLastName" data-field="customerLastName" placeholder="Ej. Pérez" class="w-full" :disabled="form.type === 'PERSONA'" :invalid="!!errors.customerLastName" />
+                <small v-if="errors.customerLastName" class="ace-error">{{ errors.customerLastName }}</small>
               </div>
             </div>
           </div>
@@ -325,6 +341,7 @@ function onSaved(formData) {
                 <label class="ace-label">Motivo</label>
                 <pv-select
                   v-model="form.temporaryExitReason"
+                  data-field="temporaryExitReason"
                   :options="MOTIVOS_SALIDA_TEMPORAL"
                   option-label="label"
                   option-value="value"
@@ -342,6 +359,7 @@ function onSaved(formData) {
                 <label class="ace-label">Placa vehículo reemplazo</label>
                 <pv-input-text
                   v-model="form.replacementLicensePlate"
+                  data-field="replacementLicensePlate"
                   placeholder="Ej. XYZ-456"
                   class="w-full"
                   style="text-transform: uppercase"

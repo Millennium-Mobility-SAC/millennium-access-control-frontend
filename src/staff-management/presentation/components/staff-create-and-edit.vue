@@ -1,8 +1,9 @@
 <script setup>
-import { reactive, watch } from 'vue'
+import { reactive, watch, ref } from 'vue'
 import CreateAndEdit from '@/shared/presentation/components/create-and-edit.vue'
 import { TIPOS_DOCUMENTO, DEPARTAMENTOS, ROLES_OPTIONS } from '../constants/staff-management-ui.constants.js'
 import { useFormRules } from '@/shared/composables/use-form-rules.js'
+import { useFormValidation } from '@/shared/composables/use-form-validation.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -13,6 +14,21 @@ const props = defineProps({
 
 const emit = defineEmits(['canceled-shared', 'saved-shared'])
 const rules = useFormRules()
+const staffFormRef = ref(null)
+const { guardValidated } = useFormValidation()
+
+const VALIDATION_FIELD_ORDER = [
+  'documentNumber',
+  'firstName',
+  'lastName',
+  'email',
+  'phoneNumber',
+  'username',
+  'password',
+  'position',
+  'department',
+  'role',
+]
 
 const form = reactive({
   id:             null,
@@ -130,8 +146,11 @@ function validate() {
   return valid
 }
 
-function onSave(payload) {
-  if (!validate()) return
+async function onSave(payload) {
+  if (!await guardValidated(validate(), errors, {
+    containerRef: staffFormRef,
+    fieldOrder: VALIDATION_FIELD_ORDER,
+  })) return
   emit('saved-shared', payload)
 }
 </script>
@@ -149,7 +168,7 @@ function onSave(payload) {
     @saved-shared="onSave($event)"
   >
     <template #content>
-      <div class="sce-form">
+      <div ref="staffFormRef" class="sce-form">
 
         <!-- Identidad -->
         <div class="sce-section">
