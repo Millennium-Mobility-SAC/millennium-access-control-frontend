@@ -51,3 +51,26 @@ export function getAccessStatusLabel(value) {
 export function getAccessStatusSeverity(value) {
   return ACCESS_STATUS_SEVERITY[value] ?? 'secondary'
 }
+
+/** Estados ocultos en listados/filtros para guardias sin rol administrativo. */
+export const SECURITY_GUARD_HIDDEN_ACCESS_STATUSES = Object.freeze(['SALIDA_PERMANENTE'])
+
+/**
+ * Opciones de filtro por estado según roles del usuario autenticado.
+ * @param {string[]|null|undefined} roleNames
+ * @returns {typeof ACCESS_STATUS}
+ */
+export function getAccessStatusFilterOptions(roleNames) {
+  const roles = roleNames ?? []
+  const isGuardOnly = roles.includes('ROLE_SECURITY_GUARD')
+    && !roles.includes('ROLE_ADMIN')
+    && !roles.includes('ROLE_SUPPORT_ADMIN')
+
+  if (!isGuardOnly) {
+    return ACCESS_STATUS
+  }
+
+  return ACCESS_STATUS.filter(
+    status => !SECURITY_GUARD_HIDDEN_ACCESS_STATUSES.includes(status.value),
+  )
+}

@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
+import { ref, onMounted, watch, onBeforeUnmount, computed } from 'vue'
 import { useStaysStore }                        from '../../application/stays.store.js'
 import { useIamStore }                          from '@/iam/application/iam.store.js'
 import { useAsyncAction }                       from '@/shared/composables/use-async-action.js'
@@ -14,6 +14,7 @@ import AccessRegisterReturn                     from '../components/access-regis
 import AccessImportDialog                        from '../components/access-import-dialog.vue'
 import AccessDetailDrawer                        from '../components/access-detail-drawer.vue'
 import { MOTIVOS_INGRESO, MOTIVO_SEVERITY, TIPOS_INGRESO, TIPOS_DOCUMENTO, ACCESS_STATUS, ACCESS_STATUS_SEVERITY, MOTIVOS_SALIDA_TEMPORAL } from '../constants/stays-ui.constants.js'
+import { getAccessStatusFilterOptions } from '@/shared/presentation/constants/access-status.constants.js'
 import { downloadImportErrorReport } from '@/shared/composables/use-import-error-report.js'
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
@@ -105,6 +106,10 @@ const filterType   = ref([])
 const filterMotivo = ref([])
 const searchText   = ref('')
 
+const statusFilterOptions = computed(() =>
+  getAccessStatusFilterOptions(iamStore.currentUserRoles),
+)
+
 // ── Server-side filtering ──────────────────────────────────────────
 let _searchDebounceTimer = null
 
@@ -123,6 +128,11 @@ watch(searchText, () => {
 })
 
 watch([filterStatus, filterType, filterMotivo], applyAllFilters, { deep: true })
+
+watch(statusFilterOptions, (options) => {
+  const allowed = new Set(options.map(option => option.value))
+  filterStatus.value = filterStatus.value.filter(status => allowed.has(status))
+}, { immediate: true })
 
 function clearAllFilters() {
   filterStatus.value = []
@@ -616,7 +626,7 @@ function handlePageChange({ page }) {
         <div class="ac-filters">
           <pv-multi-select
             v-model="filterStatus"
-            :options="ACCESS_STATUS"
+            :options="statusFilterOptions"
             option-label="label"
             option-value="value"
             placeholder="Estado"
