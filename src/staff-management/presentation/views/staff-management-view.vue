@@ -273,14 +273,15 @@ onMounted(async () => {
         </div>
       </template>
       <template #nombre-template="{ data }">
-        <div class="collab-name-cell">
+        <div v-if="data" class="collab-name-cell">
           <span class="collab-avatar">{{ data.firstName?.[0] ?? '?' }}{{ data.lastName?.[0] ?? '' }}</span>
           <span>{{ data.fullName || '—' }}</span>
         </div>
+        <span v-else>—</span>
       </template>
 
       <template #documento-template="{ data }">
-        <span class="sm-doc-cell">
+        <span v-if="data" class="sm-doc-cell">
           <span class="doc-type-badge">{{ getDocumentTypeLabel(data.documentType) }}</span>
           <span class="sm-doc-num">{{ data.documentNumber || '—' }}</span>
         </span>

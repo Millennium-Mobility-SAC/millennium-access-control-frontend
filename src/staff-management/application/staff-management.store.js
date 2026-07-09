@@ -27,8 +27,12 @@ export const useStaffManagementStore = defineStore('staff-management', () => {
   async function create(resource) {
     const response = await api.create(EmployeeAssembler.toResource(resource))
     const created = EmployeeAssembler.toEntityFromResponse(response)
-    _employees.value = [created, ..._employees.value]
-    _selected.value = created
+    if (created) {
+      _employees.value = [created, ..._employees.value]
+      _selected.value = created
+    } else {
+      await fetchAll()
+    }
   }
 
   async function update(id, resource) {

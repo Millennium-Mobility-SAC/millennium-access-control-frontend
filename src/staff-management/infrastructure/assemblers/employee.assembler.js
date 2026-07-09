@@ -21,19 +21,13 @@ export class EmployeeAssembler {
   }
 
   static toEntityFromResponse(response) {
-    if (response.status !== 200) return null
+    if (!response?.data) return null
     return EmployeeAssembler.toEntityFromResource(response.data)
   }
 
   static toEntitiesFromResponse(response) {
-    if (response.status !== 200) return []
-    const data = response.data
-    const rows = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.content)
-        ? data.content
-        : []
-    return rows.map(r => EmployeeAssembler.toEntityFromResource(r))
+    if (!Array.isArray(response?.data)) return []
+    return response.data.map(r => EmployeeAssembler.toEntityFromResource(r))
   }
 
   /**
