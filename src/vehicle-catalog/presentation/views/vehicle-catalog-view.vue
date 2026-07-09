@@ -282,52 +282,73 @@ function ubicacionTagProps(row) {
               autocomplete="off"
             />
           </pv-icon-field>
+
           <div class="vc-filters">
             <div class="vc-filters__fields">
-              <pv-multi-select
-                v-model="filterStatus"
-                :options="VEHICLE_CATALOG_STATUS"
-                option-label="label"
-                option-value="value"
-                placeholder="Estado"
-                :max-selected-labels="1"
-                selected-items-label="{0} estados"
-              />
-              <pv-multi-select
-                v-model="filterOrigin"
-                :options="VEHICLE_ORIGIN_FILTER"
-                option-label="label"
-                option-value="value"
-                placeholder="Origen"
-                :max-selected-labels="1"
-                selected-items-label="{0} orígenes"
-              />
-              <pv-multi-select
-                v-model="filterEntryMotivo"
-                :options="MOTIVOS_INGRESO_CATALOG"
-                option-label="label"
-                option-value="value"
-                placeholder="Motivo ingreso"
-                :max-selected-labels="1"
-                selected-items-label="{0} motivos"
-              />
-              <pv-multi-select
-                v-model="filterTemporalExit"
-                :options="MOTIVOS_SALIDA_TEMPORAL"
-                option-label="label"
-                option-value="value"
-                placeholder="Salida temporal"
-                :max-selected-labels="1"
-                selected-items-label="{0} motivos"
-              />
-              <pv-select
-                v-model="filterDays"
-                :options="DAYS_RANGES"
-                option-label="label"
-                option-value="value"
-                placeholder="Días en planta"
-                show-clear
-              />
+              <div class="vc-filters__field">
+                <label class="vc-filters__label" for="vc-filter-status">Estado</label>
+                <pv-multi-select
+                  id="vc-filter-status"
+                  v-model="filterStatus"
+                  :options="VEHICLE_CATALOG_STATUS"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Todos"
+                  :max-selected-labels="1"
+                  selected-items-label="{0} estados"
+                />
+              </div>
+              <div class="vc-filters__field">
+                <label class="vc-filters__label" for="vc-filter-origin">Origen</label>
+                <pv-multi-select
+                  id="vc-filter-origin"
+                  v-model="filterOrigin"
+                  :options="VEHICLE_ORIGIN_FILTER"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Todos"
+                  :max-selected-labels="1"
+                  selected-items-label="{0} orígenes"
+                />
+              </div>
+              <div class="vc-filters__field">
+                <label class="vc-filters__label" for="vc-filter-entry">Motivo ingreso</label>
+                <pv-multi-select
+                  id="vc-filter-entry"
+                  v-model="filterEntryMotivo"
+                  :options="MOTIVOS_INGRESO_CATALOG"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Todos"
+                  :max-selected-labels="1"
+                  selected-items-label="{0} motivos"
+                />
+              </div>
+              <div class="vc-filters__field">
+                <label class="vc-filters__label" for="vc-filter-temporal">Salida temporal</label>
+                <pv-multi-select
+                  id="vc-filter-temporal"
+                  v-model="filterTemporalExit"
+                  :options="MOTIVOS_SALIDA_TEMPORAL"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Todos"
+                  :max-selected-labels="1"
+                  selected-items-label="{0} motivos"
+                />
+              </div>
+              <div class="vc-filters__field">
+                <label class="vc-filters__label" for="vc-filter-days">Días en planta</label>
+                <pv-select
+                  id="vc-filter-days"
+                  v-model="filterDays"
+                  :options="DAYS_RANGES"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Todos"
+                  show-clear
+                />
+              </div>
             </div>
             <pv-button
               type="button"
@@ -470,7 +491,7 @@ function ubicacionTagProps(row) {
 .vc-filters-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
+  gap: 0.75rem;
   width: 100%;
 }
 
@@ -480,27 +501,53 @@ function ubicacionTagProps(row) {
 
 .vc-filters {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: flex-end;
+  gap: 0.625rem;
   width: 100%;
   min-width: 0;
 }
 
 .vc-filters__fields {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem 0.625rem;
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.vc-filters__clear {
-  flex-shrink: 0;
-  align-self: center;
-  white-space: nowrap;
+.vc-filters__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
-@media (max-width: 1023px) {
+.vc-filters__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-body-secondary, #6b7280);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vc-filters__clear {
+  flex-shrink: 0;
+  align-self: flex-end;
+  white-space: nowrap;
+  margin-bottom: 0.125rem;
+}
+
+@media (max-width: 1279px) {
+  .vc-filters__fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
   .vc-filters {
     flex-direction: column;
     align-items: stretch;
@@ -512,10 +559,11 @@ function ubicacionTagProps(row) {
 
   .vc-filters__clear {
     align-self: flex-end;
+    margin-bottom: 0;
   }
 }
 
-@media (max-width: 639px) {
+@media (max-width: 479px) {
   .vc-filters__fields {
     grid-template-columns: 1fr;
   }
@@ -532,6 +580,7 @@ function ubicacionTagProps(row) {
   align-items: center;
 }
 
+.vc-filters :deep(.p-select-label),
 .vc-filters :deep(.p-multiselect-label) {
   padding: 0 0.625rem;
   font-size: 0.875rem;
