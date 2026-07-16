@@ -9,6 +9,7 @@ import { usePermissions } from '@/shared/composables/use-permissions.js'
 import { useSecurityCheckpointStore } from '../../application/security-checkpoint.store.js'
 import { useIamStore } from '@/iam/application/iam.store.js'
 import PersonnelAttendanceCreateEdit from '../components/personnel-attendance-create-edit.vue'
+import FacialAttendanceLive from '../components/facial-attendance-live.vue'
 import { DOCUMENT_TYPES } from '@/employee-management/presentation/constants/employee-management-ui.constants.js'
 import {
   formatCalendarDateForUi,
@@ -35,13 +36,42 @@ const personnelDialogVisible = ref(false)
 const personnelDialogMode = ref('create')
 const personnelRecordToEdit = ref(null)
 
+const ATTENDANCE_MODE_KEY = 'gs_attendance_mode'
+function readStoredAttendanceMode() {
+  try {
+    const v = localStorage.getItem(ATTENDANCE_MODE_KEY)
+    return v === 'FACIAL' ? 'FACIAL' : 'MANUAL'
+  } catch {
+    return 'MANUAL'
+  }
+}
+const attendanceMode = ref(readStoredAttendanceMode())
+watch(attendanceMode, (mode) => {
+  try {
+    localStorage.setItem(ATTENDANCE_MODE_KEY, mode)
+  } catch { /* ignore */ }
+  if (mode === 'FACIAL' && personnelDialogMode.value === 'create') {
+    closePersonnelDialog()
+  }
+})
+
 function closePersonnelDialog() {
   personnelDialogVisible.value = false
   personnelDialogMode.value = 'create'
   personnelRecordToEdit.value = null
 }
 
+function switchToManualMode() {
+  attendanceMode.value = 'MANUAL'
+}
+
+function switchToFacialMode() {
+  closePersonnelDialog()
+  attendanceMode.value = 'FACIAL'
+}
+
 function openCreatePersonnelDialog() {
+  if (attendanceMode.value === 'FACIAL') return
   personnelDialogMode.value = 'create'
   personnelRecordToEdit.value = null
   personnelDialogVisible.value = true
@@ -359,8 +389,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="scp-view">
+  <div class="scp-view" :class="{ 'scp-view--facial': attendanceMode === 'FACIAL' }">
+    <FacialAttendanceLive
+      v-if="attendanceMode === 'FACIAL'"
+      @back-requested="switchToManualMode"
+      @registered="runAttendanceFetch({ warnIncompleteDates: false })"
+    />
 
+    <template v-else>
     <DataManager
       :items="attendanceHistoryRows"
       :filtered-items="attendanceHistoryRows"
@@ -389,6 +425,17 @@ onMounted(async () => {
       @page-changed="handlePageChange"
     >
       <template #extra-actions>
+        <div class="scp-mode-toggle flex align-items-center gap-2">
+          <pv-button
+            type="button"
+            label="Facial"
+            icon="pi pi-face-smile"
+            size="small"
+            severity="secondary"
+            outlined
+            @click="switchToFacialMode"
+          />
+        </div>
         <pv-button
           :label="fullHistoryMode ? 'Solo hoy' : 'Historial completo'"
           :icon="fullHistoryMode ? 'pi pi-calendar' : 'pi pi-history'"
@@ -512,10 +559,14 @@ onMounted(async () => {
       :record-to-edit="personnelRecordToEdit"
       @canceled-shared="closePersonnelDialog"
     />
+    </template>
   </div>
 </template>
 
 <style scoped>
+.scp-mode-toggle__label {
+  white-space: nowrap;
+}
 /* Contenedor: padding y altura útiles en móvil dentro del layout con scroll */
 .scp-view {
   box-sizing: border-box;
@@ -534,6 +585,17 @@ onMounted(async () => {
 @media (min-width: 768px) {
   .scp-view {
     padding: 1rem;
+  }
+}
+
+.scp-view--facial {
+  padding: 0.35rem;
+  max-width: 100%;
+}
+
+@media (min-width: 768px) {
+  .scp-view--facial {
+    padding: 0.75rem;
   }
 }
 

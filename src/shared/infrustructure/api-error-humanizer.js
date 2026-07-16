@@ -13,12 +13,23 @@ export function humanizeApiError(err) {
 
   // 1. Intentar obtener mensaje específico del backend
   let backendMsg = null
-  if (data?.message && typeof data.message === 'string') backendMsg = data.message
-  else if (typeof data === 'string' && data.length < 250)  backendMsg = data
-  else if (Array.isArray(data?.errors))                    backendMsg = data.errors.join('; ')
+  const code = typeof data?.code === 'string' ? data.code : null
+  const rawMessage = typeof data?.message === 'string' ? data.message : null
+  const isFaceError = Boolean(
+    code?.startsWith('FACE_')
+    || rawMessage?.startsWith('FACE_')
+    || (typeof data === 'string' && data.startsWith('FACE_')),
+  )
+  if (code?.startsWith('FACE_')) backendMsg = code
+  else if (rawMessage) backendMsg = rawMessage
+  else if (typeof data === 'string' && data.length < 250) backendMsg = data
+  else if (Array.isArray(data?.errors)) backendMsg = data.errors.join('; ')
 
   // 2. Traducir términos técnicos comunes en el mensaje del backend
   if (backendMsg) backendMsg = _translateBackendTerms(backendMsg)
+
+  // Errores faciales: mensaje de dominio solo (sin prefijo HTTP genérico)
+  if (isFaceError && backendMsg) return backendMsg
 
   // 3. Mensaje base por código HTTP
   const httpMsg = _statusToMessage(status)
@@ -65,6 +76,36 @@ function _translateBackendTerms(msg) {
       'No se pudo guardar el archivo. El almacenamiento no está disponible en este momento. Contacta al administrador.'],
   ]
   for (const [pattern, replacement] of storagePatterns) {
+    if (pattern.test(msg)) return replacement
+  }
+
+  const facePatterns = [
+    [/FACE_NOT_ENROLLED.*/i,
+      'El empleado no tiene rostro registrado. Enrólalo en Gestión de empleados o usa modo Manual.'],
+    [/FACE_MISMATCH.*/i,
+      'El rostro no coincide. Intenta de nuevo o cambia a modo Manual.'],
+    [/FACE_NO_MATCH.*/i,
+      'No se reconoció a ningún empleado con rostro registrado.'],
+    [/FACE_AMBIGUOUS.*/i,
+      'Varios rostros coinciden de forma cercana. Pide al empleado centrarse solo frente a la cámara.'],
+    [/FACE_ATTENDANCE_COMPLETE.*/i,
+      'Ya tiene ingreso y salida hoy'],
+    [/FACE_MULTIPLE_FACES.*/i,
+      'Hay más de un rostro en cámara. Que solo una persona se acerque.'],
+    [/FACE_NOT_DOMINANT.*/i,
+      'Acércate más a la cámara; el sistema usa el rostro más cercano y debe destacar frente a otros.'],
+    [/FACE_LOW_QUALITY.*/i,
+      'La detección del rostro es débil. Mejora la luz y mira de frente a la cámara.'],
+    [/FACE_TOO_FAR.*/i,
+      'Acércate a la cámara: el rostro se ve demasiado lejos o pequeño.'],
+    [/FACE_NOT_DETECTED.*/i,
+      'No se detectó un rostro en la foto. Usa mejor iluminación y encuadre frontal.'],
+    [/FACE_INVALID_IMAGE.*/i,
+      'La imagen no es válida. Usa JPEG, PNG o WebP (máx. 5 MB).'],
+    [/FACE_SERVICE_UNAVAILABLE.*/i,
+      'El servicio de reconocimiento facial no está disponible. Usa modo Manual.'],
+  ]
+  for (const [pattern, replacement] of facePatterns) {
     if (pattern.test(msg)) return replacement
   }
 

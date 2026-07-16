@@ -7,6 +7,7 @@ export class Employee {
     documentType = 'DNI',
     documentNumber = '',
     status = 'ACTIVE',
+    faceEnrolled = false,
   } = {}) {
     this.id = id
     this.firstName = firstName
@@ -15,6 +16,7 @@ export class Employee {
     this.documentType = documentType
     this.documentNumber = documentNumber
     this.status = status
+    this.faceEnrolled = Boolean(faceEnrolled)
   }
 
   get fullName() {

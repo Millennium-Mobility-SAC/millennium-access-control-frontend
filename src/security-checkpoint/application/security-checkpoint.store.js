@@ -110,6 +110,38 @@ export const useSecurityCheckpointStore = defineStore('security-checkpoint', () 
     await refreshLastQuery()
   }
 
+  async function registerCheckInFacial(employeeId, imageFile) {
+    await api.registerCheckInFacial(employeeId, imageFile)
+    await refreshLastQuery()
+  }
+
+  async function registerCheckOutFacial(employeeId, imageFile) {
+    await api.registerCheckOutFacial(employeeId, imageFile)
+    await refreshLastQuery()
+  }
+
+  /**
+   * Cámara kiosk: identifica rostro y opcionalmente marca ingreso/salida.
+   * @param {File} imageFile
+   * @param {{ dryRun?: boolean }} [options]
+   */
+  async function identifyAndRegisterFacialAttendance(imageFile, { dryRun = false } = {}) {
+    const response = await api.identifyAndRegisterFacialAttendance(imageFile, { dryRun })
+    if (!dryRun) await refreshLastQuery()
+    const d = response?.data ?? {}
+    return {
+      employeeId: d.employee_id,
+      employeeName: d.employee_name,
+      documentNumber: d.document_number,
+      documentType: d.document_type,
+      position: d.position,
+      action: d.action,
+      similarityScore: d.similarity_score,
+      dryRun: Boolean(d.dry_run),
+      attendance: d.attendance,
+    }
+  }
+
   async function updateAttendanceRecord(employeeId, attendanceId, payload) {
     await api.updateAttendance(employeeId, attendanceId, payload)
     await refreshLastQuery()
@@ -136,6 +168,9 @@ export const useSecurityCheckpointStore = defineStore('security-checkpoint', () 
     getPendingActionForEmployee,
     registerCheckIn,
     registerCheckOut,
+    registerCheckInFacial,
+    registerCheckOutFacial,
+    identifyAndRegisterFacialAttendance,
     updateAttendanceRecord,
     removeAttendanceRecord,
   }

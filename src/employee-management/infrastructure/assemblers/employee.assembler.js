@@ -17,6 +17,7 @@ export class EmployeeAssembler {
       documentType: resource.documentType ?? resource.document_type ?? 'DNI',
       documentNumber: resource.documentNumber ?? resource.document_number ?? '',
       status: normalizeEmployeeStatus(resource.status),
+      faceEnrolled: resource.faceEnrolled ?? resource.face_enrolled ?? false,
     })
   }
 

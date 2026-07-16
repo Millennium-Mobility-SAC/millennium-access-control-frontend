@@ -52,6 +52,50 @@ export class EmployeesSharedApi extends BaseApi {
     return this.http.post(`${this.#endpoint.endpointPath}/${employeeId}/attendance/check-out`, payload)
   }
 
+  /** Enroll face (admin). multipart field `image`. */
+  enrollFace(employeeId, imageFile) {
+    const form = new FormData()
+    form.append('image', imageFile)
+    // Do not set Content-Type manually — browser/Axios must add the multipart boundary.
+    return this.http.post(`${this.#endpoint.endpointPath}/${employeeId}/face`, form)
+  }
+
+  clearFace(employeeId) {
+    return this.http.delete(`${this.#endpoint.endpointPath}/${employeeId}/face`)
+  }
+
+  registerCheckInFacial(employeeId, imageFile) {
+    const form = new FormData()
+    form.append('image', imageFile)
+    return this.http.post(
+      `${this.#endpoint.endpointPath}/${employeeId}/attendance/check-in/facial`,
+      form,
+    )
+  }
+
+  registerCheckOutFacial(employeeId, imageFile) {
+    const form = new FormData()
+    form.append('image', imageFile)
+    return this.http.post(
+      `${this.#endpoint.endpointPath}/${employeeId}/attendance/check-out/facial`,
+      form,
+    )
+  }
+
+  /**
+   * Identifica al empleado (1:N) y, si dryRun=false, registra ingreso o salida del día.
+   * multipart field `image`; query `dry_run=true` solo identifica sin marcar.
+   */
+  identifyAndRegisterFacialAttendance(imageFile, { dryRun = false } = {}) {
+    const form = new FormData()
+    form.append('image', imageFile)
+    return this.http.post(
+      `${this.#endpoint.endpointPath}/attendance/facial/identify`,
+      form,
+      { params: { dry_run: dryRun } },
+    )
+  }
+
   updateAttendance(employeeId, attendanceId, payload) {
     return this.http.put(
       `${this.#endpoint.endpointPath}/${employeeId}/attendance/${attendanceId}`,

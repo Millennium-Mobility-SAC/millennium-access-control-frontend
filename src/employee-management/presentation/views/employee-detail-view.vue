@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 import DataManager from '@/shared/presentation/components/data-manager.vue'
+import FaceCameraCapture from '@/shared/presentation/components/face-camera-capture.vue'
 import { useAsyncAction } from '@/shared/composables/use-async-action.js'
 import { useNotification } from '@/shared/composables/use-notification.js'
 import { useEmployeeManagementStore } from '../../application/employee-management.store.js'
@@ -18,7 +19,9 @@ const route = useRoute()
 const router = useRouter()
 const store = useEmployeeManagementStore()
 const { isLoading, error, run } = useAsyncAction()
-const { showError } = useNotification()
+const { showError, showSuccess } = useNotification()
+const faceCameraVisible = ref(false)
+const faceBusy = ref(false)
 
 const employeeId = computed(() => {
   const n = Number(route.params.id)
@@ -144,6 +147,10 @@ function onAttendanceSearchChange(v) {
   attendanceSearch.value = v ?? ''
 }
 
+function handleAttPageChange({ page }) {
+  run(() => store.goToAttPage(page))
+}
+
 function sanitizeFilePart(s) {
   return String(s || 'empleado')
     .trim()
@@ -213,6 +220,33 @@ async function loadDetail() {
 }
 
 watch(employeeId, () => { loadDetail() }, { immediate: true })
+
+function openFaceCamera() {
+  if (employee.value?.status !== 'ACTIVE') return
+  faceCameraVisible.value = true
+}
+
+async function onFaceCaptured(file) {
+  if (!file || !employeeId.value) return
+  faceBusy.value = true
+  await run(async () => {
+    await store.enrollFace(employeeId.value, file)
+    showSuccess('Rostro registrado correctamente.')
+  }, { errorMessage: 'No se pudo registrar el rostro del empleado.' })
+  faceBusy.value = false
+  if (error.value) showError(error.value)
+}
+
+async function onClearFace() {
+  if (!employeeId.value || !employee.value?.faceEnrolled) return
+  faceBusy.value = true
+  await run(async () => {
+    await store.clearFace(employeeId.value)
+    showSuccess('Rostro eliminado.')
+  }, { errorMessage: 'No se pudo eliminar el rostro del empleado.' })
+  faceBusy.value = false
+  if (error.value) showError(error.value)
+}
 </script>
 
 <template>
@@ -259,6 +293,50 @@ watch(employeeId, () => { loadDetail() }, { immediate: true })
           </div>
         </div>
       </div>
+
+      <div class="ed-face-panel flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 p-3 border-top-1 surface-border">
+        <div class="min-w-0">
+          <div class="flex align-items-center gap-2 mb-1">
+            <i class="pi pi-face-smile text-primary" aria-hidden="true" />
+            <span class="font-semibold text-color">Rostro para marcación</span>
+            <pv-tag
+              :value="employee.faceEnrolled ? 'Registrado' : 'Sin registrar'"
+              :severity="employee.faceEnrolled ? 'success' : 'secondary'"
+            />
+          </div>
+          <p class="m-0 text-sm text-color-secondary">
+            Una foto frontal clara. Se usa solo en modo facial del checkpoint.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <pv-button
+            type="button"
+            :label="employee.faceEnrolled ? 'Reemplazar foto' : 'Registrar rostro'"
+            icon="pi pi-camera"
+            :loading="faceBusy"
+            :disabled="employee.status !== 'ACTIVE' || faceBusy"
+            @click="openFaceCamera"
+          />
+          <pv-button
+            v-if="employee.faceEnrolled"
+            type="button"
+            label="Eliminar"
+            icon="pi pi-trash"
+            severity="secondary"
+            outlined
+            :loading="faceBusy"
+            :disabled="faceBusy"
+            @click="onClearFace"
+          />
+        </div>
+      </div>
+
+      <FaceCameraCapture
+        v-model:visible="faceCameraVisible"
+        :header="employee.faceEnrolled ? 'Reemplazar rostro' : 'Registrar rostro'"
+        :busy="faceBusy"
+        @captured="onFaceCaptured"
+      />
     </section>
 
     <section v-else-if="!isLoading" class="ed-empty text-600">

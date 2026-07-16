@@ -101,6 +101,20 @@ export const useEmployeeManagementStore = defineStore('employee-management', () 
     await _fetchEmpPage(isLast ? _empPage.value - 1 : _empPage.value)
   }
 
+  async function enrollFace(id, imageFile) {
+    const response = await api.enrollFace(id, imageFile)
+    const updated = EmployeeAssembler.toEntityFromResponse(response)
+    if (updated && _selected.value?.id === id) _selected.value = updated
+    return updated
+  }
+
+  async function clearFace(id) {
+    await api.clearFace(id)
+    if (_selected.value?.id === id) {
+      await fetchById(id)
+    }
+  }
+
   async function bulkCreate(resources) {
     const results = await batchSettled(resources, r => api.create(EmployeeAssembler.toResource(r)))
     const success = results.filter(r => r.status === 'fulfilled').length
@@ -169,6 +183,8 @@ export const useEmployeeManagementStore = defineStore('employee-management', () 
     create,
     update,
     remove,
+    enrollFace,
+    clearFace,
     bulkCreate,
     deleteAll,
     fetchAttendance,

@@ -910,6 +910,22 @@ const shellLoading = computed(() => props.submitLoading || isLoading.value)
 </template>
 
 <style scoped>
+.pa-face-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #2563eb) 35%, var(--surface-border, #e5e7eb));
+  background: color-mix(in srgb, var(--primary-color, #2563eb) 8%, var(--surface-0, #fff));
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-color, #1f2937);
+}
+.pa-face-banner .pi {
+  margin-top: 0.1rem;
+  color: var(--primary-color, #2563eb);
+}
 .pa-registro {
   border: 1px solid var(--surface-border, #e5e7eb);
   border-radius: 8px;
