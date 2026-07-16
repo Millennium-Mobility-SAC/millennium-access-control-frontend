@@ -17,10 +17,21 @@ const { showSuccess, showError } = useNotification()
 const {
   muted: voiceMuted,
   supported: voiceSupported,
+  voices: speechVoices,
+  selectedVoiceUri,
   speak,
   cancel: cancelVoice,
   toggleMute,
-} = useSpeech({ storageKey: 'facial-kiosk-voice-muted', lang: 'es-PE' })
+  setVoice,
+} = useSpeech({
+  storageKey: 'facial-kiosk-voice-muted',
+  voiceStorageKey: 'facial-kiosk-voice-uri',
+  lang: 'es-PE',
+})
+
+function onVoiceSelect(uri) {
+  if (uri) setVoice(uri)
+}
 
 const videoRef = ref(null)
 const streamRef = ref(null)
@@ -38,6 +49,11 @@ const HOLD_MS = 1600
 const SUCCESS_COOLDOWN_MS = 7000
 const SOFT_COOLDOWN_MS = 2200
 const HARD_COOLDOWN_MS = 5000
+/** First wait after facial service / network failure. */
+const SERVICE_BACKOFF_BASE_MS = 20_000
+const SERVICE_BACKOFF_MAX_MS = 120_000
+/** Auto-pause scanning after this many consecutive service failures. */
+const SERVICE_AUTO_PAUSE_AFTER = 2
 /** Max longest edge for upload — smaller payload, faster InsightFace on CPU. */
 const CAPTURE_MAX_EDGE = 640
 const CAPTURE_JPEG_QUALITY = 0.72
@@ -47,10 +63,14 @@ const holdProgress = ref(0)
 const proposedAction = ref(null)
 /** True while the final dryRun=false request is in flight. */
 const committing = ref(false)
+/** User or circuit-breaker paused identify loop (camera may stay on). */
+const paused = ref(false)
 
 let scanTimer = null
 let cooldownUntil = 0
 let destroyed = false
+let serviceFailStreak = 0
+let serviceOutageToastShown = false
 /** @type {{ employeeId: number, employeeName: string, action: string, since: number } | null} */
 let holdCandidate = null
 /** @type {Float32Array | null} */
@@ -152,6 +172,7 @@ const welcomeTitle = computed(() => {
 
 const bannerTone = computed(() => {
   if (cameraError.value) return 'error'
+  if (paused.value) return 'warn'
   if (starting.value) return 'scanning'
   return statusTone.value || 'idle'
 })
@@ -168,6 +189,7 @@ const bannerIcon = computed(() => {
 
 const stageHint = computed(() => {
   if (cameraError.value) return cameraError.value
+  if (paused.value) return statusText.value || 'Reconocimiento en pausa'
   if (starting.value) return 'Abriendo cámara…'
   if (holdProgress.value > 0 && holdProgress.value < 1) return statusText.value
   if (statusTone.value === 'warn' || statusTone.value === 'error' || statusTone.value === 'success') {
@@ -177,6 +199,7 @@ const stageHint = computed(() => {
 })
 
 const sideTitle = computed(() => {
+  if (paused.value) return 'En pausa'
   if (statusTone.value === 'success' && lastResult.value) return welcomeTitle.value
   if (committing.value && displayPerson.value) {
     return `Registrando ${actionLabel(proposedAction.value || displayPerson.value.action).toLowerCase()}…`
@@ -192,6 +215,9 @@ const sideTitle = computed(() => {
 })
 
 const sideSubtitle = computed(() => {
+  if (paused.value) {
+    return statusText.value || 'Pulsa Reanudar cuando el servicio esté disponible'
+  }
   if (statusTone.value === 'success' && lastResult.value) return 'Tu asistencia ha sido registrada'
   if (committing.value) return 'Un momento, guardando tu marcación'
   if (previewPerson.value) {
@@ -207,14 +233,15 @@ const sideSubtitle = computed(() => {
 const sideIconToneClass = computed(() => {
   if (cameraError.value || statusTone.value === 'error') return 'fak__status-icon--error'
   if (statusTone.value === 'success' && lastResult.value) return 'fak__status-icon--success'
+  if (paused.value || statusTone.value === 'warn') return 'fak__status-icon--warn'
   if (committing.value || previewPerson.value || statusTone.value === 'scanning') return 'fak__status-icon--scanning'
-  if (statusTone.value === 'warn') return 'fak__status-icon--warn'
   return 'fak__status-icon--idle'
 })
 
 const sideIconClass = computed(() => {
   if (cameraError.value || statusTone.value === 'error') return 'pi pi-times'
   if (statusTone.value === 'success' && lastResult.value) return 'pi pi-check'
+  if (paused.value) return 'pi pi-pause'
   if (committing.value || previewPerson.value || statusTone.value === 'scanning') return 'pi pi-spin pi-spinner'
   if (statusTone.value === 'warn') return 'pi pi-exclamation-triangle'
   return 'pi pi-face-smile'
@@ -227,6 +254,63 @@ function faceCodeFromError(err) {
   const raw = code || message || ''
   const match = raw.match(/FACE_[A-Z_]+/)
   return match ? match[0] : ''
+}
+
+function isServiceOutageError(err, code = '') {
+  const status = err?.response?.status
+  if (code === 'FACE_SERVICE_UNAVAILABLE') return true
+  if (status === 502 || status === 503 || status === 504) return true
+  if (!err?.response && (err?.code === 'ERR_NETWORK' || err?.message === 'Network Error')) return true
+  return false
+}
+
+function clearServiceOutageState() {
+  serviceFailStreak = 0
+  serviceOutageToastShown = false
+}
+
+function pauseScanning(message) {
+  paused.value = true
+  resetHold()
+  stopScanLoop()
+  setStatus(message || 'Reconocimiento en pausa', 'warn')
+}
+
+function resumeScanning() {
+  if (destroyed) return
+  paused.value = false
+  clearServiceOutageState()
+  cooldownUntil = 0
+  setStatus('Mantén tu rostro centrado y mira al frente', 'idle')
+  startScanLoop()
+}
+
+function togglePause() {
+  if (paused.value) resumeScanning()
+  else pauseScanning('Reconocimiento en pausa')
+}
+
+function handleServiceOutage(err) {
+  resetHold()
+  serviceFailStreak += 1
+  const msg = humanizeApiError(err)
+  setStatus(msg, 'error')
+
+  const backoff = Math.min(
+    SERVICE_BACKOFF_MAX_MS,
+    SERVICE_BACKOFF_BASE_MS * (2 ** Math.max(0, serviceFailStreak - 1)),
+  )
+  cooldownUntil = Date.now() + backoff
+
+  if (!serviceOutageToastShown) {
+    showError(msg)
+    serviceOutageToastShown = true
+    speakGuidance('Servicio facial no disponible', 'service-down')
+  }
+
+  if (serviceFailStreak >= SERVICE_AUTO_PAUSE_AFTER) {
+    pauseScanning('Servicio facial no disponible. Reconocimiento pausado — pulsa Reanudar para intentar de nuevo.')
+  }
 }
 
 function setStatus(text, tone = 'idle') {
@@ -419,7 +503,7 @@ async function commitAttendance(file, expectedEmployeeId = null) {
 }
 
 async function scanOnce() {
-  if (destroyed || processing.value || cameraError.value || starting.value) return
+  if (destroyed || paused.value || processing.value || cameraError.value || starting.value) return
   if (Date.now() < cooldownUntil) return
   if (!streamRef.value) return
 
@@ -440,6 +524,8 @@ async function scanOnce() {
 
     const preview = await store.identifyAndRegisterFacialAttendance(file, { dryRun: true })
     if (destroyed) return
+
+    clearServiceOutageState()
 
     const motionAfter = measureMotion()
     if (motionAfter.moving) {
@@ -499,6 +585,10 @@ async function scanOnce() {
     if (destroyed) return
     committing.value = false
     const code = faceCodeFromError(err)
+    if (isServiceOutageError(err, code)) {
+      handleServiceOutage(err)
+      return
+    }
     if (code === 'FACE_NOT_DETECTED') {
       resetHold()
       setStatus('Mantén tu rostro centrado y mira al frente', 'idle')
@@ -553,7 +643,6 @@ async function scanOnce() {
     resetHold()
     setStatus(humanizeApiError(err), 'error')
     cooldownUntil = Date.now() + HARD_COOLDOWN_MS
-    if (code === 'FACE_SERVICE_UNAVAILABLE') showError(statusText.value)
   } finally {
     processing.value = false
   }
@@ -561,6 +650,7 @@ async function scanOnce() {
 
 function startScanLoop() {
   stopScanLoop()
+  if (paused.value || destroyed) return
   scanTimer = setInterval(() => { scanOnce() }, SCAN_INTERVAL_MS)
 }
 
@@ -598,18 +688,45 @@ onUnmounted(() => {
         size="small"
         @click="emit('back-requested')"
       />
-      <pv-button
-        v-if="voiceSupported"
-        type="button"
-        class="fak__voice"
-        :label="voiceMuted ? 'Voz apagada' : 'Voz encendida'"
-        :icon="voiceMuted ? 'pi pi-volume-off' : 'pi pi-volume-up'"
-        severity="secondary"
-        outlined
-        size="small"
-        :aria-pressed="!voiceMuted"
-        @click="toggleMute"
-      />
+      <div class="fak__voice-controls">
+        <pv-button
+          type="button"
+          class="fak__pause"
+          :label="paused ? 'Reanudar' : 'Pausar'"
+          :icon="paused ? 'pi pi-play' : 'pi pi-pause'"
+          :severity="paused ? 'primary' : 'secondary'"
+          :outlined="!paused"
+          size="small"
+          :aria-label="paused ? 'Reanudar reconocimiento' : 'Pausar reconocimiento'"
+          @click="togglePause"
+        />
+        <template v-if="voiceSupported">
+          <pv-select
+            v-if="speechVoices.length"
+            :model-value="selectedVoiceUri"
+            :options="speechVoices"
+            option-label="label"
+            option-value="uri"
+            placeholder="Elegir voz"
+            class="fak__voice-select"
+            size="small"
+            :disabled="voiceMuted"
+            aria-label="Voz del kiosko"
+            @update:model-value="onVoiceSelect"
+          />
+          <pv-button
+            type="button"
+            class="fak__voice"
+            :label="voiceMuted ? 'Voz apagada' : 'Voz encendida'"
+            :icon="voiceMuted ? 'pi pi-volume-off' : 'pi pi-volume-up'"
+            severity="secondary"
+            outlined
+            size="small"
+            :aria-pressed="!voiceMuted"
+            @click="toggleMute"
+          />
+        </template>
+      </div>
     </header>
 
     <div class="fak__grid">
@@ -640,6 +757,19 @@ onUnmounted(() => {
           <div v-else-if="cameraError" class="fak__overlay fak__overlay--error">
             <i class="pi pi-exclamation-triangle" aria-hidden="true" />
             <span>{{ cameraError }}</span>
+          </div>
+          <div v-else-if="paused" class="fak__overlay fak__overlay--paused">
+            <i class="pi pi-pause" aria-hidden="true" />
+            <span>{{ statusText }}</span>
+            <pv-button
+              type="button"
+              class="fak__resume-overlay-btn"
+              label="Reanudar"
+              icon="pi pi-play"
+              severity="primary"
+              size="small"
+              @click="resumeScanning"
+            />
           </div>
           <div class="fak__banner" :data-tone="bannerTone">
             <i :class="bannerIcon" aria-hidden="true" />
@@ -749,10 +879,32 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.fak__voice-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.fak__voice-select {
+  min-width: 10.5rem;
+  max-width: min(18rem, 52vw);
+}
+
+.fak__voice-select :deep(.p-select),
+.fak__voice-select :deep(.p-dropdown) {
+  width: 100%;
 }
 
 .fak__back :deep(.p-button-label),
-.fak__voice :deep(.p-button-label) {
+.fak__voice :deep(.p-button-label),
+.fak__pause :deep(.p-button-label) {
   white-space: nowrap;
 }
 
@@ -847,6 +999,11 @@ onUnmounted(() => {
 }
 
 .fak__overlay--error { color: #fecaca; }
+
+.fak__overlay--paused {
+  gap: 0.85rem;
+  background: color-mix(in srgb, var(--text-body) 78%, transparent);
+}
 
 .fak__banner {
   position: absolute;
@@ -1261,6 +1418,11 @@ onUnmounted(() => {
   .fak__back :deep(.p-button-label),
   .fak__voice :deep(.p-button-label) {
     font-size: 0.8rem;
+  }
+
+  .fak__voice-select {
+    min-width: 8.5rem;
+    max-width: min(14rem, 46vw);
   }
 
   .fak__stage {

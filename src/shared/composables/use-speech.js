@@ -3,10 +3,17 @@ import { onUnmounted, ref } from 'vue'
 /**
  * Web Speech API helper (TTS). Cross-cutting UI capability — lives in shared.
  *
- * @param {{ storageKey?: string, lang?: string, rate?: number, pitch?: number }} [options]
+ * @param {{
+ *   storageKey?: string,
+ *   voiceStorageKey?: string,
+ *   lang?: string,
+ *   rate?: number,
+ *   pitch?: number,
+ * }} [options]
  */
 export function useSpeech(options = {}) {
   const storageKey = options.storageKey || 'app-speech-muted'
+  const voiceStorageKey = options.voiceStorageKey || `${storageKey.replace(/-muted$/, '')}-uri`
   const preferredLang = options.lang || 'es-PE'
   const rate = options.rate ?? 1.05
   const pitch = options.pitch ?? 1
@@ -14,33 +21,88 @@ export function useSpeech(options = {}) {
   const muted = ref(
     typeof localStorage !== 'undefined' && localStorage.getItem(storageKey) === '1',
   )
+  const selectedVoiceUri = ref(
+    typeof localStorage !== 'undefined' ? (localStorage.getItem(voiceStorageKey) || '') : '',
+  )
+  /** @type {import('vue').Ref<Array<{ uri: string, name: string, lang: string, label: string }>>} */
+  const voices = ref([])
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
 
   /** @type {SpeechSynthesisVoice | null} */
-  let preferredVoice = null
+  let activeVoice = null
   let lastKey = ''
   let lastAt = 0
 
-  function pickVoice() {
-    if (!supported) return null
-    const voices = window.speechSynthesis.getVoices()
+  function readStoredVoiceUri() {
+    try {
+      return localStorage.getItem(voiceStorageKey) || ''
+    } catch {
+      return ''
+    }
+  }
+
+  function persistVoiceUri(uri) {
+    try {
+      if (uri) localStorage.setItem(voiceStorageKey, uri)
+      else localStorage.removeItem(voiceStorageKey)
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }
+
+  function autoPickVoice(list) {
     const langLower = preferredLang.toLowerCase()
     const prefix = langLower.slice(0, 2)
-    preferredVoice =
-      voices.find((v) => v.lang?.toLowerCase() === langLower)
-      || voices.find((v) => v.lang?.toLowerCase().startsWith(langLower))
-      || voices.find((v) => v.lang?.toLowerCase().startsWith(`${prefix}-`))
-      || voices.find((v) => v.lang?.toLowerCase().startsWith(prefix))
+    return (
+      list.find((v) => v.lang?.toLowerCase() === langLower)
+      || list.find((v) => v.lang?.toLowerCase().startsWith(langLower))
+      || list.find((v) => v.lang?.toLowerCase().startsWith(`${prefix}-`))
+      || list.find((v) => v.lang?.toLowerCase().startsWith(prefix))
+      || list[0]
       || null
-    return preferredVoice
+    )
+  }
+
+  function resolveActiveVoice(all) {
+    if (selectedVoiceUri.value) {
+      const chosen = all.find((v) => v.voiceURI === selectedVoiceUri.value)
+      if (chosen) {
+        activeVoice = chosen
+        return
+      }
+    }
+    activeVoice = autoPickVoice(all)
+    if (activeVoice && !selectedVoiceUri.value) {
+      selectedVoiceUri.value = activeVoice.voiceURI
+    }
+  }
+
+  function refreshVoices() {
+    if (!supported) {
+      voices.value = []
+      activeVoice = null
+      return
+    }
+    const all = window.speechSynthesis.getVoices()
+    const prefix = preferredLang.slice(0, 2).toLowerCase()
+    const matching = all.filter((v) => v.lang?.toLowerCase().startsWith(prefix))
+    const pool = matching.length ? matching : all
+    voices.value = pool.map((v) => ({
+      uri: v.voiceURI,
+      name: v.name,
+      lang: v.lang,
+      label: `${v.name} (${v.lang})`,
+    }))
+    resolveActiveVoice(all)
   }
 
   function onVoicesChanged() {
-    pickVoice()
+    refreshVoices()
   }
 
   if (supported) {
-    pickVoice()
+    selectedVoiceUri.value = readStoredVoiceUri()
+    refreshVoices()
     window.speechSynthesis.addEventListener('voiceschanged', onVoicesChanged)
   }
 
@@ -53,13 +115,27 @@ export function useSpeech(options = {}) {
     try {
       localStorage.setItem(storageKey, muted.value ? '1' : '0')
     } catch {
-      /* ignore quota / private mode */
+      /* ignore */
     }
     if (muted.value) cancel()
   }
 
   function toggleMute() {
     setMuted(!muted.value)
+  }
+
+  /**
+   * @param {string} uri voiceURI from SpeechSynthesisVoice
+   * @param {{ preview?: boolean }} [opts]
+   */
+  function setVoice(uri, opts = {}) {
+    if (!uri) return
+    selectedVoiceUri.value = uri
+    persistVoiceUri(uri)
+    if (supported) resolveActiveVoice(window.speechSynthesis.getVoices())
+    if (opts.preview !== false) {
+      speak('Así suena esta voz.', { key: `voice-preview-${uri}`, interrupt: true })
+    }
   }
 
   /**
@@ -77,13 +153,13 @@ export function useSpeech(options = {}) {
     lastAt = now
 
     if (interrupt) cancel()
+    if (!activeVoice) refreshVoices()
 
     const utterance = new SpeechSynthesisUtterance(text.trim())
-    utterance.lang = preferredVoice?.lang || preferredLang
+    utterance.lang = activeVoice?.lang || preferredLang
     utterance.rate = rate
     utterance.pitch = pitch
-    const voice = preferredVoice || pickVoice()
-    if (voice) utterance.voice = voice
+    if (activeVoice) utterance.voice = activeVoice
     window.speechSynthesis.speak(utterance)
   }
 
@@ -94,5 +170,15 @@ export function useSpeech(options = {}) {
     }
   })
 
-  return { muted, supported, speak, cancel, toggleMute, setMuted }
+  return {
+    muted,
+    supported,
+    voices,
+    selectedVoiceUri,
+    speak,
+    cancel,
+    toggleMute,
+    setMuted,
+    setVoice,
+  }
 }
