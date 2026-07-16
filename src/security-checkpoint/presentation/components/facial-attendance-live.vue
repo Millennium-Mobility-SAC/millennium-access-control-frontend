@@ -688,16 +688,6 @@ onUnmounted(() => {
         @click="emit('back-requested')"
       />
       <div class="fak__voice-controls">
-        <pv-button
-          type="button"
-          class="fak__pause"
-          :label="paused ? 'Reanudar' : 'Pausar'"
-          :icon="paused ? 'pi pi-play' : 'pi pi-pause'"
-          :severity="paused ? 'success' : 'secondary'"
-          :outlined="!paused"
-          :aria-label="paused ? 'Reanudar reconocimiento' : 'Pausar reconocimiento'"
-          @click="togglePause"
-        />
         <template v-if="voiceSupported">
           <pv-select
             v-if="speechVoices.length"
@@ -714,10 +704,13 @@ onUnmounted(() => {
           <pv-button
             type="button"
             class="fak__voice"
-            :label="voiceMuted ? 'Voz apagada' : 'Voz encendida'"
+            :class="{ 'fak__voice--muted': voiceMuted }"
             :icon="voiceMuted ? 'pi pi-volume-off' : 'pi pi-volume-up'"
             severity="secondary"
             outlined
+            rounded
+            :aria-label="voiceMuted ? 'Voz apagada — pulsa para encender' : 'Voz encendida — pulsa para apagar'"
+            :title="voiceMuted ? 'Voz apagada' : 'Voz encendida'"
             :aria-pressed="!voiceMuted"
             @click="toggleMute"
           />
@@ -757,14 +750,19 @@ onUnmounted(() => {
           <div v-else-if="paused" class="fak__overlay fak__overlay--paused">
             <i class="pi pi-pause" aria-hidden="true" />
             <span>{{ statusText }}</span>
-            <pv-button
+            <span class="fak__overlay-hint">Toca ▶ para reanudar</span>
+          </div>
+          <div class="fak__stage-actions">
+            <button
               type="button"
-              class="fak__resume-overlay-btn"
-              label="Reanudar"
-              icon="pi pi-play"
-              severity="success"
-              @click="resumeScanning"
-            />
+              class="fak__icon-fab"
+              :class="{ 'fak__icon-fab--accent': paused }"
+              :aria-label="paused ? 'Reanudar reconocimiento' : 'Pausar reconocimiento'"
+              :title="paused ? 'Reanudar' : 'Pausar'"
+              @click="togglePause"
+            >
+              <i :class="paused ? 'pi pi-play' : 'pi pi-pause'" aria-hidden="true" />
+            </button>
           </div>
           <div class="fak__banner" :data-tone="bannerTone">
             <i :class="bannerIcon" aria-hidden="true" />
@@ -908,17 +906,59 @@ onUnmounted(() => {
   min-height: 2.75rem;
 }
 
-.fak__resume-overlay-btn :deep(.p-button),
-.fak__overlay--paused :deep(.p-button) {
-  min-height: 3rem;
-  padding-inline: 1.35rem;
-  font-weight: 700;
+.fak__back :deep(.p-button-label) {
+  white-space: nowrap;
 }
 
-.fak__back :deep(.p-button-label),
-.fak__voice :deep(.p-button-label),
-.fak__pause :deep(.p-button-label) {
-  white-space: nowrap;
+.fak__voice :deep(.p-button) {
+  width: 2.75rem;
+  min-width: 2.75rem;
+  padding-inline: 0;
+}
+
+.fak__voice--muted :deep(.p-button) {
+  color: var(--text-body-secondary, #64748b);
+  opacity: 0.85;
+}
+
+.fak__stage-actions {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.fak__icon-fab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.85rem;
+  height: 2.85rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text-body, #1e293b);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+  font-size: 1.05rem;
+}
+
+.fak__icon-fab--accent {
+  background: var(--color-success);
+  color: var(--color-white);
+}
+
+.fak__icon-fab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.fak__overlay-hint {
+  font-size: 0.8rem;
+  opacity: 0.9;
 }
 
 .fak__grid {
