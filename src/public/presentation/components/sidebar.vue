@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useIamStore } from '../../../iam/application/iam.store.js'
 import { useConfirmDialog } from '../../../shared/composables/use-confirm-dialog.js'
+import { ROLE_LABELS } from '../../../shared/presentation/constants/roles.constants.js'
 
 const props = defineProps({
   menuItems: {
@@ -28,7 +29,10 @@ const iamStore = useIamStore()
 const { showConfirm } = useConfirmDialog()
 
 const username = computed(() => iamStore.currentUsername || 'Usuario')
-const userRole = computed(() => iamStore.userRole || 'Usuario')
+const userRole = computed(() => {
+  const raw = iamStore.userRole
+  return (raw && ROLE_LABELS[raw]) ? ROLE_LABELS[raw] : (raw || 'Usuario')
+})
 
 const isActive = (path) => route.path.startsWith(path)
 
@@ -65,7 +69,10 @@ const handleSignOut = async () => {
   >
 
     <!-- Brand / Logo -->
-    <div class="flex align-items-center justify-content-center border-bottom-1 brand-border brand-header">
+    <div
+      class="flex align-items-center border-bottom-1 brand-border brand-header"
+      :class="drawer ? 'justify-content-between px-3' : 'justify-content-center'"
+    >
       <img
         v-show="drawer || !collapsed"
         src="@/assets/img/sidebar-millennium-mobility.png"
@@ -79,6 +86,16 @@ const handleSignOut = async () => {
           class="brand-logo-icon-img"
         />
       </div>
+      <button
+        v-if="drawer"
+        type="button"
+        class="drawer-close flex align-items-center justify-content-center border-round cursor-pointer flex-shrink-0"
+        aria-label="Cerrar menú"
+        title="Cerrar menú"
+        @click="emit('toggle')"
+      >
+        <i class="pi pi-times" aria-hidden="true" />
+      </button>
     </div>
 
     <!-- Navigation -->
@@ -90,8 +107,10 @@ const handleSignOut = async () => {
       >
         <RouterLink
           :to="item.to"
-          :class="['menu-link flex align-items-center gap-3 mx-2 my-1 border-round',
-                   { 'justify-content-center': !drawer && collapsed }]"
+          :class="[
+            'menu-link flex align-items-center gap-3 mx-2 my-1 border-round',
+            { 'justify-content-center': !drawer && collapsed, 'menu-link--drawer': drawer },
+          ]"
           :title="item.label"
           @click="handleNavClick"
         >
@@ -101,23 +120,31 @@ const handleSignOut = async () => {
       </li>
     </ul>
 
-    <div v-if="drawer" class="border-top-1 brand-border">
-      <div class="flex align-items-center gap-2 px-3 py-3">
-        <div class="user-avatar flex-shrink-0">
+    <!-- Drawer footer: usuario + cerrar sesión (móvil / tablet) -->
+    <div v-if="drawer" class="sidebar-drawer-footer border-top-1 brand-border">
+      <div class="sidebar-user">
+        <div class="user-avatar flex-shrink-0" aria-hidden="true">
           <i class="pi pi-user"></i>
         </div>
-        <div class="flex flex-column gap-1 flex-1 overflow-hidden">
-          <span class="user-name white-space-nowrap overflow-hidden">{{ username }}</span>
-          <span class="user-role white-space-nowrap overflow-hidden">{{ userRole }}</span>
+        <div class="sidebar-user__meta min-w-0 flex-1">
+          <span class="user-name">{{ username }}</span>
+          <span class="user-role">{{ userRole }}</span>
         </div>
-        <button class="logout-btn flex align-items-center justify-content-center border-round cursor-pointer flex-shrink-0" title="Cerrar sesión" @click="handleSignOut">
-          <i class="pi pi-sign-out"></i>
-        </button>
       </div>
+      <button
+        type="button"
+        class="logout-btn logout-btn--drawer flex align-items-center justify-content-center gap-2 border-round cursor-pointer"
+        @click="handleSignOut"
+      >
+        <i class="pi pi-sign-out" aria-hidden="true"></i>
+        <span>Cerrar sesión</span>
+      </button>
     </div>
 
+    <!-- Desktop: collapse strip -->
     <div v-if="!drawer" class="flex justify-content-center py-3 border-top-1 brand-border">
       <button
+        type="button"
         class="toggle-btn flex align-items-center justify-content-center gap-2 border-round cursor-pointer"
         :title="collapsed ? 'Expandir menú' : 'Ocultar menú'"
         @click="emit('toggle')"
@@ -141,13 +168,12 @@ const handleSignOut = async () => {
   transition: width 0.25s ease, min-width 0.25s ease;
 }
 
-/* Desktop collapsed: icon-only strip */
 .sidebar--collapsed {
   width: 60px;
   min-width: 60px;
 }
 
-/* Drawer mode from layout `drawer` prop — avoids JS/CSS breakpoint mismatch */
+/* Drawer: wider on tablets, touch-friendly, safe-area aware */
 .sidebar--drawer {
   position: fixed;
   top: 0;
@@ -155,21 +181,24 @@ const handleSignOut = async () => {
   height: 100%;
   height: 100dvh;
   z-index: 1000;
-  width: 220px !important;
-  min-width: 220px !important;
+  width: min(20rem, 86vw) !important;
+  min-width: min(20rem, 86vw) !important;
+  max-width: 22rem;
   transform: translateX(0);
   transition: transform 0.25s ease;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
 }
 
 .sidebar--drawer-closed {
-  transform: translateX(-100%);
+  transform: translateX(-105%);
+  box-shadow: none;
 }
 
 /* ── Brand ────────────────────────────────────────────────────── */
 .brand-border  { border-color: var(--border-color) !important; }
-.brand-header  { min-height: 72px; padding: 0.75rem 0.75rem; }
+.brand-header  { min-height: 72px; padding: 0.75rem; }
 
-/* Expanded: full logo with icon + wordmark */
 .brand-logo-full {
   width: 90px;
   height: auto;
@@ -177,10 +206,9 @@ const handleSignOut = async () => {
   object-fit: contain;
 }
 
-/* Collapsed: show only the M icon — clips the wordmark from below */
 .brand-logo-icon-wrap {
   width: 36px;
-  height: 22px;   /* ≈ 61% of 36px — covers just the icon portion */
+  height: 22px;
   overflow: hidden;
   display: flex;
   align-items: flex-start;
@@ -193,6 +221,21 @@ const handleSignOut = async () => {
   flex-shrink: 0;
 }
 
+.drawer-close {
+  width: 2.5rem;
+  height: 2.5rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.drawer-close:hover,
+.drawer-close:focus-visible {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 /* ── Links ────────────────────────────────────────────────────── */
 .menu-link {
   padding: 0.625rem 1rem;
@@ -203,12 +246,17 @@ const handleSignOut = async () => {
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
+.menu-link--drawer {
+  min-height: 2.75rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+}
+
 .menu-link:hover {
   background-color: var(--bg-hover);
   color: var(--text-primary);
 }
 
-/* ── Active state ─────────────────────────────────────────────── */
 .menu-item.active .menu-link {
   background-color: rgba(26, 107, 194, 0.15);
   color: var(--color-primary);
@@ -217,24 +265,45 @@ const handleSignOut = async () => {
   font-weight: var(--font-weight-semibold);
 }
 
-/* Remove border-left indicator when icon-only (would look off-center) */
 .sidebar--collapsed .menu-item.active .menu-link {
   border-left: none;
   padding-left: 1rem;
 }
 
-/* ── Icons ────────────────────────────────────────────────────── */
 .menu-icon  { font-size: 1rem; min-width: 1rem; }
+.menu-link--drawer .menu-icon { font-size: 1.1rem; min-width: 1.15rem; }
 .menu-label { text-overflow: ellipsis; }
 
-/* ── User section ─────────────────────────────────────────────── */
+/* ── Drawer user footer ───────────────────────────────────────── */
+.sidebar-drawer-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem 0.85rem calc(0.85rem + env(safe-area-inset-bottom, 0));
+  flex-shrink: 0;
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.sidebar-user__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
 .user-avatar {
-  width: 32px;
-  height: 32px;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: var(--color-primary);
   color: var(--color-white);
-  font-size: 0.9rem;
+  font-size: 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -245,7 +314,9 @@ const handleSignOut = async () => {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-role {
@@ -253,10 +324,31 @@ const handleSignOut = async () => {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* ── Toggle button ────────────────────────────────────────────── */
+.logout-btn--drawer {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 0.85rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.logout-btn--drawer:hover,
+.logout-btn--drawer:focus-visible {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--color-primary);
+}
+
+/* ── Desktop toggle ───────────────────────────────────────────── */
 .toggle-btn {
   height: 32px;
   padding: 0 0.75rem;
@@ -272,17 +364,7 @@ const handleSignOut = async () => {
   padding: 0;
 }
 
-.logout-btn {
-  width: 160px;
-  height: 32px;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.toggle-btn:hover,
-.logout-btn:hover {
+.toggle-btn:hover {
   background-color: var(--bg-hover);
   color: var(--text-primary);
 }
