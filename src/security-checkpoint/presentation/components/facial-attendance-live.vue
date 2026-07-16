@@ -43,6 +43,25 @@ const lastResult = ref(null)
 const previewPerson = ref(null)
 /** idle | scanning | success | warn | error */
 const statusTone = ref('idle')
+/** 'user' = frontal, 'environment' = trasera */
+const facingMode = ref(readStoredFacingMode())
+const canFlipCamera = ref(false)
+
+const FACING_STORAGE_KEY = 'facial-kiosk-facing-mode'
+
+function readStoredFacingMode() {
+  try {
+    return localStorage.getItem(FACING_STORAGE_KEY) === 'environment' ? 'environment' : 'user'
+  } catch {
+    return 'user'
+  }
+}
+
+function persistFacingMode(mode) {
+  try {
+    localStorage.setItem(FACING_STORAGE_KEY, mode)
+  } catch { /* ignore */ }
+}
 
 const SCAN_INTERVAL_MS = 900
 const HOLD_MS = 1600
@@ -386,6 +405,21 @@ function measureMotion() {
   return { moving: mae > MOTION_MAX_MAE, mae }
 }
 
+async function refreshCameraFlipAvailability() {
+  if (!navigator?.mediaDevices?.enumerateDevices) {
+    canFlipCamera.value = true
+    return
+  }
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    const cams = devices.filter((d) => d.kind === 'videoinput')
+    // Tras permiso, labels suelen estar disponibles; >1 cámara ⇒ permitir voltear.
+    canFlipCamera.value = cams.length > 1 || cams.length === 0
+  } catch {
+    canFlipCamera.value = true
+  }
+}
+
 async function startCamera() {
   cameraError.value = ''
   stopCamera()
@@ -397,7 +431,11 @@ async function startCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: {
+        facingMode: { ideal: facingMode.value },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
     })
     if (destroyed) {
       stream.getTracks().forEach((t) => t.stop())
@@ -408,9 +446,19 @@ async function startCamera() {
       videoRef.value.srcObject = stream
       await videoRef.value.play().catch(() => {})
     }
+    prevMotionGray = null
+    await refreshCameraFlipAvailability()
     setStatus('Mantén tu rostro centrado y mira al frente', 'scanning')
   } catch (err) {
     const name = err?.name || ''
+    // Si falla la trasera, volver a frontal automáticamente.
+    if (facingMode.value === 'environment' && name !== 'NotAllowedError' && name !== 'PermissionDeniedError') {
+      facingMode.value = 'user'
+      persistFacingMode('user')
+      starting.value = false
+      await startCamera()
+      return
+    }
     if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
       cameraError.value = 'Permiso de cámara denegado.'
     } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
@@ -421,6 +469,14 @@ async function startCamera() {
   } finally {
     starting.value = false
   }
+}
+
+async function flipCamera() {
+  if (starting.value) return
+  facingMode.value = facingMode.value === 'user' ? 'environment' : 'user'
+  persistFacingMode(facingMode.value)
+  resetHold()
+  await startCamera()
 }
 
 function stopCamera() {
@@ -678,27 +734,20 @@ onUnmounted(() => {
 <template>
   <section class="fak" aria-live="polite">
     <header class="fak__top">
-      <pv-button
-        type="button"
-        class="fak__back"
-        label="Volver al listado"
-        icon="pi pi-arrow-left"
-        severity="secondary"
-        outlined
-        @click="emit('back-requested')"
-      />
-      <div class="fak__voice-controls">
-        <pv-button
-          type="button"
-          class="fak__pause"
-          :label="paused ? 'Reanudar' : 'Pausar'"
-          :icon="paused ? 'pi pi-play' : 'pi pi-pause'"
-          :severity="paused ? 'success' : 'secondary'"
-          :outlined="!paused"
-          :aria-label="paused ? 'Reanudar reconocimiento' : 'Pausar reconocimiento'"
-          @click="togglePause"
-        />
-        <template v-if="voiceSupported">
+      <nav class="fak__toolbar" aria-label="Controles del kiosko">
+        <div class="fak__toolbar-nav">
+          <pv-button
+            type="button"
+            class="fak__back"
+            label="Volver al listado"
+            icon="pi pi-arrow-left"
+            severity="secondary"
+            outlined
+            @click="emit('back-requested')"
+          />
+        </div>
+
+        <div v-if="voiceSupported" class="fak__toolbar-voice">
           <pv-select
             v-if="speechVoices.length"
             :model-value="selectedVoiceUri"
@@ -711,18 +760,19 @@ onUnmounted(() => {
             aria-label="Voz del kiosko"
             @update:model-value="onVoiceSelect"
           />
-          <pv-button
+          <button
             type="button"
-            class="fak__voice"
-            :label="voiceMuted ? 'Voz apagada' : 'Voz encendida'"
-            :icon="voiceMuted ? 'pi pi-volume-off' : 'pi pi-volume-up'"
-            severity="secondary"
-            outlined
+            class="fak__icon-btn"
+            :class="{ 'fak__icon-btn--off': voiceMuted }"
+            :aria-label="voiceMuted ? 'Encender voz' : 'Apagar voz'"
             :aria-pressed="!voiceMuted"
+            :title="voiceMuted ? 'Voz apagada' : 'Voz encendida'"
             @click="toggleMute"
-          />
-        </template>
-      </div>
+          >
+            <i :class="voiceMuted ? 'pi pi-volume-off' : 'pi pi-volume-up'" aria-hidden="true" />
+          </button>
+        </div>
+      </nav>
     </header>
 
     <div class="fak__grid">
@@ -736,10 +786,34 @@ onUnmounted(() => {
           <video
             ref="videoRef"
             class="fak__video"
+            :class="{ 'fak__video--mirror': facingMode === 'user' }"
             playsinline
             muted
             autoplay
           />
+          <div class="fak__stage-actions">
+            <button
+              type="button"
+              class="fak__icon-fab"
+              :class="{ 'fak__icon-fab--accent': paused }"
+              :aria-label="paused ? 'Reanudar reconocimiento' : 'Pausar reconocimiento'"
+              :title="paused ? 'Reanudar' : 'Pausar'"
+              @click="togglePause"
+            >
+              <i :class="paused ? 'pi pi-play' : 'pi pi-pause'" aria-hidden="true" />
+            </button>
+            <button
+              v-if="canFlipCamera && !cameraError"
+              type="button"
+              class="fak__icon-fab"
+              :aria-label="facingMode === 'user' ? 'Usar cámara trasera' : 'Usar cámara frontal'"
+              :title="facingMode === 'user' ? 'Cámara trasera' : 'Cámara frontal'"
+              :disabled="starting"
+              @click="flipCamera"
+            >
+              <i class="pi pi-sync" aria-hidden="true" />
+            </button>
+          </div>
           <div class="fak__frame" aria-hidden="true">
             <span class="fak__corner fak__corner--tl" />
             <span class="fak__corner fak__corner--tr" />
@@ -757,14 +831,7 @@ onUnmounted(() => {
           <div v-else-if="paused" class="fak__overlay fak__overlay--paused">
             <i class="pi pi-pause" aria-hidden="true" />
             <span>{{ statusText }}</span>
-            <pv-button
-              type="button"
-              class="fak__resume-overlay-btn"
-              label="Reanudar"
-              icon="pi pi-play"
-              severity="success"
-              @click="resumeScanning"
-            />
+            <span class="fak__overlay-hint">Toca ▶ para reanudar</span>
           </div>
           <div class="fak__banner" :data-tone="bannerTone">
             <i :class="bannerIcon" aria-hidden="true" />
@@ -869,56 +936,178 @@ onUnmounted(() => {
 }
 
 .fak__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.65rem;
   flex-shrink: 0;
-  flex-wrap: wrap;
+  width: 100%;
 }
 
-.fak__voice-controls {
+/*
+ * Toolbar mínima: Volver + voz (selector + icono mute).
+ * Pausar / Reanudar / Voltear viven como FABs sobre la cámara.
+ */
+.fak__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.fak__toolbar-nav {
+  width: 100%;
+}
+
+.fak__back {
+  width: 100%;
+}
+
+.fak__back :deep(.p-button) {
+  width: 100%;
+  justify-content: center;
+  min-height: 2.75rem;
+}
+
+.fak__toolbar-voice {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  margin-left: auto;
+  gap: 0.5rem;
+  width: 100%;
   min-width: 0;
-  flex-wrap: wrap;
-  justify-content: flex-end;
 }
 
 .fak__voice-select {
-  min-width: 11rem;
-  max-width: min(20rem, 55vw);
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .fak__voice-select :deep(.p-select),
 .fak__voice-select :deep(.p-dropdown) {
   width: 100%;
-}
-
-/* Targets táctiles (~44px) — kiosko tablet-first, mismo patrón que DataManager */
-.fak__top :deep(.p-button) {
-  min-height: 2.75rem;
-  padding-inline: 1rem;
-}
-
-.fak__voice-select :deep(.p-select),
-.fak__voice-select :deep(.p-dropdown) {
   min-height: 2.75rem;
 }
 
-.fak__resume-overlay-btn :deep(.p-button),
-.fak__overlay--paused :deep(.p-button) {
-  min-height: 3rem;
-  padding-inline: 1.35rem;
-  font-weight: 700;
+.fak__icon-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--border-ui);
+  border-radius: 10px;
+  background: var(--surface-white);
+  color: var(--text-body);
+  cursor: pointer;
 }
 
-.fak__back :deep(.p-button-label),
-.fak__voice :deep(.p-button-label),
-.fak__pause :deep(.p-button-label) {
+.fak__icon-btn--off {
+  color: var(--text-body-secondary);
+  background: var(--surface-light, #f8fafc);
+}
+
+.fak__icon-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.fak__stage-actions {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.fak__icon-fab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.85rem;
+  height: 2.85rem;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-white) 94%, transparent);
+  color: var(--text-body);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--text-body) 18%, transparent);
+  cursor: pointer;
+  font-size: 1.05rem;
+}
+
+.fak__icon-fab--accent {
+  background: var(--color-success);
+  color: var(--color-white);
+}
+
+.fak__icon-fab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fak__icon-fab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.fak__overlay-hint {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.fak__back :deep(.p-button-label) {
   white-space: nowrap;
+}
+
+.fak__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fak__video--mirror {
+  transform: scaleX(-1);
+}
+
+@media (min-width: 640px) {
+  .fak__toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .fak__toolbar-nav {
+    width: auto;
+  }
+
+  .fak__back {
+    width: auto;
+  }
+
+  .fak__back :deep(.p-button) {
+    width: auto;
+  }
+
+  .fak__toolbar-voice {
+    width: auto;
+    max-width: min(24rem, 55%);
+    margin-left: auto;
+  }
+
+  .fak__voice-select {
+    min-width: 12rem;
+  }
+}
+
+@media (min-width: 992px) {
+  .fak__toolbar-voice {
+    max-width: 22rem;
+  }
+
+  .fak__icon-fab {
+    width: 3rem;
+    height: 3rem;
+  }
 }
 
 .fak__grid {
@@ -971,7 +1160,6 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1);
 }
 
 .fak__frame {
@@ -999,6 +1187,7 @@ onUnmounted(() => {
 .fak__overlay {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1009,6 +1198,7 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--text-body) 72%, transparent);
   color: var(--surface-white);
   font-size: 0.875rem;
+  pointer-events: none;
 }
 
 .fak__overlay--error { color: #fecaca; }
@@ -1325,17 +1515,6 @@ onUnmounted(() => {
     border-radius: 12px;
   }
 
-  .fak__top :deep(.p-button) {
-    min-height: 2.5rem;
-    padding-inline: 0.75rem;
-    font-size: 0.85rem;
-  }
-
-  .fak__voice-select {
-    min-width: 8.5rem;
-    max-width: min(12rem, 42vw);
-  }
-
   .fak__voice-select :deep(.p-select),
   .fak__voice-select :deep(.p-dropdown) {
     min-height: 2.5rem;
@@ -1450,8 +1629,8 @@ onUnmounted(() => {
   }
 
   .fak__voice-select {
-    min-width: 8.5rem;
-    max-width: min(14rem, 46vw);
+    width: 100%;
+    max-width: none;
   }
 
   .fak__stage {
@@ -1472,30 +1651,6 @@ onUnmounted(() => {
     gap: 0.85rem;
     min-height: calc(100dvh - 5.5rem);
     padding: 0.9rem 1rem 1rem;
-  }
-
-  .fak__top {
-    gap: 0.75rem;
-  }
-
-  .fak__voice-controls {
-    gap: 0.65rem;
-  }
-
-  .fak__voice-select {
-    min-width: 14rem;
-    max-width: 18rem;
-  }
-
-  .fak__top :deep(.p-button) {
-    min-height: 3rem;
-    padding-inline: 1.15rem;
-    font-size: 0.95rem;
-  }
-
-  .fak__voice-select :deep(.p-select),
-  .fak__voice-select :deep(.p-dropdown) {
-    min-height: 3rem;
   }
 
   .fak__grid {
