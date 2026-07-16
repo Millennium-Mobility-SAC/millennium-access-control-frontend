@@ -425,22 +425,21 @@ onMounted(async () => {
       @page-changed="handlePageChange"
     >
       <template #extra-actions>
-        <div class="scp-mode-toggle flex align-items-center gap-2">
-          <pv-button
-            type="button"
-            label="Facial"
-            icon="pi pi-face-smile"
-            size="small"
-            severity="secondary"
-            outlined
-            @click="switchToFacialMode"
-          />
-        </div>
         <pv-button
+          type="button"
+          class="scp-toolbar-btn"
+          label="Facial"
+          icon="pi pi-face-smile"
+          severity="secondary"
+          outlined
+          @click="switchToFacialMode"
+        />
+        <pv-button
+          type="button"
+          class="scp-toolbar-btn"
           :label="fullHistoryMode ? 'Solo hoy' : 'Historial completo'"
           :icon="fullHistoryMode ? 'pi pi-calendar' : 'pi pi-history'"
           :severity="fullHistoryMode ? 'secondary' : 'help'"
-          size="small"
           outlined
           :title="fullHistoryMode
             ? 'Volver a listar únicamente las marcaciones del día de hoy.'
@@ -448,29 +447,40 @@ onMounted(async () => {
           @click="toggleFullHistoryMode"
         />
         <pv-button
+          type="button"
+          class="scp-toolbar-btn"
           label="Exportar"
           icon="pi pi-download"
           severity="secondary"
-          size="small"
           outlined
           @click="exportAttendanceExcel"
         />
       </template>
       <template #filters>
-        <div class="scp-filters-row">
-          <pv-icon-field class="scp-filter-search">
-            <pv-input-icon class="pi pi-search" />
-            <pv-input-text
-              id="scp-search"
-              v-model="filterSearch"
-              placeholder="Buscar por documento, nombre o cargo"
-              class="w-full"
-              autocomplete="off"
-              @keyup.enter="flushAttendanceFetch"
+        <div class="scp-filters">
+          <div class="scp-filters__search-row">
+            <pv-icon-field class="scp-filter-search">
+              <pv-input-icon class="pi pi-search" />
+              <pv-input-text
+                id="scp-search"
+                v-model="filterSearch"
+                placeholder="Buscar por documento, nombre o cargo"
+                class="w-full"
+                autocomplete="off"
+                @keyup.enter="flushAttendanceFetch"
+              />
+            </pv-icon-field>
+            <pv-button
+              type="button"
+              class="scp-filters__clear"
+              label="Limpiar"
+              icon="pi pi-filter-slash"
+              text
+              @click="clearAllSearchFilters"
             />
-          </pv-icon-field>
+          </div>
 
-          <template v-if="fullHistoryMode">
+          <div v-if="fullHistoryMode" class="scp-filters__dates">
             <pv-calendar
               v-model="filterDateFrom"
               date-format="dd/mm/yy"
@@ -478,9 +488,8 @@ onMounted(async () => {
               show-icon
               icon-display="input"
               input-id="chk-from"
-              class="scp-filter-calendar w-full md:w-14rem"
+              class="scp-filter-calendar"
             />
-
             <pv-calendar
               v-model="filterDateTo"
               date-format="dd/mm/yy"
@@ -488,9 +497,9 @@ onMounted(async () => {
               show-icon
               icon-display="input"
               input-id="chk-to"
-              class="scp-filter-calendar w-full md:w-14rem"
+              class="scp-filter-calendar"
             />
-          </template>
+          </div>
           <div
             v-else
             class="scp-today-banner"
@@ -498,18 +507,10 @@ onMounted(async () => {
           >
             <i class="pi pi-info-circle scp-today-banner__icon" aria-hidden="true" />
             <p class="scp-today-banner__text">
-              Mostrando solo las marcaciones del <strong>hoy</strong>.
-              Pulse <strong>Historial completo</strong> (arriba) para consultar fechas anteriores.
+              Solo marcaciones de <strong>hoy</strong>.
+              Usa <strong>Historial completo</strong> para otras fechas.
             </p>
           </div>
-          <pv-button
-            type="button"
-            label="Limpiar filtros"
-            text
-            size="small"
-            class="flex-shrink-0"
-            @click="clearAllSearchFilters"
-          />
         </div>
       </template>
       <template #empleado-template="{ data }">
@@ -753,56 +754,40 @@ onMounted(async () => {
 }
 
 /**
- * Fila de filtros: misma altura en cruz (búsqueda, calendarios o banner informativo).
- * Altura alineada con input estándar PrimeVue (~2.75rem).
+ * Filtros Marcación personal: búsqueda + meta (banner o fechas) en filas claras.
+ * Toolbar: CTA arriba, herramientas en rejilla en tablet; fila única en desktop ancho.
  */
-.scp-filters-row {
+.scp-filters {
   --scp-filter-control-height: 2.75rem;
   display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.65rem;
   width: 100%;
-  flex: 1 1 auto;
   min-width: 0;
 }
 
-/* Móvil / tablet estrecha: apilar filtros a ancho completo */
-@media (max-width: 767px) {
-  .scp-filters-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
+.scp-filters__search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
 
-  .scp-filter-search {
-    flex: 1 1 auto !important;
-    width: 100% !important;
-    min-width: 0 !important;
-  }
+.scp-filters__clear {
+  flex-shrink: 0;
+}
 
-  .scp-filter-calendar {
-    flex: 1 1 auto !important;
-    width: 100% !important;
-    max-width: none !important;
-  }
-
-  .scp-today-banner {
-    flex: 1 1 auto !important;
-    width: 100% !important;
-    min-height: unset;
-    align-items: flex-start;
-    padding: 0.5rem 0.65rem;
-  }
-
-  .scp-today-banner__text {
-    font-size: 0.8125rem;
-    line-height: 1.4;
-  }
+.scp-filters__dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  width: 100%;
 }
 
 .scp-filter-search {
-  flex: 1 1 16rem;
-  min-width: min(100%, 16rem);
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: stretch;
 }
@@ -820,7 +805,7 @@ onMounted(async () => {
 }
 
 .scp-filter-calendar {
-  flex: 0 1 14rem;
+  width: 100%;
   min-width: 0;
   display: flex;
   align-items: stretch;
@@ -842,10 +827,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex: 1 1 12rem;
-  min-width: 0;
+  width: 100%;
   min-height: var(--scp-filter-control-height);
-  padding: 0 0.75rem;
+  padding: 0.55rem 0.75rem;
   border-radius: 6px;
   border: 1px solid #93c5fd;
   background: #dbeafe;
@@ -869,5 +853,105 @@ onMounted(async () => {
 .scp-today-banner__text strong {
   font-weight: 600;
   color: #0f172a;
+}
+
+/* Toolbar de acciones: apilada y táctil en tablet; en línea en desktop ancho */
+.scp-view :deep(.dm-secondary-toolbar__inner) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+  justify-content: flex-start;
+}
+
+.scp-view :deep(.dm-secondary-toolbar__primary),
+.scp-view :deep(.dm-secondary-toolbar__secondary) {
+  margin-left: 0;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.scp-view :deep(.dm-secondary-toolbar__primary .p-button),
+.scp-view :deep(.dm-secondary-toolbar__secondary .p-button),
+.scp-view :deep(.scp-toolbar-btn) {
+  min-height: 2.75rem;
+}
+
+.scp-view :deep(.dm-secondary-toolbar__primary .p-button:first-child) {
+  flex: 1 1 12rem;
+}
+
+@media (max-width: 575px) {
+  .scp-filters__search-row {
+    flex-wrap: wrap;
+  }
+
+  .scp-filters__clear {
+    margin-left: auto;
+  }
+
+  .scp-filters__dates {
+    grid-template-columns: 1fr;
+  }
+
+  .scp-view :deep(.dm-secondary-toolbar__primary),
+  .scp-view :deep(.dm-secondary-toolbar__secondary) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .scp-view :deep(.dm-secondary-toolbar__primary .p-button),
+  .scp-view :deep(.dm-secondary-toolbar__secondary .p-button) {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .scp-view :deep(.dm-secondary-toolbar__primary .p-button:first-child) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Tablet: herramientas en 3 columnas iguales bajo el CTA */
+@media (min-width: 576px) and (max-width: 1199px) {
+  .scp-view :deep(.dm-secondary-toolbar__secondary) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .scp-view :deep(.dm-secondary-toolbar__secondary .p-button) {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (min-width: 1200px) {
+  .scp-view :deep(.dm-secondary-toolbar__inner) {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .scp-view :deep(.dm-secondary-toolbar__primary) {
+    width: auto;
+    flex: 0 1 auto;
+  }
+
+  .scp-view :deep(.dm-secondary-toolbar__secondary) {
+    width: auto;
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .scp-view :deep(.dm-secondary-toolbar__secondary .p-button) {
+    width: auto;
+  }
+
+  .scp-filters__search-row {
+    max-width: 40rem;
+  }
 }
 </style>
