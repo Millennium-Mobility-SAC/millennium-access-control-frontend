@@ -25,10 +25,12 @@
 // ===========================
 // IMPORTS
 // ===========================
-import { ref, computed, onMounted, useSlots } from 'vue'
+import { ref, computed, onMounted, useSlots, defineAsyncComponent } from 'vue'
 import { FilterMatchMode } from '@primevue/core'
 import { useConfirm } from 'primevue/useconfirm'
-import ImportSpreadsheet from './import-spreadsheet.vue'
+
+/** Lazy: ExcelJS (~900KB) must not load with every DataManager list view (tablets OOM). */
+const ImportSpreadsheet = defineAsyncComponent(() => import('./import-spreadsheet.vue'))
 
 // ===========================
 // PROPS
@@ -457,7 +459,7 @@ onMounted(() => initFilters())
     </div>
 
     <ImportSpreadsheet
-      v-if="showImport"
+      v-if="showImport && showImportDialog"
       v-model:visible="showImportDialog"
       :import-columns="importColumns"
       @import-confirmed="(rows, cols) => emit('import-data-requested-manager', rows, cols)"

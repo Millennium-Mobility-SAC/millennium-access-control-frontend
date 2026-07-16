@@ -1,10 +1,13 @@
 <script setup>
-import { ref, computed } from 'vue'
-import ImportSpreadsheet from '@/shared/presentation/components/import-spreadsheet.vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import {
   ACCESS_IMPORT_COLUMNS_VEHICULO,
   ACCESS_IMPORT_COLUMNS_PERSONA,
 } from '../constants/stays-ui.constants.js'
+
+const ImportSpreadsheet = defineAsyncComponent(() =>
+  import('@/shared/presentation/components/import-spreadsheet.vue')
+)
 
 // ===========================
 // PROPS & EMITS
@@ -109,6 +112,7 @@ function onImportConfirmed(rows, columns) {
 
   <!-- Paso 2: Importador de plantilla -->
   <ImportSpreadsheet
+    v-if="importSpreadsheetVisible"
     v-model:visible="importSpreadsheetVisible"
     :import-columns="importColumns"
     :title="spreadsheetTitle"

@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { ref, onMounted, watch, onBeforeUnmount, computed } from 'vue'
+import { ref, onMounted, watch, onBeforeUnmount, computed, defineAsyncComponent } from 'vue'
 import { useStaysStore }                        from '../../application/stays.store.js'
 import { useIamStore }                          from '@/iam/application/iam.store.js'
 import { useAsyncAction }                       from '@/shared/composables/use-async-action.js'
@@ -11,13 +11,9 @@ import DataManager                              from '@/shared/presentation/comp
 import AccessCreateAndEdit                      from '../components/access-create-and-edit.vue'
 import AccessRegisterExit                       from '../components/access-register-exit.vue'
 import AccessRegisterReturn                     from '../components/access-register-return.vue'
-import AccessImportDialog                        from '../components/access-import-dialog.vue'
 import AccessDetailDrawer                        from '../components/access-detail-drawer.vue'
 import { MOTIVOS_INGRESO, MOTIVO_SEVERITY, TIPOS_INGRESO, TIPOS_DOCUMENTO, ACCESS_STATUS, ACCESS_STATUS_SEVERITY, MOTIVOS_SALIDA_TEMPORAL, VEHICLE_ORIGIN_FILTER } from '../constants/stays-ui.constants.js'
 import { getAccessStatusFilterOptions } from '@/shared/presentation/constants/access-status.constants.js'
-import { downloadImportErrorReport } from '@/shared/composables/use-import-error-report.js'
-import ExcelJS from 'exceljs'
-import { saveAs } from 'file-saver'
 import { todayIsoLocal, toIsoDateString } from '@/shared/domain/employee-attendance-day.js'
 import {
   formatCalendarDateForUi,
@@ -25,6 +21,10 @@ import {
   calendarDateToExcelLocalDate,
   formatWallClockTimeForExcel,
 } from '@/shared/domain/format-datetime-ui.js'
+
+const AccessImportDialog = defineAsyncComponent(() =>
+  import('../components/access-import-dialog.vue')
+)
 
 const store              = useStaysStore()
 const iamStore           = useIamStore()
@@ -476,6 +476,7 @@ async function handleImport(rows, importColumns) {
         : `No se pudo importar ningún registro (${result.failed} error(es)).`
       showError(`${msg} Descargando reporte de errores...`)
       if (importColumns?.length) {
+        const { downloadImportErrorReport } = await import('@/shared/composables/use-import-error-report.js')
         await downloadImportErrorReport(result.failedRows, importColumns, 'errores-importacion-acceso')
       }
     }
@@ -596,6 +597,10 @@ async function handleExport() {
     const vehicles = entries.filter(e => e.type === 'VEHICULO')
     const persons  = entries.filter(e => e.type === 'PERSONA')
 
+    const [{ default: ExcelJS }, { saveAs }] = await Promise.all([
+      import('exceljs'),
+      import('file-saver'),
+    ])
     const wb = new ExcelJS.Workbook()
 
     if (vehicles.length > 0) {
@@ -868,6 +873,7 @@ function handlePageChange({ page }) {
 
     <!-- Diálogo de importación con selector de tipo -->
     <AccessImportDialog
+      v-if="importDialogVisible"
       v-model:visible="importDialogVisible"
       @import-confirmed="handleImport"
     />

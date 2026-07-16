@@ -1,7 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
-import ExcelJS from 'exceljs'
-import { saveAs } from 'file-saver'
+import { computed, onMounted, ref, watch, defineAsyncComponent } from 'vue'
 import DataManager from '@/shared/presentation/components/data-manager.vue'
 import { useAsyncAction } from '@/shared/composables/use-async-action.js'
 import { useNotification } from '@/shared/composables/use-notification.js'
@@ -9,13 +7,17 @@ import { usePermissions } from '@/shared/composables/use-permissions.js'
 import { useSecurityCheckpointStore } from '../../application/security-checkpoint.store.js'
 import { useIamStore } from '@/iam/application/iam.store.js'
 import PersonnelAttendanceCreateEdit from '../components/personnel-attendance-create-edit.vue'
-import FacialAttendanceLive from '../components/facial-attendance-live.vue'
 import { DOCUMENT_TYPES } from '@/employee-management/presentation/constants/employee-management-ui.constants.js'
 import {
   formatCalendarDateForUi,
   formatTimeOfDayForUi,
 } from '@/shared/domain/format-datetime-ui.js'
 import { todayIsoLocal, toIsoDateString } from '@/shared/domain/employee-attendance-day.js'
+
+/** Lazy: facial kiosk + camera stack only when mode is FACIAL. */
+const FacialAttendanceLive = defineAsyncComponent(() =>
+  import('../components/facial-attendance-live.vue')
+)
 
 const store = useSecurityCheckpointStore()
 const iamStore = useIamStore()
@@ -271,6 +273,10 @@ async function exportAttendanceExcel() {
     Ingreso: formatTimeCell(r.checkInTime),
     Salida: formatCheckOutForExport(r),
   }))
+  const [{ default: ExcelJS }, { saveAs }] = await Promise.all([
+    import('exceljs'),
+    import('file-saver'),
+  ])
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Marcación')
   if (rows.length) {

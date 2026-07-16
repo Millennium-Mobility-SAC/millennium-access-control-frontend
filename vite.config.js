@@ -11,22 +11,27 @@ export default defineConfig({
     },
   },
   build: {
-    sourcemap: false,   // nunca exponer código fuente en producción
+    // Vite 8 default is chrome111+; older Android tablet Chrome often lags phone Chrome.
+    target: ['chrome87', 'edge88', 'firefox78', 'safari14'],
+    sourcemap: false,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return
 
+          // Keep ExcelJS out of shared date-helper chunks ? tablets OOM on ~940KB lists.
+          if (id.includes('/exceljs/') || id.includes('\\exceljs\\') || id.includes('/file-saver/') || id.includes('\\file-saver\\')) {
+            return 'vendor-excel'
+          }
+
           if (id.includes('/primevue/') || id.includes('/@primeuix/')) {
             const lower = id.toLowerCase()
 
-            // Tema Aura (@primeuix) — grande por sí solo
             if (lower.includes('/@primeuix/')) {
               return 'vendor-pv-theme'
             }
 
-            // Componentes de datos pesados
             if (
               lower.includes('/primevue/datatable') ||
               lower.includes('/primevue/column') ||
@@ -39,7 +44,6 @@ export default defineConfig({
               return 'vendor-pv-data'
             }
 
-            // Componentes de selección / pickers pesados
             if (
               lower.includes('/primevue/autocomplete') ||
               lower.includes('/primevue/multiselect') ||
@@ -53,7 +57,6 @@ export default defineConfig({
               return 'vendor-pv-select'
             }
 
-            // Overlays (Dialog, Drawer, Popover, Menu, ConfirmDialog)
             if (
               lower.includes('/primevue/dialog') ||
               lower.includes('/primevue/confirmdialog') ||
@@ -67,7 +70,6 @@ export default defineConfig({
               return 'vendor-pv-overlay'
             }
 
-            // Core de PrimeVue + resto de componentes simples
             return 'vendor-pv-core'
           }
 
@@ -91,9 +93,3 @@ export default defineConfig({
     },
   },
 })
-
-
-
-
-
-

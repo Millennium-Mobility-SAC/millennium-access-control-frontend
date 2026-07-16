@@ -1,7 +1,6 @@
 <script setup>
-import { ref, watch, onMounted }             from 'vue'
+import { ref, watch, onMounted, defineAsyncComponent } from 'vue'
 import { useRouter }                   from 'vue-router'
-import { downloadImportErrorReport }   from '@/shared/composables/use-import-error-report.js'
 import { useVehicleCatalogStore }      from '../../application/vehicle-catalog.store.js'
 import { useIamStore }                 from '@/iam/application/iam.store.js'
 import { useAsyncAction }              from '@/shared/composables/use-async-action.js'
@@ -9,7 +8,6 @@ import { useNotification }             from '@/shared/composables/use-notificati
 import DataManager                     from '@/shared/presentation/components/data-manager.vue'
 import VehicleCreateAndEdit            from '../components/vehicle-create-and-edit.vue'
 import { VEHICLE_COLUMNS, VEHICLE_IMPORT_COLUMNS, VEHICLE_BULK_UPDATE_COLUMNS } from '../constants/vehicle-catalog-ui.constants.js'
-import ImportSpreadsheet from '@/shared/presentation/components/import-spreadsheet.vue'
 import {
   formatCalendarDateForUi,
   formatTimeHmAmPmForUi,
@@ -19,6 +17,10 @@ import { MOTIVOS_INGRESO, MOTIVOS_SALIDA_TEMPORAL, VEHICLE_ORIGIN_FILTER } from 
 import { resolveVehicleUbicacion } from '../../domain/format-vehicle-ubicacion.js'
 
 import { getAccessStatusLabel as VEHICLE_STATUS_LABEL_FN, getAccessStatusSeverity, ACCESS_STATUS } from '@/shared/presentation/constants/access-status.constants.js'
+
+const ImportSpreadsheet = defineAsyncComponent(() =>
+  import('@/shared/presentation/components/import-spreadsheet.vue')
+)
 
 const router             = useRouter()
 const store              = useVehicleCatalogStore()
@@ -177,6 +179,7 @@ async function handleImport(rows, importColumns) {
         : `No se pudo importar ningún vehículo (${result.failed} error(es)).`
       showError(`${msg} Descargando reporte de errores...`)
       if (importColumns?.length) {
+        const { downloadImportErrorReport } = await import('@/shared/composables/use-import-error-report.js')
         await downloadImportErrorReport(result.failedRows, importColumns, 'errores-importacion-vehiculos')
       }
     }
@@ -417,6 +420,7 @@ function ubicacionTagProps(row) {
 
     <!-- Bulk update — import spreadsheet dialog -->
     <ImportSpreadsheet
+      v-if="bulkUpdateDialogVisible"
       v-model:visible="bulkUpdateDialogVisible"
       :import-columns="VEHICLE_BULK_UPDATE_COLUMNS"
       title="Actualización masiva de vehículos"
