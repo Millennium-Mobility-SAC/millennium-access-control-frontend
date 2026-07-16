@@ -644,6 +644,7 @@ function handlePageChange({ page }) {
       :columns="columns"
       :dynamic="true"
       :loading="isLoading"
+      :show-global-search="false"
       search-placeholder="Busca por placa, nombre, marca..."
       new-button-label="Registrar Ingreso"
       :show-view-action="true"
@@ -671,7 +672,6 @@ function handlePageChange({ page }) {
       @exit-item-requested-manager="openExitDialog"
       @return-item-requested-manager="openReturnDialog"
       @page-changed="handlePageChange"
-      @global-filter-change="(v) => { searchText = v }"
       @clear-filters="clearAllFilters"
     >
       <template #extra-actions>
@@ -695,6 +695,28 @@ function handlePageChange({ page }) {
 
       <template #filters="{ clearFilters }">
         <div class="ac-filters">
+          <div class="ac-filters__search-row">
+            <pv-icon-field class="ac-filters__search">
+              <pv-input-icon class="pi pi-search" />
+              <pv-input-text
+                id="ac-search"
+                v-model="searchText"
+                placeholder="Busca por placa, nombre o marca"
+                class="w-full"
+                autocomplete="off"
+                @keyup.enter="applyAllFilters"
+              />
+            </pv-icon-field>
+            <pv-button
+              type="button"
+              class="ac-filters__clear"
+              label="Limpiar"
+              icon="pi pi-filter-slash"
+              text
+              @click="clearFilters"
+            />
+          </div>
+
           <div class="ac-filters__fields">
             <pv-multi-select
               v-model="filterStatus"
@@ -704,6 +726,7 @@ function handlePageChange({ page }) {
               placeholder="Estado"
               :max-selected-labels="1"
               selected-items-label="{0} estados"
+              class="ac-filters__field"
             />
             <pv-multi-select
               v-model="filterType"
@@ -713,6 +736,7 @@ function handlePageChange({ page }) {
               placeholder="Tipo"
               :max-selected-labels="1"
               selected-items-label="{0} tipos"
+              class="ac-filters__field"
             />
             <pv-multi-select
               v-model="filterMotivo"
@@ -722,6 +746,7 @@ function handlePageChange({ page }) {
               placeholder="Motivo"
               :max-selected-labels="1"
               selected-items-label="{0} motivos"
+              class="ac-filters__field"
             />
             <pv-multi-select
               v-model="filterOrigin"
@@ -731,17 +756,9 @@ function handlePageChange({ page }) {
               placeholder="Origen"
               :max-selected-labels="1"
               selected-items-label="{0} orígenes"
+              class="ac-filters__field"
             />
           </div>
-          <pv-button
-            type="button"
-            label="Limpiar"
-            icon="pi pi-filter-slash"
-            text
-            size="small"
-            class="ac-filters__clear"
-            @click="clearFilters"
-          />
         </div>
       </template>
 
@@ -1011,63 +1028,101 @@ function handlePageChange({ page }) {
   white-space: nowrap;
 }
 
-.stays-page :deep(.app-filters-row.dm-filters-row:has(> .dm-global-search)) {
-  grid-template-columns: minmax(12rem, 1.1fr) minmax(0, 2.4fr);
-  gap: 0.625rem;
-  align-items: center;
-}
-
 .stays-page :deep(.dm-filters-slot) {
+  display: block;
+  width: 100%;
   flex-wrap: nowrap;
   gap: 0;
+}
+
+.stays-page :deep(.dm-filters-slot > *) {
+  flex: none;
+  max-width: none;
+  width: 100%;
+}
+
+.stays-page :deep(.dm-secondary-toolbar__inner) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+}
+
+.stays-page :deep(.dm-secondary-toolbar__primary),
+.stays-page :deep(.dm-secondary-toolbar__secondary) {
+  margin-left: 0;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.stays-page :deep(.dm-secondary-toolbar__primary .p-button:first-child) {
+  flex: 1 1 100%;
+  min-height: 2.75rem;
 }
 
 .stays-page {
   flex: 1 1 auto;
 }
 
+/**
+ * Filtros Control de acceso — layout propio (sin search lateral desalineado).
+ * Móvil: todo apilado · Tablet: búsqueda + 2x2 · Desktop: una franja.
+ */
 .ac-filters {
+  --ac-filter-h: 2.5rem;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.65rem;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
 }
 
-.ac-filters__fields {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.5rem;
-  flex: 1;
+.ac-filters__search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  width: 100%;
   min-width: 0;
+}
+
+.ac-filters__search {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.ac-filters__search :deep(.p-iconfield) {
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+.ac-filters__search :deep(.p-inputtext) {
+  width: 100%;
+  min-height: var(--ac-filter-h);
+  box-sizing: border-box;
 }
 
 .ac-filters__clear {
   flex-shrink: 0;
-  align-self: center;
   white-space: nowrap;
 }
 
-@media (max-width: 1100px) {
-  .ac-filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .ac-filters__fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .ac-filters__clear {
-    align-self: flex-end;
-  }
+.ac-filters__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
 }
 
-@media (max-width: 767px) {
-  .ac-filters__fields {
-    grid-template-columns: 1fr;
-  }
+.ac-filters__field {
+  width: 100%;
+  min-width: 0;
 }
 
 .ac-filters :deep(.p-select),
@@ -1075,8 +1130,8 @@ function handlePageChange({ page }) {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  height: 2.5rem;
-  min-height: 2.5rem;
+  height: var(--ac-filter-h);
+  min-height: var(--ac-filter-h);
   display: flex;
   align-items: center;
 }
@@ -1094,7 +1149,6 @@ function handlePageChange({ page }) {
   min-width: 0;
 }
 
-/* Checkboxes del MultiSelect: usar color primario del tema */
 .ac-filters :deep(.p-multiselect-option .p-checkbox .p-checkbox-box) {
   border-color: var(--p-primary-color, #1a6bc2);
   background: #fff;
@@ -1108,6 +1162,95 @@ function handlePageChange({ page }) {
 
 .ac-filters :deep(.p-checkbox-icon) {
   color: #fff;
+}
+
+/* Tablet: búsqueda arriba; filtros 2×2 */
+@media (min-width: 640px) {
+  .ac-filters__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__primary .p-button:first-child) {
+    flex: 1 1 auto;
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__secondary) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__secondary .p-button) {
+    width: 100%;
+    justify-content: center;
+    min-height: 2.75rem;
+  }
+}
+
+/* Desktop: una franja alineada [búsqueda+limpiar] | [4 filtros] */
+@media (min-width: 992px) {
+  .ac-filters {
+    display: grid;
+    grid-template-columns: minmax(16rem, 1.15fr) minmax(0, 2fr);
+    gap: 0.65rem 0.85rem;
+    align-items: center;
+  }
+
+  .ac-filters__search-row {
+    max-width: none;
+  }
+
+  .ac-filters__fields {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__inner) {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__primary),
+  .stays-page :deep(.dm-secondary-toolbar__secondary) {
+    width: auto;
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__secondary) {
+    margin-left: auto;
+    display: flex;
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__secondary .p-button) {
+    width: auto;
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__primary .p-button:first-child) {
+    flex: 0 1 auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  .ac-filters {
+    grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 639px) {
+  .stays-page :deep(.dm-secondary-toolbar__primary),
+  .stays-page :deep(.dm-secondary-toolbar__secondary) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__primary .p-button),
+  .stays-page :deep(.dm-secondary-toolbar__secondary .p-button) {
+    width: 100%;
+    justify-content: center;
+    min-height: 2.75rem;
+  }
+
+  .stays-page :deep(.dm-secondary-toolbar__primary .p-button:first-child) {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ── Drawer detail panel ─────────────────────────────────── */
