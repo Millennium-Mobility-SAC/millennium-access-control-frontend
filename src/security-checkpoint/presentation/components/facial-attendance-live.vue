@@ -8,11 +8,19 @@ import {
 } from '@/shared/domain/format-datetime-ui.js'
 import { DOCUMENT_TYPES } from '@/employee-management/presentation/constants/employee-management-ui.constants.js'
 import { useSecurityCheckpointStore } from '../../application/security-checkpoint.store.js'
+import { useSpeech } from '@/shared/composables/use-speech.js'
 
 const emit = defineEmits(['registered', 'back-requested'])
 
 const store = useSecurityCheckpointStore()
 const { showSuccess, showError } = useNotification()
+const {
+  muted: voiceMuted,
+  supported: voiceSupported,
+  speak,
+  cancel: cancelVoice,
+  toggleMute,
+} = useSpeech({ storageKey: 'facial-kiosk-voice-muted', lang: 'es-PE' })
 
 const videoRef = ref(null)
 const streamRef = ref(null)
@@ -35,6 +43,10 @@ const CAPTURE_MAX_EDGE = 640
 const CAPTURE_JPEG_QUALITY = 0.72
 
 const holdProgress = ref(0)
+/** Proposed punch while holding / confirming (CHECK_IN | CHECK_OUT). */
+const proposedAction = ref(null)
+/** True while the final dryRun=false request is in flight. */
+const committing = ref(false)
 
 let scanTimer = null
 let cooldownUntil = 0
@@ -48,6 +60,62 @@ const MOTION_SAMPLE = 48
 const MOTION_MAX_MAE = 16
 
 const displayPerson = computed(() => lastResult.value || previewPerson.value)
+
+const pendingCheckIn = computed(() => {
+  if (attendanceView.value?.hasCheckIn) return false
+  return proposedAction.value === 'CHECK_IN'
+})
+
+const pendingCheckOut = computed(() => {
+  if (attendanceView.value?.hasCheckOut) return false
+  return proposedAction.value === 'CHECK_OUT'
+})
+
+const checkInLabel = computed(() => {
+  if (attendanceView.value?.hasCheckIn) return 'Ingreso registrado'
+  if (committing.value && pendingCheckIn.value) return 'Registrando ingreso…'
+  if (pendingCheckIn.value) return 'Ingreso por confirmar'
+  return 'Ingreso'
+})
+
+const checkOutLabel = computed(() => {
+  if (attendanceView.value?.hasCheckOut) return 'Salida registrada'
+  if (committing.value && pendingCheckOut.value) return 'Registrando salida…'
+  if (pendingCheckOut.value) return 'Salida por confirmar'
+  return 'Salida'
+})
+
+const checkInDisplay = computed(() => {
+  if (attendanceView.value?.hasCheckIn) {
+    return {
+      time: attendanceView.value.checkIn,
+      date: attendanceView.value.date,
+    }
+  }
+  if (pendingCheckIn.value) {
+    return {
+      time: committing.value ? 'Guardando…' : 'Quédate quieto',
+      date: null,
+    }
+  }
+  return { time: '—:—:—', date: null }
+})
+
+const checkOutDisplay = computed(() => {
+  if (attendanceView.value?.hasCheckOut) {
+    return {
+      time: attendanceView.value.checkOut,
+      date: attendanceView.value.date,
+    }
+  }
+  if (pendingCheckOut.value) {
+    return {
+      time: committing.value ? 'Guardando…' : 'Quédate quieto',
+      date: null,
+    }
+  }
+  return { time: '—:—:—', date: null }
+})
 
 const initials = computed(() => {
   const name = displayPerson.value?.employeeName || ''
@@ -110,7 +178,13 @@ const stageHint = computed(() => {
 
 const sideTitle = computed(() => {
   if (statusTone.value === 'success' && lastResult.value) return welcomeTitle.value
-  if (previewPerson.value) return 'Reconociendo…'
+  if (committing.value && displayPerson.value) {
+    return `Registrando ${actionLabel(proposedAction.value || displayPerson.value.action).toLowerCase()}…`
+  }
+  if (previewPerson.value) {
+    const first = previewPerson.value.employeeName?.trim().split(/\s+/)[0]
+    return first ? `Hola, ${first}` : 'Reconociendo…'
+  }
   if (lastResult.value?.action === 'COMPLETE' && statusTone.value === 'warn') return 'Jornada completa'
   if (statusTone.value === 'warn') return 'Atención'
   if (statusTone.value === 'error') return 'No se pudo marcar'
@@ -119,20 +193,21 @@ const sideTitle = computed(() => {
 
 const sideSubtitle = computed(() => {
   if (statusTone.value === 'success' && lastResult.value) return 'Tu asistencia ha sido registrada'
+  if (committing.value) return 'Un momento, guardando tu marcación'
   if (previewPerson.value) {
-    return `Mantén quieto para ${actionLabel(previewPerson.value.action).toLowerCase()}`
+    return `Quédate quieto ~${(HOLD_MS / 1000).toFixed(1).replace('.', ',')} s para ${actionLabel(previewPerson.value.action).toLowerCase()}`
   }
   if (lastResult.value?.action === 'COMPLETE' && statusTone.value === 'warn') {
     return 'Ya tiene ingreso y salida hoy'
   }
   if (statusTone.value === 'warn' || statusTone.value === 'error') return statusText.value
-  return 'El sistema usa el rostro más cercano. Quédate quieto ~1,6 s.'
+  return 'El sistema usa el rostro más cercano. Quédate quieto un instante para confirmar.'
 })
 
 const sideIconToneClass = computed(() => {
   if (cameraError.value || statusTone.value === 'error') return 'fak__status-icon--error'
   if (statusTone.value === 'success' && lastResult.value) return 'fak__status-icon--success'
-  if (previewPerson.value || statusTone.value === 'scanning') return 'fak__status-icon--scanning'
+  if (committing.value || previewPerson.value || statusTone.value === 'scanning') return 'fak__status-icon--scanning'
   if (statusTone.value === 'warn') return 'fak__status-icon--warn'
   return 'fak__status-icon--idle'
 })
@@ -140,7 +215,7 @@ const sideIconToneClass = computed(() => {
 const sideIconClass = computed(() => {
   if (cameraError.value || statusTone.value === 'error') return 'pi pi-times'
   if (statusTone.value === 'success' && lastResult.value) return 'pi pi-check'
-  if (previewPerson.value || statusTone.value === 'scanning') return 'pi pi-spin pi-spinner'
+  if (committing.value || previewPerson.value || statusTone.value === 'scanning') return 'pi pi-spin pi-spinner'
   if (statusTone.value === 'warn') return 'pi pi-exclamation-triangle'
   return 'pi pi-face-smile'
 })
@@ -163,10 +238,41 @@ function resetHold() {
   holdCandidate = null
   holdProgress.value = 0
   previewPerson.value = null
+  proposedAction.value = null
+  committing.value = false
 }
 
 function actionLabel(action) {
   return action === 'CHECK_OUT' ? 'Salida' : 'Ingreso'
+}
+
+function firstName(fullName) {
+  return fullName?.trim().split(/\s+/).filter(Boolean)[0] || ''
+}
+
+function speakGuidance(text, key) {
+  speak(text, { key, minGapMs: 4500 })
+}
+
+function speakSuccess(result) {
+  const first = firstName(result.employeeName)
+  if (result.action === 'CHECK_OUT') {
+    speak(first ? `Hasta luego, ${first}. Salida registrada.` : 'Salida registrada.', {
+      key: `success-out-${result.employeeId}`,
+    })
+    return
+  }
+  speak(first ? `Bienvenido, ${first}. Ingreso registrado.` : 'Ingreso registrado.', {
+    key: `success-in-${result.employeeId}`,
+  })
+}
+
+function speakComplete(result) {
+  const first = firstName(result?.employeeName)
+  speak(
+    first ? `${first}, ya tienes ingreso y salida hoy.` : 'Ya tienes ingreso y salida hoy.',
+    { key: `complete-${result?.employeeId ?? 'x'}`, minGapMs: 6000 },
+  )
 }
 
 function measureMotion() {
@@ -278,6 +384,40 @@ function mapPerson(preview) {
   }
 }
 
+async function commitAttendance(file, expectedEmployeeId = null) {
+  committing.value = true
+  holdProgress.value = 1
+  const action = proposedAction.value || holdCandidate?.action || 'CHECK_IN'
+  setStatus(`Registrando ${actionLabel(action).toLowerCase()}…`, 'scanning')
+  try {
+    const result = await store.identifyAndRegisterFacialAttendance(file, { dryRun: false })
+    if (destroyed) return
+    if (result.action === 'COMPLETE') {
+      resetHold()
+      lastResult.value = result
+      setStatus('Ya tiene ingreso y salida hoy', 'warn')
+      speakComplete(result)
+      cooldownUntil = Date.now() + HARD_COOLDOWN_MS
+      return
+    }
+    if (expectedEmployeeId != null && result.employeeId !== expectedEmployeeId) {
+      resetHold()
+      setStatus('Persona distinta detectada; mantén quieto…', 'warn')
+      speakGuidance('Persona distinta detectada', 'person-changed')
+      return
+    }
+    resetHold()
+    lastResult.value = result
+    setStatus(`${actionLabel(result.action)} registrada`, 'success')
+    speakSuccess(result)
+    showSuccess(`${actionLabel(result.action)}: ${result.employeeName}`)
+    cooldownUntil = Date.now() + SUCCESS_COOLDOWN_MS
+    emit('registered', result)
+  } finally {
+    committing.value = false
+  }
+}
+
 async function scanOnce() {
   if (destroyed || processing.value || cameraError.value || starting.value) return
   if (Date.now() < cooldownUntil) return
@@ -298,33 +438,6 @@ async function scanOnce() {
       return
     }
 
-    // Hold already satisfied from prior dry-runs → single round-trip to register (no double extract).
-    const holdReady = !!holdCandidate && (Date.now() - holdCandidate.since) >= HOLD_MS
-    if (holdReady) {
-      setStatus('Confirmando marcación…', 'scanning')
-      const result = await store.identifyAndRegisterFacialAttendance(file, { dryRun: false })
-      if (destroyed) return
-      if (result.action === 'COMPLETE') {
-        resetHold()
-        lastResult.value = result
-        setStatus('Ya tiene ingreso y salida hoy', 'warn')
-        cooldownUntil = Date.now() + HARD_COOLDOWN_MS
-        return
-      }
-      if (holdCandidate && result.employeeId !== holdCandidate.employeeId) {
-        resetHold()
-        setStatus('Persona distinta detectada; mantén quieto…', 'warn')
-        return
-      }
-      resetHold()
-      lastResult.value = result
-      setStatus(`${actionLabel(result.action)} registrada`, 'success')
-      showSuccess(`${actionLabel(result.action)}: ${result.employeeName}`)
-      cooldownUntil = Date.now() + SUCCESS_COOLDOWN_MS
-      emit('registered', result)
-      return
-    }
-
     const preview = await store.identifyAndRegisterFacialAttendance(file, { dryRun: true })
     if (destroyed) return
 
@@ -338,13 +451,14 @@ async function scanOnce() {
     if (preview.action === 'COMPLETE') {
       resetHold()
       lastResult.value = preview
-      previewPerson.value = null
       setStatus('Ya tiene ingreso y salida hoy', 'warn')
+      speakComplete(preview)
       cooldownUntil = Date.now() + HARD_COOLDOWN_MS
       return
     }
 
     previewPerson.value = mapPerson(preview)
+    proposedAction.value = preview.action === 'CHECK_OUT' ? 'CHECK_OUT' : 'CHECK_IN'
 
     const now = Date.now()
     if (!holdCandidate || holdCandidate.employeeId !== preview.employeeId) {
@@ -355,6 +469,13 @@ async function scanOnce() {
         since: now,
       }
       holdProgress.value = 0
+      const first = firstName(preview.employeeName)
+      speak(
+        first
+          ? `Hola ${first}, quédate quieto para marcar ${actionLabel(preview.action).toLowerCase()}.`
+          : `Quédate quieto para marcar ${actionLabel(preview.action).toLowerCase()}.`,
+        { key: `hold-${preview.employeeId}-${preview.action}` },
+      )
     } else {
       holdCandidate.action = preview.action
       holdCandidate.employeeName = preview.employeeName
@@ -362,14 +483,21 @@ async function scanOnce() {
 
     const heldFor = now - holdCandidate.since
     holdProgress.value = Math.min(1, heldFor / HOLD_MS)
-    const secondsLeft = Math.max(0, (HOLD_MS - heldFor) / 1000).toFixed(1)
-    setStatus(
-      `Mantén quieto… ${actionLabel(preview.action)} (${secondsLeft}s)`,
-      'scanning',
-    )
-    // Next scan commits with a single extract (avoid dry_run + register in the same tick).
+
+    if (heldFor < HOLD_MS) {
+      const secondsLeft = Math.max(0, (HOLD_MS - heldFor) / 1000).toFixed(1)
+      setStatus(
+        `Hola ${preview.employeeName.split(/\s+/)[0]} — quieto para ${actionLabel(preview.action).toLowerCase()} (${secondsLeft}s)`,
+        'scanning',
+      )
+      return
+    }
+
+    // Hold fulfilled: commit immediately with the same frame (same anti-spoof window, no idle gap).
+    await commitAttendance(file, holdCandidate.employeeId)
   } catch (err) {
     if (destroyed) return
+    committing.value = false
     const code = faceCodeFromError(err)
     if (code === 'FACE_NOT_DETECTED') {
       resetHold()
@@ -379,39 +507,46 @@ async function scanOnce() {
     if (code === 'FACE_TOO_FAR') {
       resetHold()
       setStatus('Acércate a la cámara', 'warn')
+      speakGuidance('Acércate a la cámara', 'too-far')
       return
     }
     if (code === 'FACE_NOT_DOMINANT') {
       resetHold()
       setStatus('Acércate más; ignora personas al fondo', 'warn')
+      speakGuidance('Acércate más', 'not-dominant')
       return
     }
     if (code === 'FACE_LOW_QUALITY') {
       resetHold()
       setStatus('Mejora la luz y mira de frente', 'warn')
+      speakGuidance('Mejora la luz y mira de frente', 'low-quality')
       return
     }
     if (code === 'FACE_MULTIPLE_FACES') {
       resetHold()
       setStatus('Que solo una persona se acerque', 'warn')
+      speakGuidance('Que solo una persona se acerque', 'multi-face')
       cooldownUntil = Date.now() + SOFT_COOLDOWN_MS
       return
     }
     if (code === 'FACE_NO_MATCH') {
       resetHold()
       setStatus('Rostro no reconocido', 'warn')
+      speakGuidance('Rostro no reconocido', 'no-match')
       cooldownUntil = Date.now() + SOFT_COOLDOWN_MS
       return
     }
     if (code === 'FACE_ATTENDANCE_COMPLETE') {
       resetHold()
       setStatus('Ya tiene ingreso y salida hoy', 'warn')
+      speakComplete(null)
       cooldownUntil = Date.now() + HARD_COOLDOWN_MS
       return
     }
     if (code === 'FACE_AMBIGUOUS') {
       resetHold()
       setStatus('Coincidencia ambigua', 'warn')
+      speakGuidance('Coincidencia ambigua', 'ambiguous')
       cooldownUntil = Date.now() + HARD_COOLDOWN_MS
       return
     }
@@ -444,6 +579,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   destroyed = true
+  cancelVoice()
   stopScanLoop()
   stopCamera()
 })
@@ -461,6 +597,18 @@ onUnmounted(() => {
         outlined
         size="small"
         @click="emit('back-requested')"
+      />
+      <pv-button
+        v-if="voiceSupported"
+        type="button"
+        class="fak__voice"
+        :label="voiceMuted ? 'Voz apagada' : 'Voz encendida'"
+        :icon="voiceMuted ? 'pi pi-volume-off' : 'pi pi-volume-up'"
+        severity="secondary"
+        outlined
+        size="small"
+        :aria-pressed="!voiceMuted"
+        @click="toggleMute"
       />
     </header>
 
@@ -531,41 +679,39 @@ onUnmounted(() => {
         <div class="fak__punches">
           <div
             class="fak__punch fak__punch--in"
-            :class="{ 'fak__punch--active': !!attendanceView?.hasCheckIn }"
+            :class="{
+              'fak__punch--active': !!attendanceView?.hasCheckIn,
+              'fak__punch--pending': pendingCheckIn,
+              'fak__punch--committing': committing && pendingCheckIn,
+            }"
           >
             <i class="pi pi-sign-in" aria-hidden="true" />
             <div class="fak__punch-body min-w-0">
-              <span class="fak__punch-label">
-                {{ attendanceView?.hasCheckIn ? 'Ingreso registrado' : 'Ingreso' }}
-              </span>
+              <span class="fak__punch-label">{{ checkInLabel }}</span>
               <strong>
-                <template v-if="attendanceView?.hasCheckIn">
-                  {{ attendanceView.checkIn }}
-                  <template v-if="attendanceView.date">
-                    <span class="fak__punch-date"> · {{ attendanceView.date }}</span>
-                  </template>
+                {{ checkInDisplay.time }}
+                <template v-if="checkInDisplay.date">
+                  <span class="fak__punch-date"> · {{ checkInDisplay.date }}</span>
                 </template>
-                <template v-else>—:—:—</template>
               </strong>
             </div>
           </div>
           <div
             class="fak__punch fak__punch--out"
-            :class="{ 'fak__punch--active': !!attendanceView?.hasCheckOut }"
+            :class="{
+              'fak__punch--active': !!attendanceView?.hasCheckOut,
+              'fak__punch--pending': pendingCheckOut,
+              'fak__punch--committing': committing && pendingCheckOut,
+            }"
           >
             <i class="pi pi-sign-out" aria-hidden="true" />
             <div class="fak__punch-body min-w-0">
-              <span class="fak__punch-label">
-                {{ attendanceView?.hasCheckOut ? 'Salida registrada' : 'Salida' }}
-              </span>
+              <span class="fak__punch-label">{{ checkOutLabel }}</span>
               <strong>
-                <template v-if="attendanceView?.hasCheckOut">
-                  {{ attendanceView.checkOut }}
-                  <template v-if="attendanceView.date">
-                    <span class="fak__punch-date"> · {{ attendanceView.date }}</span>
-                  </template>
+                {{ checkOutDisplay.time }}
+                <template v-if="checkOutDisplay.date">
+                  <span class="fak__punch-date"> · {{ checkOutDisplay.date }}</span>
                 </template>
-                <template v-else>—:—:—</template>
               </strong>
             </div>
           </div>
@@ -599,11 +745,14 @@ onUnmounted(() => {
 
 .fak__top {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
   flex-shrink: 0;
 }
 
-.fak__back :deep(.p-button-label) {
+.fak__back :deep(.p-button-label),
+.fak__voice :deep(.p-button-label) {
   white-space: nowrap;
 }
 
@@ -942,6 +1091,34 @@ onUnmounted(() => {
 }
 .fak__punch--out.fak__punch--active strong { color: var(--color-primary); }
 
+.fak__punch--pending {
+  border-style: dashed;
+  animation: fak-punch-pulse 1.4s ease-in-out infinite;
+}
+.fak__punch--in.fak__punch--pending {
+  background: color-mix(in srgb, var(--success-tint-bg) 55%, transparent);
+  border-color: var(--success-tint-border);
+  color: var(--success-tint-text);
+}
+.fak__punch--out.fak__punch--pending {
+  background: color-mix(in srgb, var(--primary-tint-bg) 55%, transparent);
+  border-color: var(--primary-tint-border);
+  color: var(--color-primary);
+}
+.fak__punch--committing {
+  animation: fak-punch-pulse 0.7s ease-in-out infinite;
+}
+.fak__punch--pending strong {
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  font-variant-numeric: normal;
+}
+
+@keyframes fak-punch-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
 .fak__tip {
   display: flex;
   gap: 0.6rem;
@@ -1080,7 +1257,8 @@ onUnmounted(() => {
 
 /* —— Teléfono muy angosto —— */
 @media (max-width: 380px) {
-  .fak__back :deep(.p-button-label) {
+  .fak__back :deep(.p-button-label),
+  .fak__voice :deep(.p-button-label) {
     font-size: 0.8rem;
   }
 
