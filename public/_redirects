@@ -1,6 +1,3 @@
-# Missing hashed assets must 404 — never SPA-fallback to index.html (MIME text/html
-# breaks ES modules: "Expected a JavaScript module but server responded with text/html").
-/assets/*  /404-asset.html  404
-
-# Vue Router history mode
+# Vue Router history mode (SPA). Do NOT put a root 404.html — that disables SPA mode.
+# Missing files under /assets/ are handled by public/assets/404.html (real HTTP 404).
 /*    /index.html   200

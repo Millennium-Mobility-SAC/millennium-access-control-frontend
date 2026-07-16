@@ -8,6 +8,17 @@ BaseApi.configure(iamRequestInterceptor, iamResponseErrorInterceptor)
 
 // ── Guardianes de producción — deben ejecutarse antes de montar la app ────────
 if (import.meta.env.PROD) {
+    // Tras un deploy, hashes viejos en caché pueden 404; Vite dispara esto al fallar un preload/chunk.
+    // Un reload fuerza index.html fresco. Evitar bucle infinito con sessionStorage.
+    const CHUNK_RELOAD_KEY = 'millennium-chunk-reload'
+    window.addEventListener('vite:preloadError', (event) => {
+        event.preventDefault()
+        if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+            sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
+            window.location.reload()
+        }
+    })
+
     // M1: Silenciar console en producción para no filtrar información interna
     console.log  = () => {}
     console.warn = () => {}
@@ -194,3 +205,6 @@ app
 
 // Mount
 app.mount('#app')
+if (import.meta.env.PROD) {
+    sessionStorage.removeItem('millennium-chunk-reload')
+}
