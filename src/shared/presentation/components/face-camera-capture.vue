@@ -91,12 +91,18 @@ function capturePhoto() {
   const video = videoRef.value
   if (!video || !video.videoWidth || !canCapture()) return
 
+  const maxEdge = 640
+  const srcW = video.videoWidth
+  const srcH = video.videoHeight
+  const scale = Math.min(1, maxEdge / Math.max(srcW, srcH))
+  const w = Math.max(1, Math.round(srcW * scale))
+  const h = Math.max(1, Math.round(srcH * scale))
   const canvas = document.createElement('canvas')
-  canvas.width = video.videoWidth
-  canvas.height = video.videoHeight
+  canvas.width = w
+  canvas.height = h
   const ctx = canvas.getContext('2d')
   // Preview is mirrored; store the natural (non-mirrored) frame for recognition.
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  ctx.drawImage(video, 0, 0, w, h)
 
   canvas.toBlob(
     (blob) => {
@@ -104,7 +110,7 @@ function capturePhoto() {
       finishWithFile(new File([blob], `face-${Date.now()}.jpg`, { type: 'image/jpeg' }))
     },
     'image/jpeg',
-    0.92,
+    0.75,
   )
 }
 

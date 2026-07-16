@@ -25,11 +25,14 @@ const previewPerson = ref(null)
 /** idle | scanning | success | warn | error */
 const statusTone = ref('idle')
 
-const SCAN_INTERVAL_MS = 1200
-const HOLD_MS = 2500
+const SCAN_INTERVAL_MS = 900
+const HOLD_MS = 1600
 const SUCCESS_COOLDOWN_MS = 7000
 const SOFT_COOLDOWN_MS = 2200
 const HARD_COOLDOWN_MS = 5000
+/** Max longest edge for upload — smaller payload, faster InsightFace on CPU. */
+const CAPTURE_MAX_EDGE = 640
+const CAPTURE_JPEG_QUALITY = 0.72
 
 const holdProgress = ref(0)
 
@@ -123,7 +126,7 @@ const sideSubtitle = computed(() => {
     return 'Ya tiene ingreso y salida hoy'
   }
   if (statusTone.value === 'warn' || statusTone.value === 'error') return statusText.value
-  return 'El sistema usa el rostro más cercano. Quédate quieto ~2,5 s.'
+  return 'El sistema usa el rostro más cercano. Quédate quieto ~1,6 s.'
 })
 
 const sideIconToneClass = computed(() => {
@@ -242,10 +245,15 @@ function stopCamera() {
 function captureFrameFile() {
   const video = videoRef.value
   if (!video || !video.videoWidth) return null
+  const srcW = video.videoWidth
+  const srcH = video.videoHeight
+  const scale = Math.min(1, CAPTURE_MAX_EDGE / Math.max(srcW, srcH))
+  const w = Math.max(1, Math.round(srcW * scale))
+  const h = Math.max(1, Math.round(srcH * scale))
   const canvas = document.createElement('canvas')
-  canvas.width = video.videoWidth
-  canvas.height = video.videoHeight
-  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+  canvas.width = w
+  canvas.height = h
+  canvas.getContext('2d').drawImage(video, 0, 0, w, h)
   return new Promise((resolve) => {
     canvas.toBlob(
       (blob) => {
@@ -253,7 +261,7 @@ function captureFrameFile() {
         else resolve(new File([blob], `face-live-${Date.now()}.jpg`, { type: 'image/jpeg' }))
       },
       'image/jpeg',
-      0.9,
+      CAPTURE_JPEG_QUALITY,
     )
   })
 }
@@ -287,6 +295,33 @@ async function scanOnce() {
     const file = await captureFrameFile()
     if (!file) {
       setStatus('Ajustando cámara…', 'scanning')
+      return
+    }
+
+    // Hold already satisfied from prior dry-runs → single round-trip to register (no double extract).
+    const holdReady = !!holdCandidate && (Date.now() - holdCandidate.since) >= HOLD_MS
+    if (holdReady) {
+      setStatus('Confirmando marcación…', 'scanning')
+      const result = await store.identifyAndRegisterFacialAttendance(file, { dryRun: false })
+      if (destroyed) return
+      if (result.action === 'COMPLETE') {
+        resetHold()
+        lastResult.value = result
+        setStatus('Ya tiene ingreso y salida hoy', 'warn')
+        cooldownUntil = Date.now() + HARD_COOLDOWN_MS
+        return
+      }
+      if (holdCandidate && result.employeeId !== holdCandidate.employeeId) {
+        resetHold()
+        setStatus('Persona distinta detectada; mantén quieto…', 'warn')
+        return
+      }
+      resetHold()
+      lastResult.value = result
+      setStatus(`${actionLabel(result.action)} registrada`, 'success')
+      showSuccess(`${actionLabel(result.action)}: ${result.employeeName}`)
+      cooldownUntil = Date.now() + SUCCESS_COOLDOWN_MS
+      emit('registered', result)
       return
     }
 
@@ -332,24 +367,7 @@ async function scanOnce() {
       `Mantén quieto… ${actionLabel(preview.action)} (${secondsLeft}s)`,
       'scanning',
     )
-
-    if (heldFor < HOLD_MS) return
-
-    const result = await store.identifyAndRegisterFacialAttendance(file, { dryRun: false })
-    if (destroyed) return
-    if (result.action === 'COMPLETE') {
-      resetHold()
-      lastResult.value = result
-      setStatus('Ya tiene ingreso y salida hoy', 'warn')
-      cooldownUntil = Date.now() + HARD_COOLDOWN_MS
-      return
-    }
-    resetHold()
-    lastResult.value = result
-    setStatus(`${actionLabel(result.action)} registrada`, 'success')
-    showSuccess(`${actionLabel(result.action)}: ${result.employeeName}`)
-    cooldownUntil = Date.now() + SUCCESS_COOLDOWN_MS
-    emit('registered', result)
+    // Next scan commits with a single extract (avoid dry_run + register in the same tick).
   } catch (err) {
     if (destroyed) return
     const code = faceCodeFromError(err)
