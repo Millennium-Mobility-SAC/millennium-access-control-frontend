@@ -787,6 +787,7 @@ onUnmounted(() => {
           <video
             ref="videoRef"
             class="fak__video"
+            :class="{ 'fak__video--mirror': facingMode === 'user' }"
             playsinline
             muted
             autoplay
@@ -1085,6 +1086,11 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* Solo frontal (selfie): espejo como en la cámara del teléfono. La trasera no se invierte. */
+.fak__video--mirror {
+  transform: scaleX(-1);
 }
 
 .fak__frame {
