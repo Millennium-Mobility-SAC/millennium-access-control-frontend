@@ -787,7 +787,6 @@ onUnmounted(() => {
           <video
             ref="videoRef"
             class="fak__video"
-            :class="{ 'fak__video--mirror': facingMode === 'user' }"
             playsinline
             muted
             autoplay
@@ -1031,10 +1030,6 @@ onUnmounted(() => {
   outline-offset: 2px;
 }
 
-.fak__video--mirror {
-  transform: scaleX(-1);
-}
-
 .fak__overlay-hint {
   font-size: 0.8rem;
   opacity: 0.9;
@@ -1090,7 +1085,6 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1);
 }
 
 .fak__frame {
