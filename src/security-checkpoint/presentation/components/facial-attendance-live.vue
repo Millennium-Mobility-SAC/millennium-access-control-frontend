@@ -685,7 +685,6 @@ onUnmounted(() => {
         icon="pi pi-arrow-left"
         severity="secondary"
         outlined
-        size="small"
         @click="emit('back-requested')"
       />
       <div class="fak__voice-controls">
@@ -694,9 +693,8 @@ onUnmounted(() => {
           class="fak__pause"
           :label="paused ? 'Reanudar' : 'Pausar'"
           :icon="paused ? 'pi pi-play' : 'pi pi-pause'"
-          :severity="paused ? 'primary' : 'secondary'"
+          :severity="paused ? 'success' : 'secondary'"
           :outlined="!paused"
-          size="small"
           :aria-label="paused ? 'Reanudar reconocimiento' : 'Pausar reconocimiento'"
           @click="togglePause"
         />
@@ -709,7 +707,6 @@ onUnmounted(() => {
             option-value="uri"
             placeholder="Elegir voz"
             class="fak__voice-select"
-            size="small"
             :disabled="voiceMuted"
             aria-label="Voz del kiosko"
             @update:model-value="onVoiceSelect"
@@ -721,7 +718,6 @@ onUnmounted(() => {
             :icon="voiceMuted ? 'pi pi-volume-off' : 'pi pi-volume-up'"
             severity="secondary"
             outlined
-            size="small"
             :aria-pressed="!voiceMuted"
             @click="toggleMute"
           />
@@ -766,8 +762,7 @@ onUnmounted(() => {
               class="fak__resume-overlay-btn"
               label="Reanudar"
               icon="pi pi-play"
-              severity="primary"
-              size="small"
+              severity="success"
               @click="resumeScanning"
             />
           </div>
@@ -877,7 +872,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -885,7 +880,7 @@ onUnmounted(() => {
 .fak__voice-controls {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.55rem;
   margin-left: auto;
   min-width: 0;
   flex-wrap: wrap;
@@ -893,13 +888,31 @@ onUnmounted(() => {
 }
 
 .fak__voice-select {
-  min-width: 10.5rem;
-  max-width: min(18rem, 52vw);
+  min-width: 11rem;
+  max-width: min(20rem, 55vw);
 }
 
 .fak__voice-select :deep(.p-select),
 .fak__voice-select :deep(.p-dropdown) {
   width: 100%;
+}
+
+/* Targets táctiles (~44px) — kiosko tablet-first, mismo patrón que DataManager */
+.fak__top :deep(.p-button) {
+  min-height: 2.75rem;
+  padding-inline: 1rem;
+}
+
+.fak__voice-select :deep(.p-select),
+.fak__voice-select :deep(.p-dropdown) {
+  min-height: 2.75rem;
+}
+
+.fak__resume-overlay-btn :deep(.p-button),
+.fak__overlay--paused :deep(.p-button) {
+  min-height: 3rem;
+  padding-inline: 1.35rem;
+  font-weight: 700;
 }
 
 .fak__back :deep(.p-button-label),
@@ -1312,6 +1325,22 @@ onUnmounted(() => {
     border-radius: 12px;
   }
 
+  .fak__top :deep(.p-button) {
+    min-height: 2.5rem;
+    padding-inline: 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .fak__voice-select {
+    min-width: 8.5rem;
+    max-width: min(12rem, 42vw);
+  }
+
+  .fak__voice-select :deep(.p-select),
+  .fak__voice-select :deep(.p-dropdown) {
+    min-height: 2.5rem;
+  }
+
   .fak__grid {
     gap: 0.75rem;
   }
@@ -1443,6 +1472,32 @@ onUnmounted(() => {
     gap: 0.85rem;
     min-height: calc(100dvh - 5.5rem);
     padding: 0.9rem 1rem 1rem;
+  }
+
+  .fak__top {
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+  }
+
+  .fak__voice-controls {
+    gap: 0.65rem;
+    flex-wrap: nowrap;
+  }
+
+  .fak__voice-select {
+    min-width: 14rem;
+    max-width: 18rem;
+  }
+
+  .fak__top :deep(.p-button) {
+    min-height: 3rem;
+    padding-inline: 1.15rem;
+    font-size: 0.95rem;
+  }
+
+  .fak__voice-select :deep(.p-select),
+  .fak__voice-select :deep(.p-dropdown) {
+    min-height: 3rem;
   }
 
   .fak__grid {
