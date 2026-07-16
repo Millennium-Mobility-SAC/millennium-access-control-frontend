@@ -12,11 +12,6 @@ const props = defineProps({
   collapsed: {
     type: Boolean,
     default: false
-  },
-  /** When true, sidebar is a fixed drawer (phone/tablet). Driven by layout matchMedia. */
-  drawer: {
-    type: Boolean,
-    default: false
   }
 })
 
@@ -33,8 +28,8 @@ const userRole = computed(() => iamStore.userRole || 'Usuario')
 const isActive = (path) => route.path.startsWith(path)
 
 function handleNavClick() {
-  // En drawer (móvil/tablet) cerrar tras navegar
-  if (props.drawer && !props.collapsed) {
+  // En mobile el sidebar actúa como drawer — cerrarlo tras navegar
+  if (window.innerWidth < 768 && !props.collapsed) {
     emit('toggle')
   }
 }
@@ -54,28 +49,19 @@ const handleSignOut = async () => {
 </script>
 
 <template>
-  <nav
-    :class="[
-      'sidebar flex flex-column h-full overflow-y-auto overflow-x-hidden',
-      {
-        'sidebar--collapsed': collapsed && !drawer,
-        'sidebar--drawer': drawer,
-        'sidebar--drawer-closed': drawer && collapsed,
-      },
-    ]"
-  >
+  <nav :class="['sidebar flex flex-column h-full overflow-y-auto overflow-x-hidden', { 'sidebar--collapsed': collapsed }]">
 
     <!-- Brand / Logo -->
     <div class="flex align-items-center justify-content-center border-bottom-1 brand-border brand-header">
       <!-- Expanded: full logo (icon + wordmark) -->
       <img
-        v-show="drawer || !collapsed"
+        v-show="!collapsed"
         src="@/assets/img/sidebar-millennium-mobility.png"
         alt="Millennium Mobility"
         class="brand-logo-full"
       />
-      <!-- Collapsed desktop: only the M icon (clips away the wordmark below) -->
-      <div v-show="!drawer && collapsed" class="brand-logo-icon-wrap">
+      <!-- Collapsed: only the M icon (clips away the wordmark below) -->
+      <div v-show="collapsed" class="brand-logo-icon-wrap">
         <img
           src="@/assets/img/logo-millennium-mobility.png"
           alt="Millennium"
@@ -94,19 +80,20 @@ const handleSignOut = async () => {
         <RouterLink
           :to="item.to"
           :class="['menu-link flex align-items-center gap-3 mx-2 my-1 border-round',
-                   { 'justify-content-center': !drawer && collapsed }]"
+                   { 'justify-content-center': collapsed }]"
           :title="item.label"
           @click="handleNavClick"
         >
           <i :class="['menu-icon text-center flex-shrink-0', item.icon]"></i>
-          <span v-show="drawer || !collapsed" class="white-space-nowrap overflow-hidden menu-label">{{ item.label }}</span>
+          <span v-show="!collapsed" class="white-space-nowrap overflow-hidden menu-label">{{ item.label }}</span>
         </RouterLink>
       </li>
     </ul>
 
-    <!-- Usuario: solo en drawer (móvil/tablet) -->
-    <div v-if="drawer" class="border-top-1 brand-border">
-      <div class="flex align-items-center gap-2 px-3 py-3">
+    <!-- Usuario: solo visible en móvil dentro del drawer -->
+    <div class="border-top-1 brand-border md:hidden">
+      <!-- Expanded: avatar + info + logout -->
+      <div v-if="!collapsed" class="flex align-items-center gap-2 px-3 py-3">
         <div class="user-avatar flex-shrink-0">
           <i class="pi pi-user"></i>
         </div>
@@ -118,10 +105,16 @@ const handleSignOut = async () => {
           <i class="pi pi-sign-out"></i>
         </button>
       </div>
+      <!-- Collapsed (desktop only): just logout icon centered -->
+      <div v-else class="hidden md:flex justify-content-center py-3">
+        <button class="logout-btn flex align-items-center justify-content-center border-round cursor-pointer" title="Cerrar sesión" @click="handleSignOut">
+          <i class="pi pi-sign-out"></i>
+        </button>
+      </div>
     </div>
 
-    <!-- Toggle button: solo en desktop (sidebar persistente) -->
-    <div v-if="!drawer" class="flex justify-content-center py-3 border-top-1 brand-border">
+    <!-- Toggle button: solo visible en desktop -->
+    <div class="hidden md:flex justify-content-center py-3 border-top-1 brand-border">
       <button
         class="toggle-btn flex align-items-center justify-content-center gap-2 border-round cursor-pointer"
         :title="collapsed ? 'Expandir menú' : 'Ocultar menú'"
@@ -152,26 +145,24 @@ const handleSignOut = async () => {
   min-width: 60px;
 }
 
-/*
- * Drawer mode (phone/tablet): driven by `drawer` prop from layout matchMedia,
- * not a separate CSS breakpoint — avoids JS/CSS width mismatches that leave a
- * full-screen overlay with no way to open content.
- */
-.sidebar--drawer {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100%;
-  height: 100dvh;
-  z-index: 1000;
-  width: 220px !important;
-  min-width: 220px !important;
-  transform: translateX(0);
-  transition: transform 0.25s ease;
-}
-
-.sidebar--drawer-closed {
-  transform: translateX(-100%);
+/* Mobile: always full-width drawer, toggle via transform */
+@media (max-width: 767px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 1000;
+    width: 220px !important;
+    min-width: 220px !important;
+    transform: translateX(0);
+    transition: transform 0.25s ease;
+  }
+  .sidebar--collapsed {
+    transform: translateX(-100%);
+    width: 220px !important;
+    min-width: 220px !important;
+  }
 }
 
 /* ── Brand ────────────────────────────────────────────────────── */

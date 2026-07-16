@@ -11,9 +11,6 @@ export default defineConfig({
     },
   },
   build: {
-    // Vite 8 default is chrome111+; older Android tablet Chrome often lags behind
-    // phone Chrome and fails to parse the bundle → blank purple #app screen.
-    target: ['chrome87', 'edge88', 'firefox78', 'safari14'],
     sourcemap: false,   // nunca exponer código fuente en producción
     chunkSizeWarningLimit: 600,
     rollupOptions: {

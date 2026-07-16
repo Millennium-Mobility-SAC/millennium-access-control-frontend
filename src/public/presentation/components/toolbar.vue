@@ -21,11 +21,6 @@ const props = defineProps({
         type: [String, Object],
         default: null,
     },
-    /** Phone/tablet: user menu lives in the drawer sidebar instead. */
-    narrow: {
-        type: Boolean,
-        default: false,
-    },
 })
 
 const emit = defineEmits(['back'])
@@ -116,12 +111,12 @@ const toggleUserMenu = (event) => {
         <!-- Slot for extra action buttons -->
         <slot name="actions" />
 
-        <!-- User menu trigger: oculto en móvil/tablet (va en el drawer) -->
-        <div v-if="!narrow" class="toolbar__user" @click="toggleUserMenu">
+        <!-- User menu trigger: oculto en móvil, se muestra en el sidebar -->
+        <div class="toolbar__user hidden md:flex" @click="toggleUserMenu">
             <div class="toolbar__avatar">
                 <i class="pi pi-user"   ></i>
             </div>
-            <div class="flex flex-column gap-1">
+            <div class="flex flex-column gap-1 hidden md:flex">
                 <span class="toolbar__username">{{ username }}</span>
                 <span class="toolbar__role">{{ userRole }}</span>
             </div>

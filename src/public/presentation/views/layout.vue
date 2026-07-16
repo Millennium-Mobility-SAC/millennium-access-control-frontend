@@ -6,50 +6,18 @@ import Toolbar from '../components/toolbar.vue'
 import { getMenuItemsByRole } from '../constants/layout.constants-ui.js'
 import { useIamStore } from '../../../iam/application/iam.store.js'
 
-/** Phones + tablets: drawer sidebar. Desktops (≥1024): persistent sidebar. */
-const NARROW_QUERY = '(max-width: 1023px)'
-
 const route    = useRoute()
 const router   = useRouter()
 const iamStore = useIamStore()
+const collapsed = ref(window.innerWidth < 768)
+const toggleSidebar = () => { collapsed.value = !collapsed.value }
 
-const isNarrow = ref(
-  typeof window !== 'undefined' ? window.matchMedia(NARROW_QUERY).matches : false,
-)
-/** On narrow screens start closed; on desktop start open. */
-const collapsed = ref(isNarrow.value)
-
-let narrowMq = null
-
-function applyNarrow(matches) {
-  isNarrow.value = matches
-  // Keep drawer closed when entering narrow; keep desktop sidebar open.
-  collapsed.value = matches
+function handleResize() {
+  if (window.innerWidth >= 768) collapsed.value = false
+  else if (window.innerWidth < 768 && !collapsed.value) collapsed.value = true
 }
-
-function onNarrowChange(event) {
-  applyNarrow(event.matches)
-}
-
-const toggleSidebar = () => {
-  collapsed.value = !collapsed.value
-}
-
-/** Overlay only when the drawer is actually open on a narrow viewport. */
-const showOverlay = computed(() => isNarrow.value && !collapsed.value)
-
-onMounted(() => {
-  narrowMq = window.matchMedia(NARROW_QUERY)
-  applyNarrow(narrowMq.matches)
-  if (narrowMq.addEventListener) narrowMq.addEventListener('change', onNarrowChange)
-  else narrowMq.addListener(onNarrowChange)
-})
-
-onUnmounted(() => {
-  if (!narrowMq) return
-  if (narrowMq.removeEventListener) narrowMq.removeEventListener('change', onNarrowChange)
-  else narrowMq.removeListener(onNarrowChange)
-})
+onMounted(() => window.addEventListener('resize', handleResize))
+onUnmounted(() => window.removeEventListener('resize', handleResize))
 
 // Cuando la sesión expira (401 → _clearSession() → isSignedIn = false)
 // redirige al sign-in desde la capa de presentación, sin que el store conozca el router.
@@ -61,36 +29,28 @@ const filteredMenuItems = computed(() => getMenuItemsByRole(iamStore.userRole))
 </script>
 
 <template>
-  <div class="app-layout" :class="{ 'app-layout--narrow': isNarrow }">
+  <div class="app-layout">
 
-    <!-- Overlay: only mounted when drawer is open (avoids JS/CSS breakpoint mismatch) -->
-    <div
-      v-if="showOverlay"
-      class="sidebar-overlay"
-      aria-hidden="true"
-      @click="toggleSidebar"
-    />
+    <!-- Overlay oscuro para móvil cuando sidebar está abierto -->
+    <transition name="fade">
+      <div v-if="!collapsed" class="sidebar-overlay" @click="toggleSidebar" />
+    </transition>
 
-    <sidebar
-      :menu-items="filteredMenuItems"
-      :collapsed="collapsed"
-      :drawer="isNarrow"
-      @toggle="toggleSidebar"
-    />
+    <sidebar :menu-items="filteredMenuItems" :collapsed="collapsed" @toggle="toggleSidebar" />
 
     <main class="app-content">
       <Toolbar
         :title="route.meta.module || ''"
         :description="route.meta.description || ''"
         :show-back-button="route.meta.showBackButton ?? false"
-        :narrow="isNarrow"
       >
+        <!-- Botón hamburguesa: solo visible en móvil para abrir el drawer -->
         <template #actions>
           <pv-button
-            v-if="isNarrow"
             icon="pi pi-bars"
             text
             rounded
+            class="block md:hidden"
             aria-label="Abrir menú"
             @click="toggleSidebar"
           />
@@ -108,7 +68,6 @@ const filteredMenuItems = computed(() => getMenuItemsByRole(iamStore.userRole))
 .app-layout {
   display: flex;
   height: 100vh;
-  height: 100dvh;
   width: 100%;
   overflow: hidden;
   background-color: var(--bg-primary);
@@ -117,7 +76,6 @@ const filteredMenuItems = computed(() => getMenuItemsByRole(iamStore.userRole))
 .app-content {
   flex: 1;
   min-width: 0;
-  min-height: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -133,12 +91,23 @@ const filteredMenuItems = computed(() => getMenuItemsByRole(iamStore.userRole))
   background-color: whitesmoke;
 }
 
-/* Always visible when mounted — visibility is controlled by v-if + isNarrow */
+/* Overlay — solo visible en móvil */
 .sidebar-overlay {
-  display: block;
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 999;
+  display: none;
 }
+
+@media (max-width: 767px) {
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+}
+
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.25s ease; }
+.fade-enter-from,
+.fade-leave-to     { opacity: 0; }
 </style>
