@@ -1464,8 +1464,8 @@ onUnmounted(() => {
 }
 
 /*
- * Tablet+ (≥768): cámara + panel en paralelo para aprovechar el ancho.
- * Portrait y landscape usan el mismo patrón; solo cambian densidades.
+ * Tablet (≥768): una columna — cámara arriba, resultado abajo.
+ * Desktop ancho (≥1200): vuelve a dos columnas.
  */
 @media (min-width: 768px) {
   .fak {
@@ -1476,12 +1476,10 @@ onUnmounted(() => {
 
   .fak__top {
     gap: 0.75rem;
-    flex-wrap: nowrap;
   }
 
   .fak__voice-controls {
     gap: 0.65rem;
-    flex-wrap: nowrap;
   }
 
   .fak__voice-select {
@@ -1501,9 +1499,9 @@ onUnmounted(() => {
   }
 
   .fak__grid {
-    grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.95fr);
-    gap: 1.15rem;
-    align-items: stretch;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: start;
     flex: 1;
     min-height: 0;
   }
@@ -1511,11 +1509,10 @@ onUnmounted(() => {
   .fak__left {
     gap: 0.55rem;
     min-height: 0;
-    height: 100%;
   }
 
   .fak__intro {
-    text-align: left;
+    text-align: center;
   }
 
   .fak__headline {
@@ -1523,33 +1520,34 @@ onUnmounted(() => {
   }
 
   .fak__stage {
-    flex: 1 1 auto;
     width: 100%;
-    margin-inline: 0;
-    aspect-ratio: auto;
-    min-height: min(52dvh, 22rem);
-    max-height: none;
-    height: 100%;
+    margin-inline: auto;
+    aspect-ratio: 4 / 3;
+    min-height: min(42dvh, 20rem);
+    max-height: min(52dvh, 28rem);
+    height: auto;
+    flex: none;
   }
 
   .fak__frame {
-    inset: 14% 28%;
+    inset: 12% 26%;
   }
 
   .fak__privacy {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
+    text-align: center;
   }
 
   .fak__right {
     width: 100%;
-    max-width: none;
-    margin-inline: 0;
-    height: 100%;
-    align-items: stretch;
+    max-width: 40rem;
+    margin-inline: auto;
+    height: auto;
+    align-items: center;
     justify-content: flex-start;
     text-align: center;
-    padding: 0.35rem 0.15rem 0;
-    gap: 0.55rem;
+    padding: 0.25rem 0 0;
+    gap: 0.65rem;
   }
 
   .fak__status-icon {
@@ -1563,8 +1561,76 @@ onUnmounted(() => {
   }
 
   .fak__welcome-sub {
+    max-width: 32rem;
+    font-size: 0.95rem;
+  }
+
+  .fak__card {
+    width: 100%;
+  }
+
+  .fak__punches {
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+  }
+
+  .fak__tip {
+    width: 100%;
+    margin-top: 0.15rem;
+    font-size: 0.82rem;
+  }
+}
+
+/* Desktop ancho: cámara | panel en paralelo */
+@media (min-width: 1200px) {
+  .fak {
+    gap: 1rem;
+    padding: 1rem 1.15rem 1.15rem;
+    min-height: calc(100dvh - 5.25rem);
+  }
+
+  .fak__grid {
+    grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.9fr);
+    gap: 1.35rem;
+    align-items: stretch;
+  }
+
+  .fak__intro {
+    text-align: left;
+  }
+
+  .fak__left {
+    height: 100%;
+  }
+
+  .fak__stage {
+    flex: 1 1 auto;
+    aspect-ratio: auto;
+    min-height: min(58dvh, 28rem);
+    max-height: none;
+    height: 100%;
+    margin-inline: 0;
+  }
+
+  .fak__frame {
+    inset: 12% 30%;
+  }
+
+  .fak__privacy {
+    text-align: left;
+  }
+
+  .fak__right {
     max-width: none;
-    font-size: 0.9rem;
+    margin-inline: 0;
+    height: 100%;
+    align-items: stretch;
+    padding: 0.35rem 0.15rem 0;
+  }
+
+  .fak__welcome-sub {
+    max-width: none;
   }
 
   .fak__punches {
@@ -1574,29 +1640,6 @@ onUnmounted(() => {
 
   .fak__tip {
     margin-top: auto;
-    font-size: 0.78rem;
-  }
-}
-
-/* Tablet ancha / desktop: más aire y cámara más dominante */
-@media (min-width: 1024px) {
-  .fak {
-    gap: 1rem;
-    padding: 1rem 1.15rem 1.15rem;
-    min-height: calc(100dvh - 5.25rem);
-  }
-
-  .fak__grid {
-    grid-template-columns: minmax(0, 1.55fr) minmax(20rem, 0.85fr);
-    gap: 1.35rem;
-  }
-
-  .fak__stage {
-    min-height: min(58dvh, 28rem);
-  }
-
-  .fak__frame {
-    inset: 12% 30%;
   }
 
   .fak__status-icon {
@@ -1610,8 +1653,8 @@ onUnmounted(() => {
   }
 }
 
-/* Landscape tablet: prioriza altura de cámara, tip más compacto */
-@media (min-width: 768px) and (max-height: 700px) and (orientation: landscape) {
+/* Landscape tablet: cámara dominante arriba, panel compacto abajo */
+@media (min-width: 768px) and (max-width: 1199px) and (orientation: landscape) {
   .fak {
     min-height: calc(100dvh - 4rem);
     padding: 0.65rem 0.85rem;
@@ -1622,7 +1665,9 @@ onUnmounted(() => {
   }
 
   .fak__stage {
-    min-height: min(68dvh, 24rem);
+    aspect-ratio: 16 / 10;
+    min-height: min(48dvh, 18rem);
+    max-height: min(58dvh, 22rem);
   }
 
   .fak__frame {
@@ -1633,7 +1678,29 @@ onUnmounted(() => {
     display: none;
   }
 
+  .fak__right {
+    max-width: none;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      'icon title'
+      'icon sub'
+      'card card'
+      'punches punches'
+      'tip tip';
+    column-gap: 0.85rem;
+    row-gap: 0.2rem;
+    align-items: center;
+    text-align: left;
+  }
+
+  .fak__status-icon { grid-area: icon; }
+  .fak__welcome { grid-area: title; align-self: end; font-size: 1.25rem; }
+  .fak__welcome-sub { grid-area: sub; align-self: start; max-width: none; margin-top: 0 !important; }
+  .fak__card { grid-area: card; margin-top: 0.35rem; }
+  .fak__punches { grid-area: punches; margin-top: 0.25rem; }
   .fak__tip {
+    grid-area: tip;
     font-size: 0.72rem;
     padding: 0.55rem 0.7rem;
   }
@@ -1668,8 +1735,8 @@ onUnmounted(() => {
 /* En tablet+ con poca altura, no aplastar la cámara con el rule móvil de arriba */
 @media (min-width: 768px) and (max-height: 640px) {
   .fak__stage {
-    max-height: none;
-    min-height: min(62dvh, 20rem);
+    max-height: min(48dvh, 18rem);
+    min-height: min(36dvh, 14rem);
   }
 
   .fak__tip {
