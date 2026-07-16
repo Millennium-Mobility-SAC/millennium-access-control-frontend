@@ -591,11 +591,20 @@ onMounted(async () => {
 .scp-view--facial {
   padding: 0.35rem;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 4.25rem);
+}
+
+.scp-view--facial :deep(.fak) {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 @media (min-width: 768px) {
   .scp-view--facial {
-    padding: 0.75rem;
+    padding: 0.65rem 0.85rem;
+    min-height: calc(100dvh - 4.5rem);
   }
 }
 

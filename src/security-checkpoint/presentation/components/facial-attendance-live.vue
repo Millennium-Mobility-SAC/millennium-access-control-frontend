@@ -770,6 +770,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0.7rem;
   min-width: 0;
+  min-height: 0;
 }
 
 .fak__intro {
@@ -1271,96 +1272,114 @@ onUnmounted(() => {
   }
 }
 
-/* —— Tablet portrait —— */
-@media (min-width: 768px) and (max-width: 959px) and (orientation: portrait) {
+/*
+ * Tablet+ (≥768): cámara + panel en paralelo para aprovechar el ancho.
+ * Portrait y landscape usan el mismo patrón; solo cambian densidades.
+ */
+@media (min-width: 768px) {
   .fak {
-    min-height: calc(100dvh - 6rem);
-    padding: 1rem 1.1rem 1.25rem;
-  }
-
-  .fak__stage {
-    aspect-ratio: 4 / 3;
-    max-height: min(46vh, 28rem);
-    max-width: 40rem;
-  }
-
-  .fak__frame {
-    inset: 12% 26%;
-  }
-
-  .fak__right {
-    max-width: 36rem;
-    margin-inline: auto;
-    width: 100%;
-  }
-
-  .fak__punches {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .fak__status-icon {
-    width: 4rem;
-    height: 4rem;
-    font-size: 1.6rem;
-  }
-}
-
-/* —— Tablet landscape / desktop angosto —— */
-@media (min-width: 768px) and (max-width: 959px) and (orientation: landscape) {
-  .fak {
-    min-height: calc(100dvh - 4.5rem);
-    padding: 0.75rem 0.9rem;
+    gap: 0.85rem;
+    min-height: calc(100dvh - 5.5rem);
+    padding: 0.9rem 1rem 1rem;
   }
 
   .fak__grid {
-    grid-template-columns: minmax(0, 1.25fr) minmax(15rem, 0.85fr);
-    gap: 0.9rem;
-    align-items: start;
+    grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.95fr);
+    gap: 1.15rem;
+    align-items: stretch;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .fak__left {
+    gap: 0.55rem;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .fak__intro {
+    text-align: left;
+  }
+
+  .fak__headline {
+    font-size: 1.35rem;
   }
 
   .fak__stage {
-    aspect-ratio: 16 / 10;
-    max-height: min(72dvh, 28rem);
+    flex: 1 1 auto;
+    width: 100%;
+    margin-inline: 0;
+    aspect-ratio: auto;
+    min-height: min(52dvh, 22rem);
+    max-height: none;
+    height: 100%;
   }
 
   .fak__frame {
-    inset: 10% 30%;
+    inset: 14% 28%;
+  }
+
+  .fak__privacy {
+    font-size: 0.72rem;
   }
 
   .fak__right {
-    padding-top: 0.25rem;
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+    height: 100%;
+    align-items: stretch;
+    justify-content: flex-start;
+    text-align: center;
+    padding: 0.35rem 0.15rem 0;
+    gap: 0.55rem;
+  }
+
+  .fak__status-icon {
+    width: 3.75rem;
+    height: 3.75rem;
+    font-size: 1.5rem;
+  }
+
+  .fak__welcome {
+    font-size: 1.45rem;
+  }
+
+  .fak__welcome-sub {
+    max-width: none;
+    font-size: 0.9rem;
   }
 
   .fak__punches {
     grid-template-columns: 1fr;
+    gap: 0.5rem;
   }
 
   .fak__tip {
-    font-size: 0.75rem;
+    margin-top: auto;
+    font-size: 0.78rem;
   }
 }
 
-/* —— Desktop —— */
-@media (min-width: 960px) {
+/* Tablet ancha / desktop: más aire y cámara más dominante */
+@media (min-width: 1024px) {
   .fak {
     gap: 1rem;
-    min-height: min(70vh, 44rem);
-    padding: 1rem 1.1rem 1.25rem;
+    padding: 1rem 1.15rem 1.15rem;
+    min-height: calc(100dvh - 5.25rem);
   }
 
   .fak__grid {
-    grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.85fr);
-    gap: 1.25rem;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1.55fr) minmax(20rem, 0.85fr);
+    gap: 1.35rem;
   }
 
   .fak__stage {
-    aspect-ratio: 4 / 3;
-    max-height: min(52vh, 26rem);
+    min-height: min(58dvh, 28rem);
   }
 
   .fak__frame {
-    inset: 12% 32%;
+    inset: 12% 30%;
   }
 
   .fak__status-icon {
@@ -1369,8 +1388,44 @@ onUnmounted(() => {
     font-size: 1.75rem;
   }
 
-  .fak__punches {
-    grid-template-columns: 1fr;
+  .fak__welcome {
+    font-size: 1.6rem;
+  }
+}
+
+/* Landscape tablet: prioriza altura de cámara, tip más compacto */
+@media (min-width: 768px) and (max-height: 700px) and (orientation: landscape) {
+  .fak {
+    min-height: calc(100dvh - 4rem);
+    padding: 0.65rem 0.85rem;
+  }
+
+  .fak__intro .fak__sub {
+    display: none;
+  }
+
+  .fak__stage {
+    min-height: min(68dvh, 24rem);
+  }
+
+  .fak__frame {
+    inset: 10% 32%;
+  }
+
+  .fak__privacy {
+    display: none;
+  }
+
+  .fak__tip {
+    font-size: 0.72rem;
+    padding: 0.55rem 0.7rem;
+  }
+
+  .fak__tip p {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
   }
 }
 
@@ -1390,6 +1445,18 @@ onUnmounted(() => {
 
   .fak__privacy {
     display: none;
+  }
+}
+
+/* En tablet+ con poca altura, no aplastar la cámara con el rule móvil de arriba */
+@media (min-width: 768px) and (max-height: 640px) {
+  .fak__stage {
+    max-height: none;
+    min-height: min(62dvh, 20rem);
+  }
+
+  .fak__tip {
+    display: flex;
   }
 }
 </style>
