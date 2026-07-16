@@ -20,8 +20,26 @@ const cameraError = ref('')
 /** Evita emitir `canceled` al cerrar tras una captura exitosa. */
 const closingAfterCapture = ref(false)
 
+/** 'user' = frontal, 'environment' = trasera */
+const facingMode = ref('user')
+const canFlipCamera = ref(false)
+
 const canCapture = () =>
   !props.busy && !starting.value && !cameraError.value && !!streamRef.value
+
+async function refreshCameraFlipAvailability() {
+  if (!navigator?.mediaDevices?.enumerateDevices) {
+    canFlipCamera.value = true
+    return
+  }
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    const cams = devices.filter((d) => d.kind === 'videoinput')
+    canFlipCamera.value = cams.length !== 1
+  } catch {
+    canFlipCamera.value = true
+  }
+}
 
 async function startCamera() {
   cameraError.value = ''
@@ -35,7 +53,7 @@ async function startCamera() {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
       video: {
-        facingMode: 'user',
+        facingMode: { ideal: facingMode.value },
         width: { ideal: 1280 },
         height: { ideal: 720 },
       },
@@ -46,8 +64,15 @@ async function startCamera() {
       videoRef.value.srcObject = stream
       await videoRef.value.play().catch(() => {})
     }
+    await refreshCameraFlipAvailability()
   } catch (err) {
     const name = err?.name || ''
+    if (facingMode.value === 'environment' && name !== 'NotAllowedError' && name !== 'PermissionDeniedError') {
+      facingMode.value = 'user'
+      starting.value = false
+      await startCamera()
+      return
+    }
     if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
       cameraError.value = 'Permiso de cámara denegado. Habilítalo en el navegador o usa «Subir archivo».'
     } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
@@ -58,6 +83,12 @@ async function startCamera() {
   } finally {
     starting.value = false
   }
+}
+
+async function flipCamera() {
+  if (starting.value || props.busy || cameraError.value) return
+  facingMode.value = facingMode.value === 'user' ? 'environment' : 'user'
+  await startCamera()
 }
 
 function stopCamera() {
@@ -162,10 +193,22 @@ watch(
           <video
             ref="videoRef"
             class="fcc__video"
+            :class="{ 'fcc__video--mirror': facingMode === 'user' }"
             playsinline
             muted
             autoplay
           />
+          <button
+            v-if="canFlipCamera && !cameraError"
+            type="button"
+            class="fcc__flip"
+            :aria-label="facingMode === 'user' ? 'Usar cámara trasera' : 'Usar cámara frontal'"
+            :title="facingMode === 'user' ? 'Cámara trasera' : 'Cámara frontal'"
+            :disabled="starting || busy"
+            @click="flipCamera"
+          >
+            <i class="pi pi-sync" aria-hidden="true" />
+          </button>
           <div v-if="starting" class="fcc__overlay">
             <pv-progress-spinner style="width: 2rem; height: 2rem" stroke-width="4" />
             <span>Abriendo cámara…</span>
@@ -240,7 +283,31 @@ watch(
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1); /* preview espejo (selfie) */
+}
+.fcc__video--mirror {
+  transform: scaleX(-1);
+}
+.fcc__flip {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text-body, #1e293b);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+  font-size: 1rem;
+}
+.fcc__flip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .fcc__overlay {
   position: absolute;

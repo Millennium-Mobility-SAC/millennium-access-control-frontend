@@ -44,6 +44,40 @@ const previewPerson = ref(null)
 /** idle | scanning | success | warn | error */
 const statusTone = ref('idle')
 
+/** 'user' = frontal, 'environment' = trasera */
+const FACING_STORAGE_KEY = 'facial-kiosk-facing-mode'
+const facingMode = ref(readStoredFacingMode())
+const canFlipCamera = ref(false)
+
+function readStoredFacingMode() {
+  try {
+    return localStorage.getItem(FACING_STORAGE_KEY) === 'environment' ? 'environment' : 'user'
+  } catch {
+    return 'user'
+  }
+}
+
+function persistFacingMode(mode) {
+  try {
+    localStorage.setItem(FACING_STORAGE_KEY, mode)
+  } catch { /* ignore */ }
+}
+
+async function refreshCameraFlipAvailability() {
+  if (!navigator?.mediaDevices?.enumerateDevices) {
+    canFlipCamera.value = true
+    return
+  }
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    const cams = devices.filter((d) => d.kind === 'videoinput')
+    // Tras permiso: >1 cámara ⇒ voltear; 0 (labels aún ocultos) ⇒ ofrecer flip de todos modos
+    canFlipCamera.value = cams.length !== 1
+  } catch {
+    canFlipCamera.value = true
+  }
+}
+
 const SCAN_INTERVAL_MS = 900
 const HOLD_MS = 1600
 const SUCCESS_COOLDOWN_MS = 7000
@@ -290,6 +324,16 @@ function togglePause() {
   else pauseScanning('Reconocimiento en pausa')
 }
 
+async function flipCamera() {
+  if (starting.value || cameraError.value) return
+  facingMode.value = facingMode.value === 'user' ? 'environment' : 'user'
+  persistFacingMode(facingMode.value)
+  resetHold()
+  stopScanLoop()
+  await startCamera()
+  if (!paused.value && !cameraError.value) startScanLoop()
+}
+
 function handleServiceOutage(err) {
   resetHold()
   serviceFailStreak += 1
@@ -397,7 +441,11 @@ async function startCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: {
+        facingMode: { ideal: facingMode.value },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
     })
     if (destroyed) {
       stream.getTracks().forEach((t) => t.stop())
@@ -408,9 +456,19 @@ async function startCamera() {
       videoRef.value.srcObject = stream
       await videoRef.value.play().catch(() => {})
     }
+    prevMotionGray = null
+    await refreshCameraFlipAvailability()
     setStatus('Mantén tu rostro centrado y mira al frente', 'scanning')
   } catch (err) {
     const name = err?.name || ''
+    // Si falla la trasera, volver a frontal automáticamente.
+    if (facingMode.value === 'environment' && name !== 'NotAllowedError' && name !== 'PermissionDeniedError') {
+      facingMode.value = 'user'
+      persistFacingMode('user')
+      starting.value = false
+      await startCamera()
+      return
+    }
     if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
       cameraError.value = 'Permiso de cámara denegado.'
     } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
@@ -729,6 +787,7 @@ onUnmounted(() => {
           <video
             ref="videoRef"
             class="fak__video"
+            :class="{ 'fak__video--mirror': facingMode === 'user' }"
             playsinline
             muted
             autoplay
@@ -762,6 +821,17 @@ onUnmounted(() => {
               @click="togglePause"
             >
               <i :class="paused ? 'pi pi-play' : 'pi pi-pause'" aria-hidden="true" />
+            </button>
+            <button
+              v-if="canFlipCamera && !cameraError"
+              type="button"
+              class="fak__icon-fab"
+              :aria-label="facingMode === 'user' ? 'Usar cámara trasera' : 'Usar cámara frontal'"
+              :title="facingMode === 'user' ? 'Cámara trasera' : 'Cámara frontal'"
+              :disabled="starting"
+              @click="flipCamera"
+            >
+              <i class="pi pi-sync" aria-hidden="true" />
             </button>
           </div>
           <div class="fak__banner" :data-tone="bannerTone">
@@ -951,9 +1021,18 @@ onUnmounted(() => {
   color: var(--color-white);
 }
 
+.fak__icon-fab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .fak__icon-fab:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+.fak__video--mirror {
+  transform: scaleX(-1);
 }
 
 .fak__overlay-hint {
