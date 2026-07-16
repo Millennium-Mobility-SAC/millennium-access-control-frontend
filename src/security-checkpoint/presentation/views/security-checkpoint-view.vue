@@ -458,60 +458,58 @@ onMounted(async () => {
       </template>
       <template #filters>
         <div class="scp-filters">
-          <div class="scp-filters__main">
-            <div class="scp-filters__search-row">
-              <pv-icon-field class="scp-filter-search">
-                <pv-input-icon class="pi pi-search" />
-                <pv-input-text
-                  id="scp-search"
-                  v-model="filterSearch"
-                  placeholder="Buscar por documento, nombre o cargo"
-                  class="w-full"
-                  autocomplete="off"
-                  @keyup.enter="flushAttendanceFetch"
-                />
-              </pv-icon-field>
-              <pv-button
-                type="button"
-                class="scp-filters__clear"
-                label="Limpiar"
-                icon="pi pi-filter-slash"
-                text
-                @click="clearAllSearchFilters"
+          <div class="scp-filters__search-row">
+            <pv-icon-field class="scp-filter-search">
+              <pv-input-icon class="pi pi-search" />
+              <pv-input-text
+                id="scp-search"
+                v-model="filterSearch"
+                placeholder="Buscar por documento, nombre o cargo"
+                class="w-full"
+                autocomplete="off"
+                @keyup.enter="flushAttendanceFetch"
               />
-            </div>
+            </pv-icon-field>
+            <pv-button
+              type="button"
+              class="scp-filters__clear"
+              label="Limpiar"
+              icon="pi pi-filter-slash"
+              text
+              @click="clearAllSearchFilters"
+            />
+          </div>
 
-            <div v-if="fullHistoryMode" class="scp-filters__meta scp-filters__dates">
-              <pv-calendar
-                v-model="filterDateFrom"
-                date-format="dd/mm/yy"
-                placeholder="Desde"
-                show-icon
-                icon-display="input"
-                input-id="chk-from"
-                class="scp-filter-calendar"
-              />
-              <pv-calendar
-                v-model="filterDateTo"
-                date-format="dd/mm/yy"
-                placeholder="Hasta"
-                show-icon
-                icon-display="input"
-                input-id="chk-to"
-                class="scp-filter-calendar"
-              />
-            </div>
-            <div
-              v-else
-              class="scp-filters__meta scp-today-banner"
-              role="status"
-            >
-              <i class="pi pi-info-circle scp-today-banner__icon" aria-hidden="true" />
-              <p class="scp-today-banner__text">
-                Solo marcaciones de <strong>hoy</strong>.
-                Usa <strong>Historial completo</strong> para otras fechas.
-              </p>
-            </div>
+          <div v-if="fullHistoryMode" class="scp-filters__dates">
+            <pv-calendar
+              v-model="filterDateFrom"
+              date-format="dd/mm/yy"
+              placeholder="Desde"
+              show-icon
+              icon-display="input"
+              input-id="chk-from"
+              class="scp-filter-calendar"
+            />
+            <pv-calendar
+              v-model="filterDateTo"
+              date-format="dd/mm/yy"
+              placeholder="Hasta"
+              show-icon
+              icon-display="input"
+              input-id="chk-to"
+              class="scp-filter-calendar"
+            />
+          </div>
+          <div
+            v-else
+            class="scp-today-banner"
+            role="status"
+          >
+            <i class="pi pi-info-circle scp-today-banner__icon" aria-hidden="true" />
+            <p class="scp-today-banner__text">
+              Solo marcaciones de <strong>hoy</strong>.
+              Usa <strong>Historial completo</strong> para otras fechas.
+            </p>
           </div>
         </div>
       </template>
@@ -755,28 +753,12 @@ onMounted(async () => {
   background: #f8fafc;
 }
 
-.scp-view :deep(.dm-filters-slot) {
-  display: block;
-  width: 100%;
-}
-
-.scp-view :deep(.dm-filters-slot > *) {
-  flex: none;
-  max-width: none;
-  width: 100%;
-}
-
 /**
- * Filtros + toolbar Marcación personal — responsive:
- * móvil apilado, tablet equilibrado, web (desktop) en una sola franja.
+ * Filtros Marcación personal: búsqueda + meta (banner o fechas) en filas claras.
+ * Toolbar: CTA arriba, herramientas en rejilla en tablet; fila única en desktop ancho.
  */
 .scp-filters {
   --scp-filter-control-height: 2.75rem;
-  width: 100%;
-  min-width: 0;
-}
-
-.scp-filters__main {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
@@ -787,17 +769,13 @@ onMounted(async () => {
 .scp-filters__search-row {
   display: flex;
   align-items: center;
-  gap: 0.35rem 0.5rem;
+  gap: 0.5rem;
   width: 100%;
   min-width: 0;
 }
 
 .scp-filters__clear {
   flex-shrink: 0;
-}
-
-.scp-filters__meta {
-  min-width: 0;
 }
 
 .scp-filters__dates {
@@ -847,11 +825,12 @@ onMounted(async () => {
 
 .scp-today-banner {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.5rem;
   width: 100%;
+  min-height: var(--scp-filter-control-height);
   padding: 0.55rem 0.75rem;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid #93c5fd;
   background: #dbeafe;
   color: #1e3a8a;
@@ -860,7 +839,6 @@ onMounted(async () => {
 
 .scp-today-banner__icon {
   flex-shrink: 0;
-  margin-top: 0.1rem;
   font-size: 1rem;
   color: #1d4ed8;
 }
@@ -868,7 +846,7 @@ onMounted(async () => {
 .scp-today-banner__text {
   margin: 0;
   font-size: 0.8125rem;
-  line-height: 1.4;
+  line-height: 1.35;
   color: #172554;
 }
 
@@ -877,11 +855,7 @@ onMounted(async () => {
   color: #0f172a;
 }
 
-/* Toolbar: por defecto apilada (móvil / tablet angosta) */
-.scp-view :deep(.dm-secondary-toolbar) {
-  margin-bottom: 0.85rem;
-}
-
+/* Toolbar de acciones: apilada y táctil en tablet; en línea en desktop ancho */
 .scp-view :deep(.dm-secondary-toolbar__inner) {
   display: flex;
   flex-direction: column;
@@ -907,11 +881,18 @@ onMounted(async () => {
 }
 
 .scp-view :deep(.dm-secondary-toolbar__primary .p-button:first-child) {
-  flex: 1 1 100%;
+  flex: 1 1 12rem;
 }
 
-/* —— Móvil —— */
-@media (max-width: 639px) {
+@media (max-width: 575px) {
+  .scp-filters__search-row {
+    flex-wrap: wrap;
+  }
+
+  .scp-filters__clear {
+    margin-left: auto;
+  }
+
   .scp-filters__dates {
     grid-template-columns: 1fr;
   }
@@ -933,12 +914,8 @@ onMounted(async () => {
   }
 }
 
-/* —— Tablet —— */
-@media (min-width: 640px) and (max-width: 991px) {
-  .scp-view :deep(.dm-secondary-toolbar__primary .p-button:first-child) {
-    flex: 1 1 auto;
-  }
-
+/* Tablet: herramientas en 3 columnas iguales bajo el CTA */
+@media (min-width: 576px) and (max-width: 1199px) {
   .scp-view :deep(.dm-secondary-toolbar__secondary) {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -950,59 +927,15 @@ onMounted(async () => {
   }
 }
 
-/*
- * —— Web / desktop (≥992) ——
- * Una franja: [búsqueda + limpiar] | [banner o fechas]
- * Toolbar en una sola fila, CTA a la izquierda y herramientas a la derecha.
- */
-@media (min-width: 992px) {
-  .scp-filters__main {
-    display: grid;
-    grid-template-columns: minmax(18rem, 1.2fr) minmax(14rem, 0.9fr);
-    gap: 0.75rem 1rem;
-    align-items: center;
-  }
-
-  .scp-filters__search-row {
-    width: auto;
-    max-width: none;
-  }
-
-  .scp-filter-search {
-    flex: 1 1 auto;
-    max-width: 28rem;
-  }
-
-  .scp-today-banner {
-    width: 100%;
-    max-width: 26rem;
-    justify-self: end;
-    align-items: center;
-    min-height: var(--scp-filter-control-height);
-    padding: 0.45rem 0.85rem;
-  }
-
-  .scp-filters__dates {
-    width: 100%;
-    max-width: 22rem;
-    justify-self: end;
-    grid-template-columns: 1fr 1fr;
-  }
-
+@media (min-width: 1200px) {
   .scp-view :deep(.dm-secondary-toolbar__inner) {
     flex-direction: row;
-    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.65rem 1rem;
   }
 
   .scp-view :deep(.dm-secondary-toolbar__primary) {
     width: auto;
-    flex: 0 1 auto;
-  }
-
-  .scp-view :deep(.dm-secondary-toolbar__primary .p-button:first-child) {
     flex: 0 1 auto;
   }
 
@@ -1011,26 +944,14 @@ onMounted(async () => {
     margin-left: auto;
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
   }
 
   .scp-view :deep(.dm-secondary-toolbar__secondary .p-button) {
     width: auto;
   }
-}
 
-@media (min-width: 1280px) {
-  .scp-filters__main {
-    grid-template-columns: minmax(22rem, 32rem) auto;
-    justify-content: space-between;
-  }
-
-  .scp-filter-search {
-    max-width: none;
-  }
-
-  .scp-today-banner {
-    max-width: 28rem;
+  .scp-filters__search-row {
+    max-width: 40rem;
   }
 }
 </style>
