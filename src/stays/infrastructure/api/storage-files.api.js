@@ -16,9 +16,8 @@ export class StorageFilesApi extends BaseApi {
     if (naming?.stayType) formData.append('stayType', naming.stayType)
     if (naming?.operationDate) formData.append('operationDate', naming.operationDate)
     if (naming?.operationTime) formData.append('operationTime', naming.operationTime)
-    return this.http.post(this.#endpoint, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    // Do not set Content-Type manually — browser/Axios must add the multipart boundary.
+    return this.http.post(this.#endpoint, formData)
   }
 
   getFileContent(fileId) {
