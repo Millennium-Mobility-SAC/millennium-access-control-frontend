@@ -118,36 +118,48 @@ watch(() => store.qrString, async (qr, prev) => {
 
 const statusIcon = computed(() => {
     if (store.connected === null) return 'pi pi-spin pi-spinner'
+    if (store.serviceUnreachable) return 'pi pi-exclamation-triangle'
+    if (store.chatsSyncFailed) return 'pi pi-exclamation-circle'
     if (store.chatsSyncing) return 'pi pi-spin pi-spinner'
     if (store.restoringSession) return 'pi pi-spin pi-spinner'
     return store.connected ? 'pi pi-whatsapp' : 'pi pi-times'
 })
 const statusText = computed(() => {
     if (store.connected === null) return 'Verificando conexión...'
+    if (store.serviceUnreachable) return 'El servicio de WhatsApp no responde'
+    if (store.chatsSyncFailed) return 'Conectado, pero no se pudieron cargar los grupos'
     if (store.chatsSyncing) return 'Sincronizando chats de WhatsApp...'
     if (store.restoringSession) return 'Restaurando sesión guardada...'
     return store.connected ? 'Conectado a WhatsApp' : 'Desconectado'
 })
 const statusTextClass = computed(() => {
     if (store.connected === null) return ''
+    if (store.serviceUnreachable) return 'wa-status__text--offline'
+    if (store.chatsSyncFailed) return 'wa-status__text--sync-failed'
     if (store.chatsSyncing) return 'wa-status__text--syncing'
     if (store.restoringSession) return 'wa-status__text--syncing'
     return store.connected ? 'wa-status__text--online' : 'wa-status__text--offline'
 })
 const statusCardClass = computed(() => {
     if (store.connected === null) return ''
+    if (store.serviceUnreachable) return 'wa-card--status-offline'
+    if (store.chatsSyncFailed) return 'wa-card--status-sync-failed'
     if (store.chatsSyncing) return 'wa-card--status-syncing'
     if (store.restoringSession) return 'wa-card--status-syncing'
     return store.connected ? 'wa-card--status-online' : 'wa-card--status-offline'
 })
 const statusIndicatorClass = computed(() => {
     if (store.connected === null) return 'wa-status__indicator--loading'
+    if (store.serviceUnreachable) return 'wa-status__indicator--offline'
+    if (store.chatsSyncFailed) return 'wa-status__indicator--sync-failed'
     if (store.chatsSyncing) return 'wa-status__indicator--syncing'
     if (store.restoringSession) return 'wa-status__indicator--syncing'
     return store.connected ? 'wa-status__indicator--online' : 'wa-status__indicator--offline'
 })
 const statusPillClass = computed(() => {
     if (store.connected === null) return 'wa-status__pill--loading'
+    if (store.serviceUnreachable) return 'wa-status__pill--offline'
+    if (store.chatsSyncFailed) return 'wa-status__pill--sync-failed'
     if (store.chatsSyncing) return 'wa-status__pill--syncing'
     if (store.restoringSession) return 'wa-status__pill--syncing'
     return store.connected ? 'wa-status__pill--online' : 'wa-status__pill--offline'
@@ -161,7 +173,7 @@ const groupsButtonTooltip = computed(() => {
 
 onMounted(async () => {
     await Promise.all([store.fetchStatus(), store.fetchConfiguration()])
-    if (!store.connected) {
+    if (!store.connected && !store.serviceUnreachable) {
         store.startQrPolling()
     }
 })
@@ -344,8 +356,16 @@ async function handleResetSession() {
                             <i class="pi pi-info-circle" />
                             El servicio está reutilizando la sesión guardada en disco. No escanees un QR nuevo; suele tardar hasta un minuto tras reiniciar los servidores.
                         </span>
+                        <span v-else-if="store.serviceUnreachable" class="wa-status__hint wa-status__hint--offline">
+                            <i class="pi pi-info-circle" />
+                            El API no pudo contactar al microservicio de WhatsApp (timeout o instancia no sana). Revisa los logs del contenedor y espera a que vuelva a responder.
+                        </span>
                         <span v-else-if="store.connected === false" class="wa-status__hint">
                             Escanea el código QR que aparece más abajo desde <strong>WhatsApp → Dispositivos vinculados</strong>.
+                        </span>
+                        <span v-else-if="store.chatsSyncFailed" class="wa-status__hint wa-status__hint--sync-failed">
+                            <i class="pi pi-info-circle" />
+                            La sesión está autenticada, pero no se pudieron listar los grupos. El servicio reintenta en segundo plano; también puedes pulsar «Buscar mis grupos».
                         </span>
                         <span v-else-if="store.chatsSyncing" class="wa-status__hint wa-status__hint--syncing">
                             <i class="pi pi-info-circle" />
@@ -354,6 +374,8 @@ async function handleResetSession() {
                     </div>
                     <div class="wa-status__pill" :class="statusPillClass">
                         <span v-if="store.connected === null"><i class="pi pi-spin pi-spinner" /> Verificando</span>
+                        <span v-else-if="store.serviceUnreachable"><i class="pi pi-exclamation-triangle" /> Sin respuesta</span>
+                        <span v-else-if="store.chatsSyncFailed"><i class="pi pi-exclamation-circle" /> Grupos pendientes</span>
                         <span v-else-if="store.chatsSyncing"><i class="pi pi-spin pi-spinner" /> Sincronizando</span>
                         <span v-else-if="store.restoringSession"><i class="pi pi-spin pi-spinner" /> Restaurando</span>
                         <span v-else-if="store.connected"><i class="pi pi-check" /> En línea</span>
@@ -378,10 +400,27 @@ async function handleResetSession() {
             </div>
 
             <!-- Pair: Configuración (izquierda) + QR (derecha) en pantallas anchas -->
-            <div class="wa-grid__pair" :class="{ 'wa-grid__pair--solo': store.connected !== false }">
+            <div class="wa-grid__pair" :class="{ 'wa-grid__pair--solo': store.connected !== false || store.serviceUnreachable }">
                 
+                <!-- Card: servicio inalcanzable (no mostrar QR falso) -->
+                <div v-if="store.serviceUnreachable" class="wa-card wa-card--qr wa-card--qr-loading">
+                    <div class="wa-qr__head">
+                        <div class="wa-qr__head-icon">
+                            <i class="pi pi-cloud" />
+                        </div>
+                        <div>
+                            <p class="wa-qr__title">Servicio no alcanzable</p>
+                            <p class="wa-qr__desc">El backend no pudo hablar con el microservicio de WhatsApp. No es un problema de QR: la instancia no está respondiendo.</p>
+                        </div>
+                    </div>
+                    <div class="wa-qr__canvas-wrap wa-qr__canvas-wrap--empty">
+                        <i class="pi pi-exclamation-triangle wa-qr__spinner" />
+                        <span class="wa-qr__spinner-text">Revisa los logs del contenedor WhatsApp y pulsa Actualizar.</span>
+                    </div>
+                </div>
+
                 <!-- Card: QR Code (solo visible cuando desconectado y hay QR disponible) -->
-                <div v-if="store.connected === false && store.qrString" class="wa-card wa-card--qr">
+                <div v-else-if="store.connected === false && store.qrString" class="wa-card wa-card--qr">
                     <div class="wa-qr__head">
                         <div class="wa-qr__head-icon">
                             <i class="pi pi-qrcode" />
@@ -512,6 +551,10 @@ async function handleResetSession() {
                             <div v-if="store.chatsSyncing" class="wa-sync-banner" role="status" aria-live="polite">
                                 <i class="pi pi-spin pi-spinner" />
                                 <span>Sincronizando chats de WhatsApp. El botón se habilitará automáticamente al terminar.</span>
+                            </div>
+                            <div v-else-if="store.chatsSyncFailed" class="wa-sync-banner wa-sync-banner--failed" role="status">
+                                <i class="pi pi-exclamation-circle" />
+                                <span>No se pudieron cargar los grupos automáticamente. Puedes reintentar con el botón o esperar el reintento en segundo plano.</span>
                             </div>
                             <pv-button
                                 label="Buscar mis grupos"
@@ -841,6 +884,7 @@ async function handleResetSession() {
 .wa-status__text--online  { color: #15803d; }
 .wa-status__text--offline { color: #dc2626; }
 .wa-status__text--syncing { color: #b45309; }
+.wa-status__text--sync-failed { color: #c2410c; }
 .wa-status__hint   {
     display: block;
     font-size: 0.8rem;
@@ -854,13 +898,30 @@ async function handleResetSession() {
     align-items: flex-start;
     gap: 0.35rem;
 }
+.wa-status__hint--sync-failed {
+    color: #c2410c;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+}
+.wa-status__hint--offline {
+    color: #b91c1c;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+}
 
 .wa-card--status-syncing {
     border-color: #fcd34d;
     background: linear-gradient(135deg, #fffbeb 0%, #ffffff 60%);
 }
+.wa-card--status-sync-failed {
+    border-color: #fdba74;
+    background: linear-gradient(135deg, #fff7ed 0%, #ffffff 60%);
+}
 
 .wa-status__indicator--syncing { background: #fef3c7; color: #d97706; }
+.wa-status__indicator--sync-failed { background: #ffedd5; color: #c2410c; }
 
 .wa-sync-banner {
     display: flex;
@@ -879,6 +940,11 @@ async function handleResetSession() {
 .wa-sync-banner .pi-spinner {
     margin-top: 0.1rem;
     flex-shrink: 0;
+}
+.wa-sync-banner--failed {
+    background: #fff7ed;
+    border-color: #fdba74;
+    color: #9a3412;
 }
 
 /* ── QR Card ────────────────────────────────────────────────── */
@@ -1070,6 +1136,7 @@ async function handleResetSession() {
 .wa-status__pill--offline { background: #fee2e2; color: #b91c1c; }
 .wa-status__pill--loading { background: #f3f4f6; color: #6b7280; }
 .wa-status__pill--syncing { background: #fef3c7; color: #b45309; }
+.wa-status__pill--sync-failed { background: #ffedd5; color: #c2410c; }
 
 .wa-status__actions {
     margin-top: 1rem;

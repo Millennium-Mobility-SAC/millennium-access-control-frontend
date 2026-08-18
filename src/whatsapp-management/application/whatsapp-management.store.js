@@ -13,7 +13,8 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
     const rawError     = ref(null)   // mensaje técnico para reportar
     const connected    = ref(null)   // null = no consultado aún
     const chatsSynced  = ref(null)   // null = N/A; false = sincronizando; true = listo
-    const sessionStatus = ref(null)  // CONNECTED | CONNECTING | QR_PENDING | DISCONNECTED
+    const chatsSyncFailed = ref(false)
+    const sessionStatus = ref(null)  // CONNECTED | CONNECTING | QR_PENDING | DISCONNECTED | UNREACHABLE
     const qrAvailable  = ref(false)
     const enabled      = ref(false)
     const groupId      = ref('')
@@ -26,9 +27,16 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
     let _qrPollingId   = null
     let _syncPollingId = null
 
-    const chatsSyncing = computed(() => connected.value === true && chatsSynced.value === false)
+    const chatsSyncing = computed(() =>
+        connected.value === true && chatsSynced.value === false && !chatsSyncFailed.value
+    )
+    const serviceUnreachable = computed(() => sessionStatus.value === 'UNREACHABLE')
     const restoringSession = computed(() =>
-        connected.value === false && sessionStatus.value === 'CONNECTING' && !qrAvailable.value && !qrString.value
+        connected.value === false
+        && sessionStatus.value === 'CONNECTING'
+        && !qrAvailable.value
+        && !qrString.value
+        && !serviceUnreachable.value
     )
 
     function _clearError() { error.value = null; rawError.value = null }
@@ -52,6 +60,8 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
         if (status === 404) return 'El recurso solicitado no existe en el servidor.'
         if (status === 425 || /sincroniza/i.test(lc))
             return 'WhatsApp todavía está sincronizando los chats. Espera unos segundos.'
+        if (status === 504 || /504|gateway timeout|no_healthy_upstream|503 uh/i.test(lc))
+            return 'El servicio de WhatsApp no responde. La plataforma no tiene una instancia sana; espera o reinicia el contenedor.'
         if (status === 503) return 'El servicio no está disponible en este momento. Intenta de nuevo en unos segundos.'
         if (status >= 500 && status < 600) return 'Error interno del servidor. Si persiste, contacta al administrador.'
 
@@ -86,6 +96,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
         connected.value = !!data.connected
         sessionStatus.value = data.sessionStatus || (data.connected ? 'CONNECTED' : 'DISCONNECTED')
         qrAvailable.value = !!data.qrAvailable
+        chatsSyncFailed.value = !!data.chatsSyncFailed
         if (data.connected) {
             chatsSynced.value = !!data.chatsSynced
             if (data.chatsSynced) {
@@ -97,18 +108,24 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             stopQrPolling()
         } else {
             chatsSynced.value = null
-            stopSyncPolling()
-            // Sigue restaurando sesión o esperando QR: mantener polling de estado/QR
-            if (restoringSession.value || sessionStatus.value === 'QR_PENDING' || sessionStatus.value === 'DISCONNECTED') {
-                startQrPolling()
+            chatsSyncFailed.value = false
+            if (sessionStatus.value === 'UNREACHABLE') {
+                stopQrPolling()
+                startSyncPolling()
+            } else {
+                stopSyncPolling()
+                if (restoringSession.value || sessionStatus.value === 'QR_PENDING' || sessionStatus.value === 'DISCONNECTED') {
+                    startQrPolling()
+                }
             }
         }
     }
 
     function startSyncPolling() {
-        if (_syncPollingId || chatsSynced.value) return
+        if (_syncPollingId) return
+        if (connected.value && chatsSynced.value) return
         _syncPollingId = setInterval(async () => {
-            if (!connected.value) {
+            if (connected.value && chatsSynced.value) {
                 stopSyncPolling()
                 return
             }
@@ -242,6 +259,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
             connected.value = false
             sessionStatus.value = 'DISCONNECTED'
             chatsSynced.value = null
+            chatsSyncFailed.value = false
             groups.value = []
             // Reinicia el polling para capturar el nuevo QR cuando Node lo emita
             stopSyncPolling()
@@ -280,7 +298,8 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
 
     return {
         // estado
-        isLoading, error, rawError, connected, chatsSynced, chatsSyncing, sessionStatus, qrAvailable, restoringSession,
+        isLoading, error, rawError, connected, chatsSynced, chatsSyncing, chatsSyncFailed, serviceUnreachable,
+        sessionStatus, qrAvailable, restoringSession,
         enabled, groupId, hasKey, maskedKey, generatedKey, qrString,
         groups, isLoadingGroups,
         // acciones
