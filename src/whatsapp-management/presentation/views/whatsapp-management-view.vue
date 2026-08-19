@@ -14,10 +14,12 @@ const copiedMsg = ref(false)
 const rawCopied = ref(false)
 const qrCanvas  = ref(null)
 
-// Cronómetro de refresco del QR (whatsapp-web.js emite uno nuevo ~cada 45s)
-const QR_REFRESH_SECONDS = 45
+// Cronómetro de refresco del QR. El microservicio informa cuántos segundos le
+// quedan al QR actual, así que el intervalo deja de ser una suposición.
+const QR_FALLBACK_SECONDS = 60
+const qrTotalSeconds = ref(QR_FALLBACK_SECONDS)
 const QR_MAX_AUTO_ROTATIONS = 3
-const qrCountdown = ref(QR_REFRESH_SECONDS)
+const qrCountdown = ref(QR_FALLBACK_SECONDS)
 const qrAutoRotations = ref(0)
 const qrManualPause = ref(false)
 const qrFlash = ref(false)
@@ -35,7 +37,8 @@ function triggerQrFlash() {
 }
 
 function startQrCountdown() {
-    qrCountdown.value = QR_REFRESH_SECONDS
+    qrTotalSeconds.value = store.qrExpiresInSeconds ?? QR_FALLBACK_SECONDS
+    qrCountdown.value = qrTotalSeconds.value
     if (qrCountdownTimer) clearInterval(qrCountdownTimer)
     if (qrManualPause.value) return
     qrCountdownTimer = setInterval(async () => {
@@ -57,7 +60,8 @@ function stopQrCountdown() {
         clearInterval(qrCountdownTimer)
         qrCountdownTimer = null
     }
-    qrCountdown.value = QR_REFRESH_SECONDS
+    qrTotalSeconds.value = store.qrExpiresInSeconds ?? QR_FALLBACK_SECONDS
+    qrCountdown.value = qrTotalSeconds.value
 }
 
 function resetQrRotationCounter() {
@@ -72,7 +76,7 @@ async function handleManualQrRefresh() {
     startQrCountdown()
 }
 
-const qrCountdownPercent = computed(() => Math.round((qrCountdown.value / QR_REFRESH_SECONDS) * 100))
+const qrCountdownPercent = computed(() => Math.round((qrCountdown.value / (qrTotalSeconds.value || 1)) * 100))
 // Mostramos el ciclo actual (1 de 3 al inicio, 2 de 3 tras la 1ª rotación, etc.)
 const qrCurrentRotation = computed(() => Math.min(QR_MAX_AUTO_ROTATIONS, qrAutoRotations.value + 1))
 
@@ -119,57 +123,60 @@ watch(() => store.qrString, async (qr, prev) => {
 const statusIcon = computed(() => {
     if (store.connected === null) return 'pi pi-spin pi-spinner'
     if (store.serviceUnreachable) return 'pi pi-exclamation-triangle'
-    if (store.chatsSyncFailed) return 'pi pi-exclamation-circle'
-    if (store.chatsSyncing) return 'pi pi-spin pi-spinner'
+    if (store.groupsPending) return 'pi pi-spin pi-spinner'
     if (store.restoringSession) return 'pi pi-spin pi-spinner'
     return store.connected ? 'pi pi-whatsapp' : 'pi pi-times'
 })
 const statusText = computed(() => {
     if (store.connected === null) return 'Verificando conexión...'
     if (store.serviceUnreachable) return 'El servicio de WhatsApp no responde'
-    if (store.chatsSyncFailed) return 'Conectado, pero no se pudieron cargar los grupos'
-    if (store.chatsSyncing) return 'Sincronizando chats de WhatsApp...'
+    if (store.groupsPending) return 'Sincronizando chats de WhatsApp...'
     if (store.restoringSession) return 'Restaurando sesión guardada...'
     return store.connected ? 'Conectado a WhatsApp' : 'Desconectado'
 })
 const statusTextClass = computed(() => {
     if (store.connected === null) return ''
     if (store.serviceUnreachable) return 'wa-status__text--offline'
-    if (store.chatsSyncFailed) return 'wa-status__text--sync-failed'
-    if (store.chatsSyncing) return 'wa-status__text--syncing'
+    if (store.groupsPending) return 'wa-status__text--syncing'
     if (store.restoringSession) return 'wa-status__text--syncing'
     return store.connected ? 'wa-status__text--online' : 'wa-status__text--offline'
 })
 const statusCardClass = computed(() => {
     if (store.connected === null) return ''
     if (store.serviceUnreachable) return 'wa-card--status-offline'
-    if (store.chatsSyncFailed) return 'wa-card--status-sync-failed'
-    if (store.chatsSyncing) return 'wa-card--status-syncing'
+    if (store.groupsPending) return 'wa-card--status-syncing'
     if (store.restoringSession) return 'wa-card--status-syncing'
     return store.connected ? 'wa-card--status-online' : 'wa-card--status-offline'
 })
 const statusIndicatorClass = computed(() => {
     if (store.connected === null) return 'wa-status__indicator--loading'
     if (store.serviceUnreachable) return 'wa-status__indicator--offline'
-    if (store.chatsSyncFailed) return 'wa-status__indicator--sync-failed'
-    if (store.chatsSyncing) return 'wa-status__indicator--syncing'
+    if (store.groupsPending) return 'wa-status__indicator--syncing'
     if (store.restoringSession) return 'wa-status__indicator--syncing'
     return store.connected ? 'wa-status__indicator--online' : 'wa-status__indicator--offline'
 })
 const statusPillClass = computed(() => {
     if (store.connected === null) return 'wa-status__pill--loading'
     if (store.serviceUnreachable) return 'wa-status__pill--offline'
-    if (store.chatsSyncFailed) return 'wa-status__pill--sync-failed'
-    if (store.chatsSyncing) return 'wa-status__pill--syncing'
+    if (store.groupsPending) return 'wa-status__pill--syncing'
     if (store.restoringSession) return 'wa-status__pill--syncing'
     return store.connected ? 'wa-status__pill--online' : 'wa-status__pill--offline'
 })
-const groupsButtonDisabled = computed(() => !store.connected || store.chatsSyncing || store.isLoadingGroups)
+const groupsButtonDisabled = computed(() => !store.connected || store.groupsPending || store.isLoadingGroups)
 const groupsButtonTooltip = computed(() => {
     if (!store.connected) return 'Conecta WhatsApp escaneando el QR primero'
-    if (store.chatsSyncing) return 'Espera a que termine la sincronización de chats'
+    if (store.groupsPending) return 'Espera a que el bot termine de preparar la lista de grupos'
     return undefined
 })
+
+/**
+ * El bot no puede escribir en grupos de solo-administradores si no es admin.
+ * Se listan igualmente, pero deshabilitados: antes se podían elegir y los
+ * envíos fallaban después, sin explicación.
+ */
+const selectableGroups = computed(() =>
+    store.groups.map((group) => ({ ...group, disabledForSend: !group.canSend })),
+)
 
 onMounted(async () => {
     await Promise.all([store.fetchStatus(), store.fetchConfiguration()])
@@ -180,7 +187,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     store.stopQrPolling()
-    store.stopSyncPolling()
+    store.stopStatusPolling()
     stopQrCountdown()
     if (qrFlashTimer) { clearTimeout(qrFlashTimer); qrFlashTimer = null }
 })
@@ -221,7 +228,7 @@ async function handleLoadGroups() {
         showError('WhatsApp no está conectado. Escanea el QR primero.')
         return
     }
-    if (store.chatsSyncing) {
+    if (store.groupsPending) {
         showError('WhatsApp todavía está sincronizando los chats. Espera unos segundos.')
         return
     }
@@ -274,13 +281,26 @@ async function refresh() {
     await Promise.all([store.fetchStatus(), store.fetchConfiguration()])
 }
 
+/**
+ * Reconecta conservando la vinculación. Es la primera opción ante una caída:
+ * a diferencia de reiniciar la sesión, no obliga a escanear el QR de nuevo.
+ */
+async function handleReconnect() {
+    const ok = await store.reconnect()
+    if (ok) {
+        showSuccess('Reconectando… el estado se actualizará solo.')
+    } else {
+        showError(store.error || 'No se pudo reconectar')
+    }
+}
+
 async function handleResetSession() {
     confirm.require({
-        header: 'Reiniciar sesión de WhatsApp',
-        message: 'Se borrará la sesión guardada y se generará un nuevo código QR. ¿Continuar?',
+        header: 'Desvincular WhatsApp',
+        message: 'Se borrará la sesión guardada y habrá que escanear un QR nuevo. Si solo se cayó la conexión, usa «Reconectar». ¿Continuar?',
         icon: 'pi pi-exclamation-triangle',
         rejectLabel: 'Cancelar',
-        acceptLabel: 'Reiniciar',
+        acceptLabel: 'Desvincular',
         acceptClass: 'p-button-danger',
         accept: async () => {
             const ok = await store.resetSession()
@@ -363,11 +383,7 @@ async function handleResetSession() {
                         <span v-else-if="store.connected === false" class="wa-status__hint">
                             Escanea el código QR que aparece más abajo desde <strong>WhatsApp → Dispositivos vinculados</strong>.
                         </span>
-                        <span v-else-if="store.chatsSyncFailed" class="wa-status__hint wa-status__hint--sync-failed">
-                            <i class="pi pi-info-circle" />
-                            La sesión está autenticada, pero no se pudieron listar los grupos. El servicio reintenta en segundo plano; también puedes pulsar «Buscar mis grupos».
-                        </span>
-                        <span v-else-if="store.chatsSyncing" class="wa-status__hint wa-status__hint--syncing">
+                        <span v-else-if="store.groupsPending" class="wa-status__hint wa-status__hint--syncing">
                             <i class="pi pi-info-circle" />
                             Los chats se están descargando. Podrás buscar tus grupos cuando termine (normalmente unos segundos).
                         </span>
@@ -375,8 +391,7 @@ async function handleResetSession() {
                     <div class="wa-status__pill" :class="statusPillClass">
                         <span v-if="store.connected === null"><i class="pi pi-spin pi-spinner" /> Verificando</span>
                         <span v-else-if="store.serviceUnreachable"><i class="pi pi-exclamation-triangle" /> Sin respuesta</span>
-                        <span v-else-if="store.chatsSyncFailed"><i class="pi pi-exclamation-circle" /> Grupos pendientes</span>
-                        <span v-else-if="store.chatsSyncing"><i class="pi pi-spin pi-spinner" /> Sincronizando</span>
+                        <span v-else-if="store.groupsPending"><i class="pi pi-spin pi-spinner" /> Sincronizando</span>
                         <span v-else-if="store.restoringSession"><i class="pi pi-spin pi-spinner" /> Restaurando</span>
                         <span v-else-if="store.connected"><i class="pi pi-check" /> En línea</span>
                         <span v-else><i class="pi pi-times" /> Sin conexión</span>
@@ -387,6 +402,20 @@ async function handleResetSession() {
                         <i class="pi pi-info-circle" />
                         Para vincular otra cuenta de WhatsApp, cierra la sesión actual y escanea un nuevo QR.
                     </p>
+                    <p v-if="store.linkedNumber" class="wa-status__actions-hint">
+                        <i class="pi pi-mobile" />
+                        Cuenta vinculada: <strong>+{{ store.linkedNumber }}</strong>
+                        <span v-if="store.linkedName"> · {{ store.linkedName }}</span>
+                    </p>
+                    <pv-button
+                        label="Reconectar"
+                        icon="pi pi-refresh"
+                        outlined
+                        size="small"
+                        :loading="store.isLoading"
+                        v-tooltip.top="'Restablece la conexión sin perder la vinculación'"
+                        @click="handleReconnect"
+                    />
                     <pv-button
                         label="Cerrar sesión activa"
                         icon="pi pi-sign-out"
@@ -455,7 +484,7 @@ async function handleResetSession() {
                                 <span class="wa-qr__countdown-meta">· {{ qrCurrentRotation }} de {{ QR_MAX_AUTO_ROTATIONS }}</span>
                             </span>
                         </div>
-                        <div class="wa-qr__countdown-bar" :aria-valuenow="qrCountdown" :aria-valuemax="QR_REFRESH_SECONDS" role="progressbar">
+                        <div class="wa-qr__countdown-bar" :aria-valuenow="qrCountdown" :aria-valuemax="qrTotalSeconds" role="progressbar">
                             <div class="wa-qr__countdown-fill" :style="{ width: qrCountdownPercent + '%' }" />
                         </div>
                     </div>
@@ -548,13 +577,9 @@ async function handleResetSession() {
                         </div>
 
                         <div class="wa-config__group-input">
-                            <div v-if="store.chatsSyncing" class="wa-sync-banner" role="status" aria-live="polite">
+                            <div v-if="store.groupsPending" class="wa-sync-banner" role="status" aria-live="polite">
                                 <i class="pi pi-spin pi-spinner" />
                                 <span>Sincronizando chats de WhatsApp. El botón se habilitará automáticamente al terminar.</span>
-                            </div>
-                            <div v-else-if="store.chatsSyncFailed" class="wa-sync-banner wa-sync-banner--failed" role="status">
-                                <i class="pi pi-exclamation-circle" />
-                                <span>No se pudieron cargar los grupos automáticamente. Puedes reintentar con el botón o esperar el reintento en segundo plano.</span>
                             </div>
                             <pv-button
                                 label="Buscar mis grupos"
@@ -571,8 +596,9 @@ async function handleResetSession() {
                         <div v-if="store.groups.length > 0" class="wa-config__group-input" style="margin-top: 0.5rem;">
                             <pv-dropdown
                                 v-model="selectedGroup"
-                                :options="store.groups"
-                                option-label="name"
+                                :options="selectableGroups"
+                                option-label="subject"
+                                option-disabled="disabledForSend"
                                 placeholder="Selecciona un grupo"
                                 filter
                                 filter-placeholder="Buscar grupo..."
@@ -581,8 +607,11 @@ async function handleResetSession() {
                             >
                                 <template #option="slotProps">
                                     <div>
-                                        <div style="font-weight:600;">{{ slotProps.option.name }}</div>
+                                        <div style="font-weight:600;">{{ slotProps.option.subject }}</div>
                                         <small style="color:#6b7280;">{{ slotProps.option.id }} · {{ slotProps.option.participants }} participantes</small>
+                                        <small v-if="!slotProps.option.canSend" style="display:block;color:#b45309;">
+                                            Solo administradores pueden escribir en este grupo y el bot no lo es
+                                        </small>
                                     </div>
                                 </template>
                             </pv-dropdown>

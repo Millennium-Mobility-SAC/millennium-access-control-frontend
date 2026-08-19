@@ -112,6 +112,13 @@ const whatsappBadge = computed(() => {
 const isWhatsappSent = computed(() => latestWhatsappAttempt.value?.status === 'SENT')
 const isWhatsappPending = computed(() => latestWhatsappAttempt.value?.status === 'PENDING')
 
+/** El mensaje salió, pero algún adjunto no llegó: no es un fallo, pero conviene verlo. */
+const hasPartialAttachmentDelivery = computed(() => {
+  const attempt = latestWhatsappAttempt.value
+  if (!attempt || attempt.attachmentsRequested == null) return false
+  return (attempt.attachmentsSent ?? 0) < attempt.attachmentsRequested
+})
+
 const resendButtonMeta = computed(() => {
   const attempt = latestWhatsappAttempt.value
   if (!attempt) {
@@ -704,6 +711,13 @@ function getDocumentTypeLabel(value) {
                 <span class="detail-label">Último intento</span>
                 <span class="detail-value">{{ formatWhatsappTimestamp(latestWhatsappAttempt.lastAttemptAt || latestWhatsappAttempt.createdAt) }}</span>
               </div>
+              <div v-if="latestWhatsappAttempt.attachmentsRequested != null" class="detail-row">
+                <span class="detail-label">Adjuntos</span>
+                <span class="detail-value" :class="{ 'whatsapp-attachments--partial': hasPartialAttachmentDelivery }">
+                  {{ latestWhatsappAttempt.attachmentsSent ?? 0 }}/{{ latestWhatsappAttempt.attachmentsRequested }} enviados
+                  <i v-if="hasPartialAttachmentDelivery" class="pi pi-exclamation-triangle" />
+                </span>
+              </div>
               <div v-if="latestWhatsappAttempt.sentAt" class="detail-row">
                 <span class="detail-label">Enviado</span>
                 <span class="detail-value whatsapp-sent-value">{{ formatWhatsappTimestamp(latestWhatsappAttempt.sentAt) }}</span>
@@ -1109,6 +1123,13 @@ function getDocumentTypeLabel(value) {
 }
 .whatsapp-sent-value {
   color: var(--color-success, #15803d) !important;
+  font-weight: 600;
+}
+
+/* Entrega parcial: el texto llegó pero faltaron adjuntos. No es un error, pero
+   debe distinguirse a simple vista de un envío completo. */
+.whatsapp-attachments--partial {
+  color: var(--color-warning, #b45309) !important;
   font-weight: 600;
 }
 .whatsapp-error-box {
