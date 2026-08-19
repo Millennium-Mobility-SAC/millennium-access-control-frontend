@@ -193,23 +193,13 @@ onUnmounted(() => {
 })
 
 async function handleGenerate() {
-    confirm.require({
-        header: 'Rotar API Key',
-        message: 'La key actual dejará de funcionar inmediatamente. ¿Continuar?',
-        icon: 'pi pi-exclamation-triangle',
-        rejectLabel: 'Cancelar',
-        acceptLabel: 'Rotar',
-        acceptClass: 'p-button-danger',
-        accept: async () => {
-            showKey.value = true
-            const key = await store.rotateApiKey()
-            if (key) {
-                showSuccess('Nueva API Key generada. Cópiala antes de cerrar.')
-            } else {
-                showError(store.error || 'Error al rotar la key')
-            }
-        }
-    })
+    showKey.value = true
+    const key = await store.generateApiKey()
+    if (key) {
+        showSuccess('Clave propuesta. Aplícala en ambos servicios para que surta efecto.')
+    } else {
+        showError(store.error || 'No se pudo generar la clave')
+    }
 }
 
 async function handleSaveGroupId() {
@@ -673,7 +663,7 @@ async function handleResetSession() {
                 <div v-if="store.generatedKey" class="wa-key__reveal">
                     <div class="wa-key__reveal-alert">
                         <i class="pi pi-exclamation-triangle" />
-                        <span>Guarda esta key ahora. <strong>No volverá a mostrarse en claro.</strong></span>
+                        <span>Cópiala ahora: <strong>no volverá a mostrarse en claro.</strong></span>
                     </div>
                     <div class="wa-key__reveal-input">
                         <pv-input-text
@@ -684,16 +674,21 @@ async function handleResetSession() {
                         <pv-button :icon="showKey ? 'pi pi-eye-slash' : 'pi pi-eye'" text rounded severity="secondary" @click="showKey = !showKey" v-tooltip="showKey ? 'Ocultar' : 'Mostrar'" />
                         <pv-button :icon="copiedMsg ? 'pi pi-check' : 'pi pi-copy'" :severity="copiedMsg ? 'success' : 'secondary'" text rounded @click="copyKey" v-tooltip="copiedMsg ? '¡Copiado!' : 'Copiar'" />
                     </div>
-                    <p class="wa-key__reveal-note">
-                        La key se sincronizó automáticamente con el servicio Node y se guardó en la base de datos.
-                    </p>
+                    <div class="wa-key__reveal-steps">
+                        <p><strong>Esta clave todavía no está en uso.</strong> Para aplicarla:</p>
+                        <ol>
+                            <li>Ponla como <code>WHATSAPP_API_KEY</code> en el <strong>backend</strong> y en el <strong>servicio de WhatsApp</strong>.</li>
+                            <li>Redespliega ambos. Hasta entonces sigue vigente la clave actual.</li>
+                        </ol>
+                    </div>
                 </div>
 
                 <!-- Acción -->
                 <pv-button
-                    :label="store.hasKey ? 'Rotar API Key' : 'Generar API Key'"
-                    :icon="store.hasKey ? 'pi pi-sync' : 'pi pi-plus'"
-                    :severity="store.hasKey ? 'danger' : 'primary'"
+                    label="Proponer clave nueva"
+                    icon="pi pi-key"
+                    severity="secondary"
+                    outlined
                     :loading="store.isLoading"
                     class="wa-key__action"
                     @click="handleGenerate"
@@ -1298,6 +1293,23 @@ async function handleResetSession() {
     font-family: 'Courier New', monospace;
     font-size: 0.82rem;
 }
+.wa-key__reveal-steps {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: #4b5563;
+    line-height: 1.5;
+}
+.wa-key__reveal-steps ol {
+    margin: 0.35rem 0 0;
+    padding-left: 1.15rem;
+}
+.wa-key__reveal-steps code {
+    background: #f3f4f6;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
 .wa-key__reveal-note {
     font-size: 0.8rem;
     color: #6b7280;

@@ -37,7 +37,7 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
     const groupId = ref('')
     const hasKey = ref(false)
     const maskedKey = ref(null)
-    const generatedKey = ref(null)  // en claro, solo justo tras rotar
+    const generatedKey = ref(null)  // propuesta en claro, pendiente de aplicar
 
     const qrString = ref(null)
     const qrExpiresInSeconds = ref(null)
@@ -211,15 +211,15 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
         }
     }
 
-    async function rotateApiKey() {
+    async function generateApiKey() {
         _clearError()
         generatedKey.value = null
         isLoading.value = true
         try {
-            const { data } = await api.rotateApiKey()
+            const { data } = await api.generateApiKey()
+            // Solo es una propuesta: la clave vigente no cambia hasta que se
+            // aplica en la configuración de ambos servicios y se redespliegan.
             generatedKey.value = data.key
-            hasKey.value = true
-            maskedKey.value = data.key.slice(0, 6) + '••••••••••••••••••••••••••••••••' + data.key.slice(-4)
             return data.key
         } catch (e) {
             _setError(e)
@@ -348,6 +348,6 @@ export const useWhatsAppManagementStore = defineStore('whatsapp-management', () 
         // acciones
         fetchConfiguration, fetchStatus, fetchQr, fetchGroups,
         startQrPolling, stopQrPolling, startStatusPolling, stopStatusPolling, stopPolling,
-        rotateApiKey, updateGroupId, setEnabled, reconnect, resetSession, clearGeneratedKey,
+        generateApiKey, updateGroupId, setEnabled, reconnect, resetSession, clearGeneratedKey,
     }
 })

@@ -29,9 +29,12 @@ export class WhatsAppManagementApi extends BaseApi {
         return this.http.get('/integrations/whatsapp/groups')
     }
 
-    /** POST → { key } — la clave en claro se devuelve una sola vez */
-    rotateApiKey() {
-        return this.http.post('/integrations/whatsapp/api-key/rotate')
+    /**
+     * POST → { key }. Solo propone una clave nueva: no la guarda ni la envía al
+     * microservicio. Aplicarla es configuración del despliegue en ambos lados.
+     */
+    generateApiKey() {
+        return this.http.post('/integrations/whatsapp/api-key/generate')
     }
 
     /** PATCH → configuración actualizada */
