@@ -163,9 +163,11 @@ watch(() => props.visible, (val) => {
   hasClient.value = !!(src.clientDocumentNumber || src.customerFirstName || src.firstName)
 
   resetPlateLookup()
-  if (form.type === 'VEHICULO' && form.vehicleOrigin === 'MILLENNIUM' && form.licensePlate) {
+  if (form.type === 'VEHICULO' && form.vehicleOrigin === 'MILLENNIUM'
+      && (form.licensePlate || form.vin)) {
     selectedPlateWrap.value = toPlateRow({
       id: form.vehicleId,
+      vin: form.vin,
       licensePlate: form.licensePlate,
       brand: form.brand,
       model: form.model,
@@ -193,6 +195,27 @@ function formatPlateLine(vehicle) {
   return extra ? `${plate} — ${extra}` : plate
 }
 
+/**
+ * Un VIN son 17 caracteres alfanumericos sin separadores (ISO 3779); una placa
+ * peruana ronda los 6-7 e incluye guion. Con esa diferencia basta para decidir
+ * en que campo cae lo que se escribio cuando no hubo coincidencia.
+ */
+function looksLikeVin(term) {
+  return /^[A-Z0-9]{17}$/i.test(term.trim())
+}
+
+/** Vuelca el termino tecleado en el campo que le corresponde. */
+function applyTypedIdentity(term) {
+  const value = term.trim().toUpperCase()
+  if (looksLikeVin(value)) {
+    form.vin = value
+    form.licensePlate = null
+  } else {
+    form.licensePlate = value
+    form.vin = null
+  }
+}
+
 function toPlateRow(vehicle) {
   return { id: vehicle.id ?? vehicle.licensePlate, line: formatPlateLine(vehicle), raw: vehicle }
 }
@@ -212,8 +235,11 @@ async function applyVehicleFromSelection(vehicle) {
   plateMatched.value = false
   showSaveVehicle.value = false
   lastMileage.value = null
-  form.licensePlate = vehicle.licensePlate ?? form.licensePlate
-  form.vin = vehicle.vin ?? form.vin
+  // La unidad del catálogo es la fuente de verdad de su identidad: si no tiene
+  // VIN, el que se hubiera tecleado en una búsqueda anterior debe desaparecer,
+  // no quedarse pegado al formulario.
+  form.licensePlate = vehicle.licensePlate ?? null
+  form.vin = vehicle.vin ?? null
   form.vehicleId = vehicle.id ?? null
   form.brand = vehicle.brand || form.brand
   form.model = vehicle.model || form.model
@@ -245,7 +271,7 @@ async function loadPlateSuggestions(query) {
     }
     plateSuggestionRows.value = mapped
     if (mapped.length === 0 && q.length >= 2) {
-      form.licensePlate = q.toUpperCase()
+      applyTypedIdentity(q)
       form.vehicleId = null
       showSaveVehicle.value = true
       plateMatched.value = false
@@ -254,7 +280,7 @@ async function loadPlateSuggestions(query) {
     }
   } catch (e) {
     plateSuggestionRows.value = []
-    showError(normalizeApiError(e, 'No se pudieron cargar sugerencias de placa.'))
+    showError(normalizeApiError(e, 'No se pudieron cargar sugerencias.'))
   } finally {
     plateSuggestLoading.value = false
   }
@@ -288,7 +314,9 @@ watch(
 )
 
 async function saveVehicle() {
-  if (!form.licensePlate?.trim()) return
+  // Basta con una de las dos identidades: una unidad de fabrica se da de alta
+  // solo con VIN y recibe la matricula despues.
+  if (!form.licensePlate?.trim() && !form.vin?.trim()) return
   savingVehicle.value = true
   try {
     const created = await store.create({
@@ -329,6 +357,7 @@ function to12h(value) {
 function onTypeChange(newType) {
   if (newType === 'PERSONA') {
     resetPlateLookup()
+    form.vin          = null
     form.licensePlate = null
     form.brand        = null
     form.model        = null
@@ -356,6 +385,7 @@ function onVehicleOriginChange(origin) {
   form.vehicleOrigin = origin
   resetPlateLookup()
   form.vehicleId = null
+  form.vin = null
   form.licensePlate = null
   form.brand = null
   form.model = null
@@ -526,7 +556,6 @@ function onClientToggle(enabled) {
 
 // ── Validación del formulario ─────────────────────────────────────────────────
 const errors = reactive({
-  vin:                  '',
   licensePlate:         '',
   externalDescription:  '',
   clientDocumentNumber: '',
@@ -538,7 +567,6 @@ const errors = reactive({
 })
 
 function clearErrors() {
-  errors.vin                  = ''
   errors.licensePlate         = ''
   errors.externalDescription  = ''
   errors.clientDocumentNumber = ''
@@ -696,7 +724,7 @@ async function onSave(formData) {
             <div class="ace-row">
               <div class="ace-field ace-field--flex ace-field--highlight">
                 <label class="ace-label">
-                  Placa
+                  {{ isExternalVehicle ? 'Placa' : 'Placa o VIN' }}
                   <span v-if="plateMatched && !isExternalVehicle" class="ace-plate-matched">
                     <i class="pi pi-check-circle" /> datos cargados
                   </span>
@@ -728,7 +756,7 @@ async function onSave(formData) {
                       :loading="plateSuggestLoading"
                       :show-clear="true"
                       empty-search-message="Sin coincidencias para esta búsqueda."
-                      placeholder="Escriba la placa (mín. 2 caracteres)…"
+                      placeholder="Escriba la placa o el VIN (mín. 2 caracteres)…"
                       class="w-full ace-input-plate"
                       :invalid="!!errors.licensePlate"
                       fluid
@@ -737,33 +765,22 @@ async function onSave(formData) {
                       <template #empty>
                         <span class="ace-plate-empty-msg">
                           <i class="pi pi-search-minus" aria-hidden="true" />
-                          Sin coincidencias. Revise la placa o guárdela en el catálogo.
+                          Sin coincidencias. Revise el dato o guarde la unidad en el catálogo.
                         </span>
                       </template>
                     </pv-auto-complete>
                   </div>
                   <small v-if="!plateMatched && !showSaveVehicle" class="ace-field-hint">
-                    Escriba y elija una coincidencia de la lista.
+                    Busca por placa o por VIN, incluso por los últimos dígitos. Elija una coincidencia de la lista.
+                  </small>
+                  <small v-else-if="plateMatched && form.vin" class="ace-field-hint ace-identity-echo">
+                    <i class="pi pi-id-card" aria-hidden="true" />
+                    VIN {{ form.vin }}<template v-if="!form.licensePlate"> · sin placa asignada</template>
                   </small>
                 </template>
                 <small v-if="errors.licensePlate" class="ace-field-error">{{ errors.licensePlate }}</small>
               </div>
 
-              <div v-if="!isExternalVehicle" class="ace-field ace-field--flex">
-                <label class="ace-label">
-                  VIN
-                  <span class="ace-label-opt">(si la unidad aún no tiene placa)</span>
-                </label>
-                <pv-input-text
-                  v-model="form.vin"
-                  placeholder="Ej. 3N1CN7AD8KL845233"
-                  class="w-full ace-input-vin"
-                  maxlength="17"
-                  :invalid="!!errors.vin"
-                  @input="form.vin = ($event.target?.value ?? form.vin)?.toUpperCase()"
-                />
-                <small v-if="errors.vin" class="ace-field-error">{{ errors.vin }}</small>
-              </div>
             </div>
 
             <div v-if="isExternalVehicle" class="ace-row">
@@ -830,7 +847,11 @@ async function onSave(formData) {
               </div>
               <div v-if="showSaveVehicle" class="ace-save-vehicle">
                 <span class="ace-save-vehicle__msg">
-                  <i class="pi pi-info-circle" /> Vehículo no encontrado. Completa los datos y guárdalo en el catálogo.
+                  <i class="pi pi-info-circle" />
+                  Unidad no encontrada. Se registrará con
+                  <b v-if="form.vin">VIN {{ form.vin }}</b>
+                  <b v-else>placa {{ form.licensePlate }}</b>.
+                  Completa los datos y guárdala en el catálogo.
                 </span>
                 <pv-button
                   label="Guardar en catálogo"
@@ -1265,12 +1286,9 @@ async function onSave(formData) {
   font-weight: 600;
   color: var(--color-primary, #6366f1);
 }
-.ace-input-vin :deep(input),
-.ace-input-vin input {
+.ace-identity-echo {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 
