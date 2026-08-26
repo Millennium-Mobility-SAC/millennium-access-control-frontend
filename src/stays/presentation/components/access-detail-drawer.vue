@@ -373,7 +373,7 @@ function getDocumentTypeLabel(value) {
         </div>
         <div class="flex flex-column gap-1">
           <span class="font-bold text-sm" style="color: #111827">
-            {{ item?.type === 'PERSONA' ? (item?.fullName ?? 'Persona') : (item?.licensePlate ?? 'Vehículo') }}
+            {{ item?.type === 'PERSONA' ? (item?.fullName ?? 'Persona') : (item?.licensePlate || (item?.vin ? 'VIN ' + item.vin : 'Vehículo')) }}
           </span>
           <div class="flex gap-2 flex-wrap">
             <pv-tag
@@ -419,6 +419,10 @@ function getDocumentTypeLabel(value) {
               <div class="detail-row">
                 <span class="detail-label">Placa</span>
                 <span class="detail-value font-bold">{{ item.licensePlate || '—' }}</span>
+              </div>
+              <div v-if="item.vin" class="detail-row">
+                <span class="detail-label">VIN</span>
+                <span class="detail-value" style="font-family: ui-monospace, monospace; font-size: 0.8125rem;">{{ item.vin }}</span>
               </div>
               <div v-if="item.external" class="detail-row detail-row--full">
                 <span class="detail-label">Descripción</span>

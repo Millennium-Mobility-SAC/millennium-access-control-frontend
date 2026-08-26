@@ -16,10 +16,11 @@ const rules = useFormRules()
 const vehicleFormRef = ref(null)
 const { guardValidated } = useFormValidation()
 
-const VALIDATION_FIELD_ORDER = ['licensePlate', 'brand', 'model', 'year']
+const VALIDATION_FIELD_ORDER = ['vin', 'licensePlate', 'brand', 'model', 'year']
 
 const form = reactive({
   id:           null,
+  vin:          '',
   licensePlate: '',
   brand:        '',
   model:        '',
@@ -28,6 +29,7 @@ const form = reactive({
 })
 
 const errors = reactive({
+  vin: '',
   licensePlate: '',
   brand: '',
   model: '',
@@ -40,6 +42,7 @@ watch(() => props.visible, (val) => {
   clearErrors()
   Object.assign(form, {
     id:           src.id           ?? null,
+    vin:          src.vin          ?? '',
     licensePlate: src.licensePlate ?? '',
     brand:        src.brand        ?? '',
     model:        src.model        ?? '',
@@ -49,25 +52,43 @@ watch(() => props.visible, (val) => {
 })
 
 function clearErrors() {
+  errors.vin = ''
   errors.licensePlate = ''
   errors.brand = ''
   errors.model = ''
   errors.year = ''
 }
 
+/** Placa y VIN se guardan en su forma canónica, no solo se ven en mayúsculas. */
+function normalizeIdentityField(field, event) {
+  form[field] = (event?.target?.value ?? form[field] ?? '').toUpperCase()
+}
+
 function validate() {
   clearErrors()
   let valid = true
-  if (rules.isBlank(form.licensePlate) || !rules.isLicensePlate(form.licensePlate)) {
+  // Identidad mínima: la unidad llega de fábrica con VIN y recibe la matrícula
+  // después, así que ninguna de las dos es obligatoria por sí sola.
+  const hasVin   = !rules.isBlank(form.vin)
+  const hasPlate = !rules.isBlank(form.licensePlate)
+  if (!hasVin && !hasPlate) {
+    errors.vin = 'Ingresa el VIN o la placa. Se requiere al menos uno de los dos.'
+    valid = false
+  }
+  if (hasVin && !rules.hasMaxLength(form.vin, 17)) {
+    errors.vin = 'El VIN no debe superar 17 caracteres.'
+    valid = false
+  }
+  if (hasPlate && !rules.isLicensePlate(form.licensePlate)) {
     errors.licensePlate = 'Ingresa una placa valida (5-10 caracteres, letras/numeros/guion).'
     valid = false
   }
-  if (rules.isBlank(form.brand) || !rules.hasMaxLength(form.brand, 50)) {
-    errors.brand = 'La marca es requerida y no debe superar 50 caracteres.'
+  if (!rules.isBlank(form.brand) && !rules.hasMaxLength(form.brand, 50)) {
+    errors.brand = 'La marca no debe superar 50 caracteres.'
     valid = false
   }
-  if (rules.isBlank(form.model) || !rules.hasMaxLength(form.model, 50)) {
-    errors.model = 'El modelo es requerido y no debe superar 50 caracteres.'
+  if (!rules.isBlank(form.model) && !rules.hasMaxLength(form.model, 50)) {
+    errors.model = 'El modelo no debe superar 50 caracteres.'
     valid = false
   }
   if (!rules.isYear(form.year)) {
@@ -109,12 +130,30 @@ async function onSave(payload) {
           </div>
           <div class="vce-row">
             <div class="vce-field vce-field--flex vce-field--highlight">
-              <label class="vce-label">Placa</label>
+              <label class="vce-label">VIN</label>
+              <pv-input-text
+                v-model="form.vin"
+                placeholder="Ej. 3N1CN7AD8KL845233"
+                class="w-full vce-input-vin"
+                maxlength="17"
+                :invalid="!!errors.vin"
+                @input="normalizeIdentityField('vin', $event)"
+              />
+              <small v-if="errors.vin" class="vce-error">{{ errors.vin }}</small>
+            </div>
+          </div>
+          <div class="vce-row">
+            <div class="vce-field vce-field--flex vce-field--highlight">
+              <label class="vce-label">
+                Placa
+                <span class="vce-label-opt">si aún no está matriculada, déjala vacía</span>
+              </label>
               <pv-input-text
                 v-model="form.licensePlate"
                 placeholder="Ej. ABC-123"
                 class="w-full vce-input-plate"
                 :invalid="!!errors.licensePlate"
+                @input="normalizeIdentityField('licensePlate', $event)"
               />
               <small v-if="errors.licensePlate" class="vce-error">{{ errors.licensePlate }}</small>
             </div>
@@ -207,5 +246,11 @@ async function onSave(payload) {
 .vce-label-opt { font-weight: 400; color: #9ca3af; font-size: 0.75rem; margin-left: 0.25rem; }
 
 .vce-input-plate { font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.vce-input-vin {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .vce-error { font-size: 0.75rem; color: #dc2626; }
 </style>

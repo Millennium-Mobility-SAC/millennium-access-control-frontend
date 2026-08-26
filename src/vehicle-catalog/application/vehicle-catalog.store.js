@@ -4,6 +4,8 @@ import { VehicleCatalogApi }  from '../infrastructure/api/vehicle-catalog.api.js
 import { VehicleAssembler }   from '../infrastructure/assemblers/vehicle.assembler.js'
 import { batchSettled }       from '@/shared/infrustructure/batch-settled.js'
 import { humanizeApiError }   from '@/shared/infrustructure/api-error-humanizer.js'
+import { downloadBlob, fileNameFromContentDisposition } from '@/shared/infrustructure/download-blob.js'
+import { todayIsoLocal }      from '@/shared/domain/employee-attendance-day.js'
 
 export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
   const api = new VehicleCatalogApi()
@@ -64,12 +66,46 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
     await fetchPage(page)
   }
 
-  /** Export all vehicles matching current filters (no pagination). */
-  async function exportAll() {
-    const response = await api.exportVehicles(_activeFilters.value)
-    return Array.isArray(response.data)
-      ? response.data.map(r => VehicleAssembler.toEntityFromResource(r))
-      : []
+  /**
+   * Descarga el XLSX del catálogo con los filtros activos y dispara el guardado.
+   * El archivo lo arma el backend: el cliente solo lo entrega al navegador.
+   */
+  async function downloadExport() {
+    const response = await api.downloadExport(_activeFilters.value)
+    // Fecha local, no toISOString: en Lima (UTC-5) el UTC ya es del dia
+    // siguiente a partir de las 19:00 y el archivo saldria fechado mañana.
+    const fallback = `catalogo-vehiculos-${todayIsoLocal()}.xlsx`
+    const fileName = fileNameFromContentDisposition(
+      response.headers?.['content-disposition'], fallback)
+    downloadBlob(response.data, fileName)
+    return fileName
+  }
+
+  /**
+   * Todas las entidades que coinciden con los filtros activos.
+   *
+   * Separado de {@link downloadExport} a propósito: comparten filtros pero no
+   * respuesta, y "eliminar todos" necesita ids, no un archivo.
+   *
+   * Recorre las páginas porque el backend topa `size` en 100: pedir una sola
+   * página dejaría el borrado a medias y reportando éxito.
+   */
+  async function fetchAllMatching() {
+    const PAGE_SIZE = 100
+    const MAX_PAGES = 200          // 20 000 filas; salvaguarda contra un bucle infinito
+    const all = []
+    let page = 0
+    let totalPages = 1
+
+    while (page < totalPages && page < MAX_PAGES) {
+      const { data } = await api.fetchMatchingPage(_activeFilters.value, page, PAGE_SIZE)
+      const rows = data?.content ?? []
+      all.push(...rows.map(r => VehicleAssembler.toEntityFromResource(r)))
+      totalPages = data?.total_pages ?? 1
+      if (rows.length === 0) break
+      page++
+    }
+    return all
   }
 
   /** Reload the current page (used after mutations). */
@@ -125,33 +161,50 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
     return { total: resources.length, success, failed, failedRows }
   }
 
-  /** Elimina todos los vehículos que coincidan con los filtros activos (sin paginación). */
+  /**
+   * Elimina todos los vehículos que coincidan con los filtros activos.
+   * Va por tandas: cada DELETE arrastra además el historial de estancias de la
+   * unidad, así que no son peticiones baratas y lanzarlas todas a la vez satura
+   * el pool de conexiones del navegador y el servidor.
+   */
   async function deleteAll() {
-    const all = await exportAll()
+    const all = await fetchAllMatching()
     if (all.length === 0) return 0
-    await Promise.all(all.map(item => api.delete(item.id)))
+    const results = await batchSettled(all, item => api.delete(item.id))
+    const deleted = results.filter(r => r.status === 'fulfilled').length
     try { await fetchPage(0) } catch { /* ignore */ }
-    return all.length
+    return deleted
   }
 
   /**
-   * Actualiza múltiples vehículos en el backend (un PATCH /bulk-update).
-   * El backend procesa cada fila de forma independiente y devuelve un reporte detallado.
-   * @param {Array} rows — filas del Excel ya mapeadas con claves current_plate, new_plate, brand, model, year, color
+   * Reconcilia VIN y placa de varias unidades (un PATCH /bulk-update).
+   *
+   * Ya no es un reemplazo de placa: cada fila identifica la unidad por VIN —o
+   * por placa, como respaldo— y completa la identidad que falte. El backend
+   * procesa las filas de forma independiente y devuelve un reporte detallado.
+   *
+   * @param {Array} rows — filas del Excel con claves vin, licensePlate, brand, model, year, color
    * @returns {{ total, updated, ignored, failed, results: Array }}
    */
   async function bulkUpdate(rows) {
     const payload = rows.map(r => ({
-      current_plate: r.currentPlate  ?? r.current_plate,
-      new_plate:     r.newPlate      ?? r.new_plate      ?? null,
-      brand:         r.brand         || null,
-      model:         r.model         || null,
-      year:          r.year          ? Number(r.year) : null,
-      color:         r.color         || null,
+      vin:           normalizeIdentity(r.vin ?? r.VIN),
+      license_plate: normalizeIdentity(r.licensePlate ?? r.license_plate ?? r.plate),
+      brand:         r.brand || null,
+      model:         r.model || null,
+      year:          r.year ? Number(r.year) : null,
+      color:         r.color || null,
     }))
-    const result = await api.bulkUpdate(payload)
+    const { data } = await api.bulkUpdate(payload)
     await fetchPage(_page.value)
-    return result
+    return data
+  }
+
+  /** Forma canónica de placa y VIN, igual que en el assembler. */
+  function normalizeIdentity(v) {
+    if (v == null || v === '') return null
+    const s = String(v).trim()
+    return s.length ? s.toUpperCase() : null
   }
 
   function select(vehicle) { _selected.value = vehicle }
@@ -159,7 +212,7 @@ export const useVehicleCatalogStore = defineStore('vehicle-catalog', () => {
 
   return {
     vehicles, selected, pagination,
-    fetchByLicensePlate, fetchVehicleSuggestions, fetchVehicles, goToPage, exportAll, refreshLastQuery,
+    fetchByLicensePlate, fetchVehicleSuggestions, fetchVehicles, goToPage, downloadExport, fetchAllMatching, refreshLastQuery,
     fetchById, create, update, remove, bulkCreate, bulkUpdate, deleteAll,
     select, clear,
   }

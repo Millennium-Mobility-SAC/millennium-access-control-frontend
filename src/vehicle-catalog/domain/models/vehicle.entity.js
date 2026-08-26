@@ -4,6 +4,7 @@ import { formatVehicleUbicacion } from '../format-vehicle-ubicacion.js'
 export class Vehicle {
   constructor({
     id            = null,
+    vin           = null,
     licensePlate  = '',
     brand         = '',
     model         = '',
@@ -17,6 +18,7 @@ export class Vehicle {
     external        = false,
   } = {}) {
     this.id            = id
+    this.vin           = vin
     this.licensePlate  = licensePlate
     this.brand         = brand
     this.model         = model
@@ -28,6 +30,21 @@ export class Vehicle {
     this.catalogFlowEntryReason = catalogFlowEntryReason
     this.catalogActiveTemporalExitReason = catalogActiveTemporalExitReason
     this.external = Boolean(external)
+  }
+
+  /**
+   * Identificador visible de la unidad. Una unidad recién importada de fábrica
+   * todavía no tiene matrícula: entonces el VIN es lo único que la identifica.
+   */
+  get identityLabel() {
+    if (this.licensePlate) return this.licensePlate
+    if (this.vin) return `VIN ${this.vin}`
+    return '—'
+  }
+
+  /** true cuando la unidad está en el padrón pero aún no tiene matrícula. */
+  get isUnplated() {
+    return !this.licensePlate
   }
 
   get displayName() {

@@ -288,7 +288,7 @@ const confirmDeleteSelected = () => {
 const confirmDeleteItem = (item) => {
 
 
-  const itemIdentifier = item.licensePlate || item.fullName || item.firstName || item.name || item.id || ''
+  const itemIdentifier = item.licensePlate || item.vin || item.fullName || item.firstName || item.name || item.id || ''
   
   const base = `¿Está seguro de eliminar ${itemIdentifier ? `"${itemIdentifier}"` : `esta ${props.title.singular}`}?`
   confirm.require({

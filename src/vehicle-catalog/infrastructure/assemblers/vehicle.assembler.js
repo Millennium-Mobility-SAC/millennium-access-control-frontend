@@ -43,6 +43,12 @@ function blankToNull(v) {
   return s.length ? s : null
 }
 
+/** Forma canónica de placa y VIN: recortada y en mayúsculas, o null. */
+function normalizeIdentity(v) {
+  const s = blankToNull(v)
+  return s ? s.toUpperCase() : null
+}
+
 function hasImportSnapshotFields(form) {
   const keys = [
     'operationalStatus', 'entryDate', 'entryTime', 'entryReason',
@@ -73,6 +79,7 @@ export class VehicleAssembler {
   static toEntityFromResource(resource) {
     return new Vehicle({
       id:            resource.id                                           ?? null,
+      vin:           resource.vin                                         ?? null,
       licensePlate:  resource.license_plate ?? resource.licensePlate      ?? '',
       brand:         resource.brand                                       ?? '',
       model:         resource.model                                       ?? '',
@@ -106,7 +113,11 @@ export class VehicleAssembler {
         ? Number(form.year)
         : new Date().getFullYear()
     const payload = {
-      license_plate: form.licensePlate || null,
+      // Ambas identidades se normalizan aquí, no solo visualmente: el lote las
+      // usa como clave de resolución y una diferencia de mayúsculas o espacios
+      // haría que la búsqueda fallara en silencio.
+      vin:           normalizeIdentity(form.vin),
+      license_plate: normalizeIdentity(form.licensePlate),
       brand:         form.brand        || null,
       model:         form.model        || null,
       year:          Number.isFinite(year) ? year : new Date().getFullYear(),

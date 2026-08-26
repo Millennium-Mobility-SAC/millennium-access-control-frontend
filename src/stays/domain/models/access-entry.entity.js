@@ -40,6 +40,7 @@ export class AccessEntry {
     entryDate                = null,
     entryTime                = '',
     entryReason              = null,
+    vin                      = null,
     licensePlate             = null,
     brand                    = null,
     model                    = null,
@@ -71,6 +72,7 @@ export class AccessEntry {
     this.entryDate             = entryDate
     this.entryTime             = entryTime
     this.entryReason           = entryReason
+    this.vin                   = vin
     this.licensePlate          = licensePlate
     this.brand                 = brand
     this.model                 = model

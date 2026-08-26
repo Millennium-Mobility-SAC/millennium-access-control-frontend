@@ -21,6 +21,17 @@ const ENTRY_REASON_ALIASES = {
   'AREA_DE_VENTAS': 'AREA_VENTAS',
 }
 
+/**
+ * Forma canónica de placa y VIN: recortada y en mayúsculas, o null.
+ * El backend resuelve la unidad por cualquiera de las dos, así que una
+ * diferencia de mayúsculas o espacios haría fallar la búsqueda en silencio.
+ */
+function normalizeIdentity(value) {
+  if (value == null || value === '') return null
+  const s = String(value).trim()
+  return s.length ? s.toUpperCase() : null
+}
+
 function normalizeToken(value) {
   if (value == null) return null
   const normalized = String(value)
@@ -128,6 +139,7 @@ export class AccessEntryAssembler {
       entryDate:             resource.entry_date             ?? resource.entryDate              ?? null,
       entryTime:             resource.entry_time             ?? resource.entryTime              ?? '',
       entryReason:           normalizeEntryReason(resource.entry_reason ?? resource.entryReason ?? null),
+      vin:                   resource.vin                                                       ?? null,
       licensePlate:          resource.license_plate          ?? resource.licensePlate           ?? null,
       brand:                 resource.brand                                                    ?? null,
       model:                 resource.model                                                    ?? null,
@@ -175,7 +187,8 @@ export class AccessEntryAssembler {
       external_description:   isExternal ? (form.externalDescription?.trim() || null) : (form.externalDescription?.trim() || null),
       document_type:          form.documentType         ?? null,
       client_document_number: form.clientDocumentNumber || null,
-      license_plate:          form.licensePlate         || null,
+      vin:                    normalizeIdentity(form.vin),
+      license_plate:          normalizeIdentity(form.licensePlate),
       brand:                  form.brand                || null,
       model:                  form.model                || null,
       year:                   form.year                 ?? null,

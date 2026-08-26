@@ -97,6 +97,7 @@ const form = reactive({
   type:                 'VEHICULO',
   entryDate:            null,
   entryTime:            '',
+  vin:                  null,
   licensePlate:         null,
   vehicleId:            null,
   brand:                null,
@@ -135,6 +136,7 @@ watch(() => props.visible, (val) => {
     type:                 src.type                 ?? 'VEHICULO',
     entryDate:            src.entryDate ? new Date(src.entryDate) : (isNew ? nowPeruDate() : null),
     entryTime:            src.entryTime ? to12h(src.entryTime) : (isNew ? to12h(nowTimeString()) : ''),
+    vin:                  src.vin                   ?? null,
     licensePlate:         src.licensePlate          ?? null,
     vehicleId:            src.vehicleId             ?? null,
     brand:                src.brand                 ?? null,
@@ -184,7 +186,9 @@ watch(() => props.visible, (val) => {
 // ── Autocompletado de placa (mismo patrón que marcación de personal) ──
 function formatPlateLine(vehicle) {
   if (!vehicle) return ''
-  const plate = vehicle.licensePlate || ''
+  // Una unidad recién importada de fábrica no tiene matrícula: entonces el VIN
+  // es lo único que la identifica en la lista.
+  const plate = vehicle.licensePlate || (vehicle.vin ? `VIN ${vehicle.vin}` : '')
   const extra = [vehicle.brand, vehicle.model, vehicle.year].filter(Boolean).join(' ')
   return extra ? `${plate} — ${extra}` : plate
 }
@@ -209,6 +213,7 @@ async function applyVehicleFromSelection(vehicle) {
   showSaveVehicle.value = false
   lastMileage.value = null
   form.licensePlate = vehicle.licensePlate ?? form.licensePlate
+  form.vin = vehicle.vin ?? form.vin
   form.vehicleId = vehicle.id ?? null
   form.brand = vehicle.brand || form.brand
   form.model = vehicle.model || form.model
@@ -232,7 +237,7 @@ async function loadPlateSuggestions(query) {
   const q = query.trim()
   plateSuggestLoading.value = true
   try {
-    const list = await store.fetchVehicleSuggestions(q)
+    const list = await store.fetchVehicleSuggestions(q, { external: false })
     const mapped = list.map(toPlateRow)
     const cur = selectedPlateWrap.value
     if (cur && !mapped.some(r => r.id === cur.id)) {
@@ -287,6 +292,7 @@ async function saveVehicle() {
   savingVehicle.value = true
   try {
     const created = await store.create({
+      vin:          form.vin,
       licensePlate: form.licensePlate,
       brand:        form.brand,
       model:        form.model,
@@ -520,6 +526,7 @@ function onClientToggle(enabled) {
 
 // ── Validación del formulario ─────────────────────────────────────────────────
 const errors = reactive({
+  vin:                  '',
   licensePlate:         '',
   externalDescription:  '',
   clientDocumentNumber: '',
@@ -531,6 +538,7 @@ const errors = reactive({
 })
 
 function clearErrors() {
+  errors.vin                  = ''
   errors.licensePlate         = ''
   errors.externalDescription  = ''
   errors.clientDocumentNumber = ''
@@ -546,8 +554,9 @@ function validate() {
   let valid = true
 
   if (form.type === 'VEHICULO') {
-    if (!form.licensePlate?.trim()) {
-      errors.licensePlate = 'La placa es requerida'
+    // Placa o VIN: una unidad sin matricular se identifica por su VIN.
+    if (!form.licensePlate?.trim() && !form.vin?.trim()) {
+      errors.licensePlate = 'Ingresa la placa o el VIN de la unidad'
       valid = false
     }
     if (isExternalVehicle.value) {
@@ -738,6 +747,22 @@ async function onSave(formData) {
                   </small>
                 </template>
                 <small v-if="errors.licensePlate" class="ace-field-error">{{ errors.licensePlate }}</small>
+              </div>
+
+              <div v-if="!isExternalVehicle" class="ace-field ace-field--flex">
+                <label class="ace-label">
+                  VIN
+                  <span class="ace-label-opt">(si la unidad aún no tiene placa)</span>
+                </label>
+                <pv-input-text
+                  v-model="form.vin"
+                  placeholder="Ej. 3N1CN7AD8KL845233"
+                  class="w-full ace-input-vin"
+                  maxlength="17"
+                  :invalid="!!errors.vin"
+                  @input="form.vin = ($event.target?.value ?? form.vin)?.toUpperCase()"
+                />
+                <small v-if="errors.vin" class="ace-field-error">{{ errors.vin }}</small>
               </div>
             </div>
 
@@ -1240,6 +1265,14 @@ async function onSave(formData) {
   font-weight: 600;
   color: var(--color-primary, #6366f1);
 }
+.ace-input-vin :deep(input),
+.ace-input-vin input {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 
 .ace-field--highlight .ace-input-plate :deep(input.p-autocomplete-input) {
   font-size: 1rem !important;

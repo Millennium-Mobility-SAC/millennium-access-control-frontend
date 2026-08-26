@@ -12,6 +12,7 @@ export class StorageFilesApi extends BaseApi {
     const formData = new FormData()
     files.forEach(file => formData.append('files', file))
     if (naming?.plate) formData.append('plate', naming.plate)
+    if (naming?.vin) formData.append('vin', naming.vin)
     if (naming?.accessType) formData.append('accessType', naming.accessType)
     if (naming?.stayType) formData.append('stayType', naming.stayType)
     if (naming?.operationDate) formData.append('operationDate', naming.operationDate)

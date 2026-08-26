@@ -242,6 +242,7 @@ async function handleExport() {
       'Fecha Ingreso':           calendarDateToExcelLocalDate(entry.entryDate),
       'Hora Ingreso':            formatWallClockTimeForExcel(entry.entryTime),
       'Registrado por':          [entry.registeredByFirstName, entry.registeredByLastName].filter(Boolean).join(' ') || '',
+      'VIN':                     entry.vin          ?? '',
       'Placa':                   entry.licensePlate ?? '',
       'Marca':                   entry.brand        ?? '',
       'Modelo':                  entry.model        ?? '',
@@ -292,7 +293,10 @@ async function handleExport() {
     rows.forEach(r => ws.addRow(headers.map(h => r[h])))
   }
   applySheetStyles(ws, HISTORY_COL_WIDTHS)
-  const plate = vehicle.value.licensePlate?.replace(/[^A-Z0-9]/gi, '') ?? 'vehiculo'
+  // El assembler devuelve '' (no null) cuando no hay placa, asi que ?? no
+  // alcanza: hay que comprobar el contenido y caer al VIN.
+  const rawId = vehicle.value.licensePlate || vehicle.value.vin || 'vehiculo'
+  const plate = rawId.replace(/[^A-Z0-9]/gi, '') || 'vehiculo'
   const date = todayIsoLocal()
   const buffer = await wb.xlsx.writeBuffer()
   saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `historial-${plate}-${date}.xlsx`)
@@ -378,7 +382,7 @@ const processedHistory = computed(() =>
         <i class="pi pi-car" />
       </div>
       <div class="flex flex-column gap-1 flex-1 min-w-0">
-        <span class="vh-plate">{{ vehicle.licensePlate }}</span>
+        <span class="vh-plate">{{ vehicle.licensePlate || (vehicle.vin ? 'VIN ' + vehicle.vin : '—') }}</span>
         <span class="vh-sub">{{ vehicleSubtitle }}</span>
       </div>
       <pv-tag

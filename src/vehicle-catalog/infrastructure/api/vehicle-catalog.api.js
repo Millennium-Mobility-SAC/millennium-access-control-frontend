@@ -36,6 +36,11 @@ export class VehicleCatalogApi extends BaseApi {
     return this.http.get(`${this.#endpoint.endpointPath}/license-plate/${encodeURIComponent(licensePlate)}`)
   }
 
+  /** @param {string} vin */
+  getByVin(vin) {
+    return this.http.get(`${this.#endpoint.endpointPath}/vin/${encodeURIComponent(vin)}`)
+  }
+
   /** Lista de vehículos para autocompletado (mín. 2 caracteres en servidor). */
   getSuggestions(term, limit = 15, external = null) {
     const params = { term, limit }
@@ -46,16 +51,39 @@ export class VehicleCatalogApi extends BaseApi {
     })
   }
 
-  /** Export all vehicles matching the given filters (no pagination). */
-  exportVehicles(filters = {}) {
+  #exportParams(filters = {}) {
     const params = {}
     if (filters.statuses?.length)            params.statuses              = filters.statuses.join(',')
     if (filters.flowEntryReasons?.length)    params.flow_entry_reasons    = filters.flowEntryReasons.join(',')
     if (filters.temporalExitReasons?.length) params.temporal_exit_reasons = filters.temporalExitReasons.join(',')
     if (filters.external?.length)            params.external              = filters.external.join(',')
     if (filters.daysRange)                   params.days_range            = filters.daysRange
-    if (filters.search?.trim())             params.search                = filters.search.trim()
-    return this.http.get(`${this.#endpoint.endpointPath}/export`, { params })
+    if (filters.search?.trim())              params.search                = filters.search.trim()
+    return params
+  }
+
+  /**
+   * Descarga el XLSX del catálogo filtrado, ya armado por el backend.
+   * Llega como blob porque el JWT viaja en cabecera: un enlace directo no se
+   * autenticaría solo.
+   */
+  downloadExport(filters = {}) {
+    return this.http.get(`${this.#endpoint.endpointPath}/export`, {
+      params: this.#exportParams(filters),
+      responseType: 'blob',
+    })
+  }
+
+  /**
+   * Una página del listado con los filtros de exportación aplicados.
+   * Lo usa "eliminar todos" para enumerar ids: no puede compartir camino con la
+   * descarga, que desde ahora devuelve un archivo y no filas.
+   *
+   * El backend topa `size` en 100 (GetPagedVehiclesQuery), así que quien
+   * necesite el conjunto completo tiene que recorrer las páginas.
+   */
+  fetchMatchingPage(filters = {}, page = 0, size = 100) {
+    return this.#endpoint.getAll({ ...this.#exportParams(filters), page, size })
   }
 
   /**

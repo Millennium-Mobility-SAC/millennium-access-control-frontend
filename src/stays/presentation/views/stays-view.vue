@@ -330,9 +330,10 @@ function closeDialog() {
 async function handleSave(entity) {
   if (isLoading.value) return
   await run(async () => {
-    const subjectIdentifier = entity.licensePlate || entity.clientDocumentNumber || 'SIN_IDENTIFICADOR'
+    const subjectIdentifier = entity.licensePlate || entity.vin || entity.clientDocumentNumber || 'SIN_IDENTIFICADOR'
     const attachmentIds = await uploadAttachments(entity.attachments, {
       plate: subjectIdentifier,
+      vin: entity.vin ?? null,
       accessType: entity.type,
       stayType: 'INGRESO',
       operationDate: toIsoDateString(entity.entryDate),
@@ -402,9 +403,10 @@ function openReturnDialog(item) {
 async function handleExit(exitData) {
   if (isLoading.value) return
   await run(async () => {
-    const subjectIdentifier = exitData.licensePlate || exitData.clientDocumentNumber || 'SIN_IDENTIFICADOR'
+    const subjectIdentifier = exitData.licensePlate || exitData.vin || exitData.clientDocumentNumber || 'SIN_IDENTIFICADOR'
     const attachmentIds = await uploadAttachments(exitData.attachments, {
       plate: subjectIdentifier,
+      vin: exitData.vin ?? null,
       accessType: exitData.type,
       stayType: exitData.exitType === 'TEMPORAL' ? 'SALIDA_TEMPORAL' : 'SALIDA_PERMANENTE',
       operationDate: toIsoDateString(exitData.exitDate),
@@ -420,9 +422,10 @@ async function handleExit(exitData) {
 async function handleReturn(returnData) {
   if (isLoading.value) return
   await run(async () => {
-    const subjectIdentifier = returnData.licensePlate || returnData.clientDocumentNumber || 'SIN_IDENTIFICADOR'
+    const subjectIdentifier = returnData.licensePlate || returnData.vin || returnData.clientDocumentNumber || 'SIN_IDENTIFICADOR'
     const attachmentIds = await uploadAttachments(returnData.attachments, {
       plate: subjectIdentifier,
+      vin: returnData.vin ?? null,
       accessType: returnData.type,
       stayType: 'RETORNO',
       operationDate: toIsoDateString(returnData.returnDate),
@@ -550,6 +553,7 @@ function sharedEntryCols(entry) {
 function buildVehicleRow(entry, exit = null, exitIndex = null) {
   return {
     ...sharedEntryCols(entry),
+    'VIN':         entry.vin          ?? '',
     'Placa':       entry.licensePlate ?? '',
     'Marca':       entry.brand        ?? '',
     'Modelo':      entry.model        ?? '',
@@ -778,9 +782,9 @@ function handlePageChange({ page }) {
         <span
           v-else
           class="stays-plate"
-          :title="data.licensePlate || data.clientDocumentNumber || ''"
+          :title="data.licensePlate || data.vin || data.clientDocumentNumber || ''"
         >
-          {{ data.licensePlate || data.clientDocumentNumber || '—' }}
+          {{ data.licensePlate || (data.vin ? 'VIN ' + data.vin : '') || data.clientDocumentNumber || '—' }}
         </span>
       </template>
 

@@ -188,6 +188,22 @@ async function handleImport(rows, importColumns) {
   }
 }
 
+const exportLoading = ref(false)
+
+/** Descarga el XLSX que arma el backend con los filtros activos. */
+async function handleDownloadExport() {
+  if (exportLoading.value) return
+  exportLoading.value = true
+  try {
+    const fileName = await store.downloadExport()
+    showSuccess(`Catálogo exportado: ${fileName}`)
+  } catch (e) {
+    showError('No se pudo generar el archivo. Intenta de nuevo en unos momentos.')
+  } finally {
+    exportLoading.value = false
+  }
+}
+
 async function handleBulkUpdate(rows) {
   if (!rows || rows.length === 0) return
   bulkUpdateLoading.value = true
@@ -249,6 +265,7 @@ function ubicacionTagProps(row) {
       :show-edit-action="true"
       :show-delete-action="iamStore.hasFullActionAccess"
       :show-history-action="false"
+      :show-export="false"
       :show-import="iamStore.hasFullActionAccess"
       :import-columns="VEHICLE_IMPORT_COLUMNS"
       @new-item-requested-manager="openNewDialog"
@@ -261,10 +278,21 @@ function ubicacionTagProps(row) {
       @clear-filters="clearAllFilters"
       @page-changed="handlePageChange"
     >
-      <template v-if="iamStore.hasFullActionAccess" #extra-actions>
+      <template #extra-actions>
         <pv-button
+          icon="pi pi-download"
+          label="Exportar"
+          severity="secondary"
+          size="small"
+          outlined
+          :loading="exportLoading"
+          class="dm-stoolbar-btn w-full sm:w-auto"
+          @click="handleDownloadExport"
+        />
+        <pv-button
+          v-if="iamStore.hasFullActionAccess"
           icon="pi pi-pencil"
-          label="Actualizar masivamente"
+          label="Reconciliar VIN y placa"
           severity="warning"
           size="small"
           outlined
@@ -368,9 +396,15 @@ function ubicacionTagProps(row) {
 
       <template #vehicle-plate-template="{ data }">
         <div class="vc-plate-cell">
-          <span class="vc-plate" :title="data.licensePlate || undefined">{{ data.licensePlate || '—' }}</span>
+          <span v-if="data.licensePlate" class="vc-plate" :title="data.licensePlate">{{ data.licensePlate }}</span>
+          <pv-tag v-else value="Sin placa" severity="secondary" class="vc-unplated-tag" />
           <pv-tag v-if="data.external" value="Ext." severity="danger" class="vc-ext-tag" />
         </div>
+      </template>
+
+      <template #vehicle-vin-template="{ data }">
+        <span v-if="data.vin" class="vc-vin" :title="data.vin">{{ data.vin }}</span>
+        <span v-else class="vc-dash">—</span>
       </template>
 
       <template #vehicle-status="{ value }">
@@ -423,17 +457,17 @@ function ubicacionTagProps(row) {
       v-if="bulkUpdateDialogVisible"
       v-model:visible="bulkUpdateDialogVisible"
       :import-columns="VEHICLE_BULK_UPDATE_COLUMNS"
-      title="Actualización masiva de vehículos"
-      template-download-file-name="plantilla-actualizacion-vehiculos.xlsx"
-      template-sheet-name="Actualización"
-      :template-sample-rows="[{ currentPlate: 'ABC-123', newPlate: '', brand: 'Toyota', model: 'Corolla', year: 2023, color: 'Rojo' }]"
+      title="Reconciliar VIN y placa"
+      template-download-file-name="plantilla-reconciliacion-vehiculos.xlsx"
+      template-sheet-name="Reconciliación"
+      :template-sample-rows="[{ vin: '3N1CN7AD8KL845233', licensePlate: 'ABC-123', brand: 'Toyota', model: 'Corolla', year: 2023, color: 'Rojo' }]"
       @import-confirmed="handleBulkUpdate"
     />
 
     <!-- Bulk update — results dialog -->
     <pv-dialog
       v-model:visible="bulkUpdateResultVisible"
-      header="Resultado de la actualización masiva"
+      header="Resultado de la reconciliación"
       :modal="true"
       :closable="true"
       :draggable="false"
@@ -463,7 +497,8 @@ function ubicacionTagProps(row) {
           scroll-height="340px"
           scrollable
         >
-          <pv-column field="current_plate" header="Placa" style="min-width:7rem; font-weight:700" />
+          <pv-column field="vin" header="VIN" style="min-width:9rem; font-family:monospace; font-size:0.8125rem" />
+          <pv-column field="license_plate" header="Placa" style="min-width:7rem; font-weight:700" />
           <pv-column field="status" header="Estado" style="min-width:6rem">
             <template #body="{ data }">
               <pv-tag
@@ -630,6 +665,18 @@ function ubicacionTagProps(row) {
   gap: 0.35rem;
   max-width: 100%;
 }
+.vc-vin {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  color: #374151;
+}
+
+.vc-unplated-tag {
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+
 .vc-ext-tag {
   font-size: 0.65rem;
   padding: 0.1rem 0.35rem;

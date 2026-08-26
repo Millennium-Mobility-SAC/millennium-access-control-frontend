@@ -66,6 +66,7 @@ onUnmounted(() => stopClock())
 const form = reactive({
   id:                      null,
   type:                    'VEHICULO',
+  vin:                     null,
   licensePlate:            null,
   brand:                   null,
   model:                   null,
@@ -92,6 +93,7 @@ watch(() => props.visible, (val) => {
   Object.assign(form, {
     id:                      src.id           ?? null,
     type:                    src.type         ?? 'VEHICULO',
+    vin:                     src.vin ?? null,
     licensePlate:            src.licensePlate ?? null,
     brand:                   src.brand        ?? null,
     model:                   src.model        ?? null,
@@ -263,7 +265,7 @@ async function onSaved(formData) {
           <div class="ace-row">
             <div class="ace-field ace-field--flex">
               <label class="ace-label">Placa</label>
-              <pv-input-text :model-value="form.licensePlate || '—'" class="w-full" :disabled="true" />
+              <pv-input-text :model-value="form.licensePlate || (form.vin ? 'VIN ' + form.vin : '—')" class="w-full" :disabled="true" />
             </div>
             <div class="ace-field ace-field--flex">
               <label class="ace-label">Color</label>
