@@ -197,6 +197,8 @@ onUnmounted(() => {
       -->
       <template #extra-actions="{ selectedItems, clearSelection }">
         <TrafficFinesBatchProgress :batch="batch" @dismissed="store.clearBatch()" />
+        <!-- Sin lote en curso no hay tira que empuje: este hueco mantiene los botones a la derecha. -->
+        <div v-if="!batch" class="tf-toolbar-spacer" />
 
         <pv-button
           icon="pi pi-search"
@@ -358,6 +360,31 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/*
+ * La barra secundaria del DataManager se encoge a su contenido y se pega a la derecha con
+ * `margin-left: auto`. Eso vale cuando solo lleva botones, pero aquí lleva además el avance del
+ * lote: al no caber, el grupo se parte en dos líneas y deja medio toolbar vacío. Se le da la fila
+ * completa, y la tira absorbe el hueco mientras los botones conservan su tamaño.
+ *
+ * Va con `:deep` y acotado a esta vista: es un componente compartido por todos los módulos y el
+ * comportamiento por defecto es el correcto para los que solo ponen botones.
+ */
+@media (min-width: 576px) {
+  .tf-page :deep(.dm-secondary-toolbar__secondary) {
+    flex: 1 1 100%;
+    margin-left: 0;
+    flex-wrap: nowrap;
+  }
+
+  .tf-page :deep(.dm-secondary-toolbar__secondary .p-button) {
+    flex-shrink: 0;
+  }
+}
+
+.tf-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
 /*
  * Búsqueda, filtros y botón en una sola fila. Se envuelven en pantallas estrechas en vez de
  * comprimirse hasta ser inservibles.

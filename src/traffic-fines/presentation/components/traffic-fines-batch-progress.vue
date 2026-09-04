@@ -128,7 +128,8 @@ function toggleFailures(event) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex: 1 1 22rem;
+  /* Absorbe todo el hueco libre del toolbar; los botones conservan su tamaño. */
+  flex: 1 1 auto;
   min-width: 0;
 }
 
