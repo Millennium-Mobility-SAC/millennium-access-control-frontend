@@ -77,51 +77,52 @@ onUnmounted(() => store.clearDetail())
     />
 
     <template v-else>
-      <!-- Encabezado de la unidad -->
-      <div v-if="detail" class="tf-detail__header surface-card border-round p-3 mb-3">
-        <div class="flex flex-wrap align-items-center gap-3">
-          <div class="tf-detail__identity">
-            <span class="tf-detail__plate">{{ identity }}</span>
-            <pv-tag v-if="detail.external" value="Externo" severity="danger" />
-            <pv-tag
-              v-if="!detail.consultable"
-              value="No consultable"
-              severity="warn"
-              v-tooltip.top="'La placa no tiene el formato que acepta el servicio de consultas'"
-            />
-          </div>
-          <span class="text-600">{{ detail.brand }} {{ detail.model }} {{ detail.year }}</span>
-          <div class="tf-detail__totals ml-auto">
-            <span class="text-600 text-sm mr-2">Deuda pendiente</span>
-            <span class="tf-detail__amount">{{ formatSoles(detail.totalAmountDue) }}</span>
-            <span class="text-600 text-sm ml-2">({{ detail.pendingCount }} pendientes)</span>
-          </div>
-        </div>
-      </div>
+      <!--
+        Identidad, deuda y estado de los portales en una sola tarjeta de dos líneas. Estaban en
+        dos tarjetas apiladas y se comían un tercio de la pantalla antes de que apareciera la
+        primera papeleta, que es lo que se viene a ver.
 
-      <!-- Última consulta por portal -->
-      <div v-if="detail" class="tf-detail__checks surface-card border-round p-3 mb-3">
-        <h3 class="mt-0 mb-2 text-base">Última consulta por portal</h3>
-        <p v-if="!detail.checks.length" class="m-0 text-600">
-          Esta unidad todavía no se ha consultado en ningún portal, así que su deuda es
-          desconocida, no cero.
-        </p>
-        <div v-else class="flex flex-wrap gap-3">
-          <div
-            v-for="check in detail.checks"
-            :key="check.issuer"
-            class="tf-detail__check flex align-items-center gap-2"
-          >
-            <pv-tag :value="formatIssuerLabel(check.issuer)" severity="secondary" />
-            <pv-tag
-              :value="formatCheckStatusLabel(check.status)"
-              :severity="checkStatusSeverity(check.status)"
-            />
-            <span class="text-600 text-sm">{{ formatDateTimeForUi(check.completedAt) }}</span>
-            <span v-if="check.errorMessage" class="text-orange-600 text-sm">
-              {{ check.errorMessage }}
+        Lo que no se puede perder al compactar es la distinción entre «no debe nada» y «no se
+        pudo consultar»: por eso el estado por portal sigue estando, aunque ahora en una línea.
+      -->
+      <div v-if="detail" class="tf-detail__header">
+        <div class="tf-detail__row">
+          <span class="tf-detail__plate">{{ identity }}</span>
+          <span class="tf-detail__model">{{ detail.brand }} {{ detail.model }} {{ detail.year }}</span>
+          <pv-tag v-if="detail.external" value="Externo" severity="danger" />
+          <pv-tag
+            v-if="!detail.consultable"
+            value="No consultable"
+            severity="warn"
+            v-tooltip.top="'La placa no tiene el formato que acepta el servicio de consultas'"
+          />
+          <span class="tf-detail__totals">
+            <span class="tf-detail__totals-label">Deuda pendiente</span>
+            <span class="tf-detail__amount">{{ formatSoles(detail.totalAmountDue) }}</span>
+            <span class="tf-detail__totals-label">({{ detail.pendingCount }})</span>
+          </span>
+        </div>
+
+        <div class="tf-detail__row tf-detail__row--checks">
+          <span class="tf-detail__checks-label">Última consulta</span>
+          <span v-if="!detail.checks.length" class="tf-detail__never">
+            sin consultar en ningún portal — la deuda es desconocida, no cero
+          </span>
+          <template v-else>
+            <span
+              v-for="check in detail.checks"
+              :key="check.issuer"
+              class="tf-detail__check"
+            >
+              <pv-tag :value="formatIssuerLabel(check.issuer)" severity="secondary" />
+              <pv-tag
+                :value="formatCheckStatusLabel(check.status)"
+                :severity="checkStatusSeverity(check.status)"
+                v-tooltip.top="check.errorMessage"
+              />
+              <span class="tf-detail__when">{{ formatDateTimeForUi(check.completedAt) }}</span>
             </span>
-          </div>
+          </template>
         </div>
       </div>
 
@@ -192,7 +193,7 @@ onUnmounted(() => store.clearDetail())
         </template>
 
         <template #fine-issuer-status="{ data }">
-          <span class="text-600 text-sm">{{ data.issuerStatus ?? '—' }}</span>
+          <span class="tf-issuer-status">{{ data.issuerStatus ?? '—' }}</span>
         </template>
 
         <template #fine-status="{ data }">
@@ -210,27 +211,90 @@ onUnmounted(() => store.clearDetail())
 </template>
 
 <style scoped>
-.tf-detail__header,
-.tf-detail__checks {
-  border: 1px solid var(--surface-border);
+/*
+ * Los grises salen de --text-body-secondary y no de --text-color-secondary: esa última la define
+ * el tema de PrimeVue para el layout oscuro y sobre el fondo claro del contenido queda casi
+ * invisible. Es el mismo criterio que sigue vc-filters__label en el catálogo de vehículos.
+ */
+.tf-detail__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.625rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--surface-border, #e5e7eb);
+  border-radius: var(--border-radius, 6px);
+  background: var(--surface-0, #ffffff);
 }
 
-.tf-detail__identity {
+.tf-detail__row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
+  min-width: 0;
+}
+
+.tf-detail__row--checks {
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--surface-border, #e5e7eb);
 }
 
 .tf-detail__plate {
   font-weight: 700;
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   letter-spacing: 0.04em;
+  color: var(--text-body, #111827);
+}
+
+.tf-detail__model {
+  font-size: 0.875rem;
+  color: var(--text-body-secondary, #6b7280);
+}
+
+.tf-detail__totals {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.tf-detail__totals-label {
+  font-size: 0.8125rem;
+  color: var(--text-body-secondary, #6b7280);
 }
 
 .tf-detail__amount {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
+  color: var(--text-body, #111827);
+}
+
+.tf-detail__checks-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-body-secondary, #6b7280);
+}
+
+.tf-detail__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tf-detail__when,
+.tf-detail__never {
+  font-size: 0.8125rem;
+  color: var(--text-body-secondary, #6b7280);
+}
+
+.tf-issuer-status {
+  font-size: 0.8125rem;
+  color: var(--text-body-secondary, #6b7280);
 }
 
 .tf-amount {
@@ -244,6 +308,6 @@ onUnmounted(() => store.clearDetail())
 
 .tf-raw-date {
   font-style: italic;
-  color: var(--text-color-secondary);
+  color: var(--text-body-secondary, #6b7280);
 }
 </style>

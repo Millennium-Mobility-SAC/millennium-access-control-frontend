@@ -168,8 +168,6 @@ onUnmounted(() => {
 
 <template>
   <div class="tf-page app-page-view flex flex-column flex-1 min-h-0 min-w-0">
-    <TrafficFinesBatchProgress :batch="batch" @dismissed="store.clearBatch()" />
-
     <DataManager
       :items="store.summary"
       :total-records="store.pagination.totalElements"
@@ -193,7 +191,13 @@ onUnmounted(() => {
       @clear-filters="clearAllFilters"
       @page-changed="handlePageChange"
     >
+      <!--
+        El avance vive en el toolbar, no en una tarjeta propia sobre la tabla: el lote puede durar
+        más de una hora y durante ese rato lo que hace falta es la tabla, no el indicador.
+      -->
       <template #extra-actions="{ selectedItems, clearSelection }">
+        <TrafficFinesBatchProgress :batch="batch" @dismissed="store.clearBatch()" />
+
         <pv-button
           icon="pi pi-search"
           :label="selectedItems.length ? `Consultar (${selectedItems.length})` : 'Consultar papeletas'"
@@ -216,9 +220,14 @@ onUnmounted(() => {
         />
       </template>
 
+      <!--
+        Todo en una fila. Las etiquetas van dentro del propio control como placeholder en vez de
+        encima: con solo tres filtros, una segunda fila de rótulos costaría más alto del que
+        aporta claridad.
+      -->
       <template #filters="{ clearFilters }">
-        <div class="tf-filters-wrap w-full">
-          <pv-icon-field class="tf-filter-search">
+        <div class="tf-filters w-full">
+          <pv-icon-field class="tf-filters__search">
             <pv-input-icon class="pi pi-search" />
             <pv-input-text
               v-model="searchText"
@@ -228,55 +237,51 @@ onUnmounted(() => {
             />
           </pv-icon-field>
 
-          <div class="tf-filters">
-            <div class="tf-filters__fields">
-              <div class="tf-filters__field">
-                <label class="tf-filters__label" for="tf-filter-issuers">Portal</label>
-                <pv-multi-select
-                  id="tf-filter-issuers"
-                  v-model="filterIssuers"
-                  :options="TRAFFIC_FINE_ISSUERS"
-                  option-label="label"
-                  option-value="value"
-                  placeholder="Todos"
-                  :max-selected-labels="1"
-                  selected-items-label="{0} portales"
-                />
-              </div>
-              <div class="tf-filters__field">
-                <label class="tf-filters__label" for="tf-filter-state">Situación</label>
-                <pv-select
-                  id="tf-filter-state"
-                  v-model="filterState"
-                  :options="TRAFFIC_FINE_STATE_FILTERS"
-                  option-label="label"
-                  option-value="value"
-                  placeholder="Todas"
-                  show-clear
-                />
-              </div>
-              <div class="tf-filters__field">
-                <label class="tf-filters__label" for="tf-filter-sort">Ordenar por</label>
-                <pv-select
-                  id="tf-filter-sort"
-                  v-model="filterSort"
-                  :options="TRAFFIC_FINE_SORTS"
-                  option-label="label"
-                  option-value="value"
-                  placeholder="Placa"
-                />
-              </div>
-            </div>
-            <pv-button
-              type="button"
-              label="Limpiar"
-              icon="pi pi-filter-slash"
-              text
-              size="small"
-              class="tf-filters__clear"
-              @click="clearFilters"
-            />
-          </div>
+          <pv-multi-select
+            id="tf-filter-issuers"
+            v-model="filterIssuers"
+            :options="TRAFFIC_FINE_ISSUERS"
+            option-label="label"
+            option-value="value"
+            placeholder="Portal"
+            :max-selected-labels="1"
+            selected-items-label="{0} portales"
+            class="tf-filters__control"
+            aria-label="Portal"
+          />
+
+          <pv-select
+            id="tf-filter-state"
+            v-model="filterState"
+            :options="TRAFFIC_FINE_STATE_FILTERS"
+            option-label="label"
+            option-value="value"
+            placeholder="Situación"
+            show-clear
+            class="tf-filters__control"
+            aria-label="Situación"
+          />
+
+          <pv-select
+            id="tf-filter-sort"
+            v-model="filterSort"
+            :options="TRAFFIC_FINE_SORTS"
+            option-label="label"
+            option-value="value"
+            placeholder="Ordenar por"
+            class="tf-filters__control"
+            aria-label="Ordenar por"
+          />
+
+          <pv-button
+            type="button"
+            label="Limpiar"
+            icon="pi pi-filter-slash"
+            text
+            size="small"
+            class="tf-filters__clear"
+            @click="clearFilters"
+          />
         </div>
       </template>
 
@@ -353,37 +358,30 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.tf-filters-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
+/*
+ * Búsqueda, filtros y botón en una sola fila. Se envuelven en pantallas estrechas en vez de
+ * comprimirse hasta ser inservibles.
+ */
 .tf-filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.5rem;
+  min-width: 0;
 }
 
-.tf-filters__fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  flex: 1 1 auto;
+.tf-filters__search {
+  flex: 2 1 14rem;
+  min-width: 0;
 }
 
-.tf-filters__field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 11rem;
-  flex: 1 1 11rem;
+.tf-filters__control {
+  flex: 1 1 9.5rem;
+  min-width: 0;
 }
 
-.tf-filters__label {
-  font-size: 0.75rem;
-  color: var(--text-color-secondary);
+.tf-filters__clear {
+  flex-shrink: 0;
 }
 
 .tf-plate-cell {
@@ -415,7 +413,12 @@ onUnmounted(() => {
   justify-content: center;
 }
 
+/*
+ * Los grises salen de --text-body-secondary, no de --text-color-secondary: esa última la define
+ * el tema de PrimeVue para el layout oscuro y sobre el fondo claro del contenido queda casi
+ * invisible. Es el mismo criterio que sigue vc-filters__label en el catálogo de vehículos.
+ */
 .tf-dash {
-  color: var(--text-color-secondary);
+  color: var(--text-body-secondary, #6b7280);
 }
 </style>
