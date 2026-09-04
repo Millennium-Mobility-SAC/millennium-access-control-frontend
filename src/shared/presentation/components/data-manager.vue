@@ -354,6 +354,19 @@ function onSelectAllChange(event) {
   selectedItems.value = event.checked ? displayItems.value.slice() : []
 }
 
+/**
+ * Limpia la selección. Se entrega al slot `extra-actions` para que una acción del padre
+ * (por ejemplo lanzar un proceso sobre lo seleccionado) pueda dejar la tabla en limpio
+ * sin manipular el estado interno del DataManager.
+ */
+function clearSelection() {
+  selectAll.value     = false
+  selectedItems.value = []
+}
+
+// La selección se expone también aquí para quien tenga una `ref` al componente.
+defineExpose({ selectedItems, clearSelection })
+
 // ===========================
 // LIFECYCLE HOOKS
 // ===========================
@@ -432,7 +445,17 @@ onMounted(() => initFilters())
         </div>
 
         <div class="dm-secondary-toolbar__secondary">
-          <slot name="extra-actions" />
+          <!--
+            La selección viaja como slot prop: un botón que actúa sobre lo seleccionado no puede
+            reconstruirla desde `row-select`, porque `onSelectAllChange` asigna `selectedItems`
+            directamente y no emite ese evento. Es aditivo: los slots que la ignoran siguen igual.
+          -->
+          <slot
+            name="extra-actions"
+            :selected-items="selectedItems"
+            :select-all="selectAll"
+            :clear-selection="clearSelection"
+          />
 
           <pv-button
             v-if="showImport"

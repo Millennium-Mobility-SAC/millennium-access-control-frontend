@@ -134,3 +134,68 @@ export function formatWallClockTimeForExcel(input) {
   const t = formatTimeHmAmPmForUi(input, { seconds: 'auto' })
   return t == null ? '' : t
 }
+
+// ── Fecha y hora juntas (24 h) ──────────────────────────────────────────────
+
+/**
+ * `dd/mm/aaaa hh:mm` en formato de 24 horas.
+ *
+ * Existe aparte de los formateadores de arriba porque estos son de 12 h con AM/PM y ninguno
+ * junta fecha y hora. Aquí el formato es el que pidió operaciones para los registros de
+ * consulta: 24 h y sin segundos.
+ *
+ * **Los componentes se leen literalmente, sin conversión de zona.** El backend envía un
+ * `LocalDateTime` sin desfase, que ya es hora de Lima; pasarlo por `new Date()` lo
+ * interpretaría en la zona del navegador y volvería a convertirlo, corriendo el reloj en
+ * cualquier dispositivo que no esté en UTC-5.
+ *
+ * @param {string|Date|Array|null|undefined} value - ISO `YYYY-MM-DDTHH:mm[:ss]`, `Date`, o
+ *   arreglo de Jackson `[y, m, d, h, min, s]`.
+ * @param {string} [emptyLabel='—'] - Texto cuando no hay valor o no se puede leer.
+ * @returns {string}
+ */
+export function formatDateTimeForUi(value, emptyLabel = '—') {
+  const parts = parseDateTimeParts(value)
+  if (!parts) return emptyLabel
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(parts.day)}/${pad(parts.month)}/${parts.year} ${pad(parts.hour)}:${pad(parts.minute)}`
+}
+
+/** Igual que `formatDateTimeForUi` pero devuelve `null` si no hay dato (plantillas `?? '—'`). */
+export function formatDateTimeForUiNullable(value) {
+  const parts = parseDateTimeParts(value)
+  if (!parts) return null
+  return formatDateTimeForUi(value)
+}
+
+function parseDateTimeParts(value) {
+  if (value == null || value === '') return null
+
+  if (Array.isArray(value)) {
+    const [year, month, day, hour = 0, minute = 0] = value
+    if (![year, month, day].every(Number.isFinite)) return null
+    return { year, month, day, hour, minute }
+  }
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null
+    return {
+      year: value.getFullYear(),
+      month: value.getMonth() + 1,
+      day: value.getDate(),
+      hour: value.getHours(),
+      minute: value.getMinutes(),
+    }
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(value).trim())
+  if (!match) return null
+  const [, year, month, day, hour, minute] = match
+  return {
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+    hour: Number(hour),
+    minute: Number(minute),
+  }
+}

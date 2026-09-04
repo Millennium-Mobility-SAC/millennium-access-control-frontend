@@ -36,6 +36,12 @@ const ALL_MENU_ITEMS = [
         title: 'Colaboradores',
     },
     {
+        label: 'Papeletas',
+        icon: 'pi pi-fw pi-file-edit',
+        to: '/traffic-fines',
+        title: 'Papeletas de tránsito',
+    },
+    {
         label: 'WhatsApp',
         icon: 'pi pi-fw pi-whatsapp',
         to: '/whatsapp-management',
