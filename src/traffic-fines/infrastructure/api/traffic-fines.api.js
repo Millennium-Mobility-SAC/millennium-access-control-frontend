@@ -55,6 +55,14 @@ export class TrafficFinesApi extends BaseApi {
   }
 
   /**
+   * Suelta un lote sin esperar a su plazo. Devuelve el lote ya cerrado, así que la vista no
+   * necesita volver a preguntar por él.
+   */
+  cancelBatch(batchId) {
+    return this.http.post(`${this.#endpoint.endpointPath}/queries/${batchId}/cancel`)
+  }
+
+  /**
    * Último lote del sistema. Responde 204 si nunca se lanzó ninguno, así que quien lo llame
    * tiene que mirar el estado y no solo el cuerpo.
    */

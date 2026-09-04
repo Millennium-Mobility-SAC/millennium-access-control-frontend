@@ -117,6 +117,21 @@ async function handleLaunch({ vehicleIds, issuers }) {
   }
 }
 
+// ── Cancelación ────────────────────────────────────────────────────────────
+const cancelling = ref(false)
+
+async function handleCancel() {
+  cancelling.value = true
+  try {
+    await store.cancelBatch()
+    showSuccess('Consulta cancelada. Ya puedes lanzar otra.')
+  } catch (error) {
+    showError(humanizeApiError(error))
+  } finally {
+    cancelling.value = false
+  }
+}
+
 // ── Exportación ────────────────────────────────────────────────────────────
 const exportLoading = ref(false)
 
@@ -196,7 +211,12 @@ onUnmounted(() => {
         más de una hora y durante ese rato lo que hace falta es la tabla, no el indicador.
       -->
       <template #extra-actions="{ selectedItems, clearSelection }">
-        <TrafficFinesBatchProgress :batch="batch" @dismissed="store.clearBatch()" />
+        <TrafficFinesBatchProgress
+          :batch="batch"
+          :cancelling="cancelling"
+          @dismissed="store.clearBatch()"
+          @cancel-requested="handleCancel"
+        />
         <!-- Sin lote en curso no hay tira que empuje: este hueco mantiene los botones a la derecha. -->
         <div v-if="!batch" class="tf-toolbar-spacer" />
 

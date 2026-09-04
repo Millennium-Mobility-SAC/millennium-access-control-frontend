@@ -10,6 +10,7 @@
  * lee como «no debe nada» cuando en realidad no se pudo consultar.
  */
 import { computed, ref } from 'vue'
+import { useConfirm } from 'primevue/useconfirm'
 import { formatDateTimeForUi } from '@/shared/domain/format-datetime-ui.js'
 import {
   batchStatusSeverity,
@@ -21,11 +22,31 @@ import {
 
 const props = defineProps({
   batch: { type: Object, default: null },
+  cancelling: { type: Boolean, default: false },
 })
 
-defineEmits(['dismissed'])
+const emit = defineEmits(['dismissed', 'cancel-requested'])
 
+const confirm = useConfirm()
 const failuresPanel = ref(null)
+
+/**
+ * Cancelar no es reversible y descarta lo que aún estaba en camino, así que se pregunta.
+ * El aviso dice qué se conserva: sin eso, «cancelar» suena a perder también lo ya recibido.
+ */
+function confirmCancel() {
+  confirm.require({
+    header: 'Cancelar la consulta',
+    message: 'Las unidades que aún no han respondido quedarán sin consultar y el servicio seguirá '
+      + 'procesándolas por su cuenta, pero sus resultados ya no se guardarán. Las papeletas '
+      + 'recibidas hasta ahora se conservan.',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: { label: 'Seguir esperando', severity: 'secondary', outlined: true },
+    acceptProps: { label: 'Cancelar consulta', severity: 'danger' },
+    accept: () => emit('cancel-requested'),
+    reject: () => {},
+  })
+}
 
 const failedItems = computed(
   () => (props.batch?.items ?? []).filter(
@@ -77,6 +98,19 @@ function toggleFailures(event) {
       size="small"
       class="tf-strip__failures"
       @click="toggleFailures"
+    />
+
+    <pv-button
+      v-if="!batch.settled"
+      label="Cancelar"
+      icon="pi pi-ban"
+      severity="danger"
+      text
+      size="small"
+      :loading="cancelling"
+      class="tf-strip__cancel"
+      v-tooltip.top="'Soltar el lote sin esperar a su plazo'"
+      @click="confirmCancel"
     />
 
     <pv-button
@@ -152,7 +186,8 @@ function toggleFailures(event) {
   white-space: nowrap;
 }
 
-.tf-strip__failures {
+.tf-strip__failures,
+.tf-strip__cancel {
   flex-shrink: 0;
 }
 

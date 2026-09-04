@@ -168,6 +168,24 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
     _batch.value = null
   }
 
+  /**
+   * Cancela el lote en curso.
+   *
+   * Se detiene el sondeo antes de llamar: si un tick cayera entre la cancelación y la respuesta,
+   * pintaría el lote todavía «consultando» justo después de haberlo parado. Y se recarga el
+   * resumen porque las papeletas que sí llegaron antes de cancelar son datos buenos que hay que
+   * mostrar.
+   */
+  async function cancelBatch() {
+    const batchId = _batch.value?.batchId
+    if (!batchId) return null
+    stopPolling()
+    const { data } = await api.cancelBatch(batchId)
+    _batch.value = TrafficFineAssembler.toBatchFromResource(data)
+    await refreshCurrentPage()
+    return _batch.value
+  }
+
   // ── Exportación ────────────────────────────────────────────────────────────
 
   async function downloadSummaryExport() {
@@ -208,6 +226,7 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
     startPolling,
     stopPolling,
     clearBatch,
+    cancelBatch,
     downloadSummaryExport,
     downloadVehicleExport,
   }

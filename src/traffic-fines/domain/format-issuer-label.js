@@ -35,6 +35,7 @@ const CHECK_STATUS_LABELS = Object.freeze({
   FAILED: 'No se pudo consultar',
   TIMED_OUT: 'Sin respuesta',
   SKIPPED: 'Omitida',
+  CANCELLED: 'Cancelada',
 })
 
 export function formatCheckStatusLabel(status) {
@@ -45,7 +46,7 @@ export function formatCheckStatusLabel(status) {
 export function checkStatusSeverity(status) {
   if (status === 'COMPLETED') return 'success'
   if (status === 'PENDING') return 'info'
-  if (status === 'SKIPPED') return 'secondary'
+  if (status === 'SKIPPED' || status === 'CANCELLED') return 'secondary'
   return 'danger'
 }
 
@@ -57,6 +58,7 @@ const BATCH_STATUS_LABELS = Object.freeze({
   COMPLETED_WITH_ERRORS: 'Completada con errores',
   FAILED: 'Fallida',
   TIMED_OUT: 'Sin respuesta del servicio',
+  CANCELLED: 'Cancelada',
 })
 
 export function formatBatchStatusLabel(status) {
@@ -67,7 +69,7 @@ export function formatBatchStatusLabel(status) {
 export function batchStatusSeverity(status) {
   if (status === 'COMPLETED') return 'success'
   if (status === 'RUNNING' || status === 'PENDING') return 'info'
-  if (status === 'COMPLETED_WITH_ERRORS') return 'warn'
+  if (status === 'COMPLETED_WITH_ERRORS' || status === 'CANCELLED') return 'warn'
   return 'danger'
 }
 
