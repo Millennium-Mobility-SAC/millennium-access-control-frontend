@@ -294,15 +294,27 @@ p:last-child {
    LABELS Y SMALL TEXT
    ======================================== */
 
-/* color: --text-primary es el tinte claro del layout oscuro. En formularios sobre
-   fondo blanco usar modal con `dialog-light` (primevue-overrides fija label a
-   --text-body) o una clase con color explícito (p. ej. .ece-label en empleados). */
+/*
+ * El color por defecto es el de texto sobre fondo claro, que es donde vive prácticamente todo
+ * el formulario de la aplicación: el área de contenido, los modales y los drawers.
+ *
+ * Antes el valor por defecto era --text-primary, el tinte casi blanco del shell oscuro
+ * (#E5F3F8). Ninguna etiqueta se apoyaba de verdad en él: las de sign-in y forgot-password
+ * fijan `text-color`, las de los formularios usan su propia clase (.ece-label, .sce-label,
+ * .ace-label, .pc-label, .vc-filters__label, .pa-registro__label) y las de los modales las
+ * forzaba `.dialog-light label`. Su único efecto real era dejar invisible cualquier etiqueta
+ * que se olvidara de sobrescribirlo, y eso ocurría cada vez que alguien escribía un <label>
+ * suelto fuera de un modal.
+ *
+ * Sobre fondo oscuro hay que pedir el tinte claro de forma explícita, con `text-color` o con
+ * una clase propia. Es la dirección correcta: la excepción se declara, no se hereda.
+ */
 label {
   display: inline-block;
   margin-bottom: var(--spacing-xs);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
+  color: var(--text-body);
 }
 
 small {
