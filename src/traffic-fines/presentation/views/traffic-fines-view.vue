@@ -438,9 +438,29 @@ function periodLabel(row) {
   return `${formatCalendarDateForUi(row.contractStart, '…')} → ${formatCalendarDateForUi(row.periodEnd, '…')}`
 }
 
+/** Qué consulta el servidor solo cada madrugada. Null mientras no se sabe: la línea no aparece. */
+const nightlyLine = computed(() => {
+  const nightly = store.nightly
+  if (!nightly) return null
+  if (!nightly.enabled) return 'Consulta automática desactivada: las papeletas se actualizan solo al consultar desde aquí.'
+  const zone = nightly.zone === 'America/Lima' ? 'hora de Perú' : nightly.zone
+  const sat = nightly.includeSat ? ' y SAT Lima' : ''
+  return `Consulta automática todos los días a las ${nightly.time} (${zone}): Callao y ATU hasta ${nightly.maxPlates} unidades${sat}.`
+})
+
+const nightlyLastRunLine = computed(() => {
+  const last = store.nightly?.enabled ? store.nightly.lastRun : null
+  if (!last) return null
+  const parts = [`Callao / ATU: ${last.platesMessage ?? 'sin datos'}`]
+  if (last.satMessage) parts.push(`SAT: ${last.satMessage}`)
+  return `Última, el ${formatDateTimeForUi(last.startedAt)}. ${parts.join(' · ')}`
+})
+
 onMounted(async () => {
   // Los filtros de asesor y marca pueden quedar vacíos si esto falla; la tabla no depende de ellos.
   inventoryStore.fetchFacets().catch(() => {})
+  // Solo informa: sin ella la pantalla funciona igual.
+  store.fetchNightlyStatus().catch(() => {})
   await reload()
   loadedOnce.value = true
   // Los lotes siguen corriendo en el servidor aunque se cierre el navegador: al volver se
@@ -500,6 +520,14 @@ onUnmounted(() => {
         @cancel-requested="handleCancel(BATCH_KINDS.SAT_RUC)"
       />
     </div>
+
+    <p v-if="nightlyLine && !isInventoryEmpty" class="tf-nightly">
+      <i class="pi pi-clock tf-nightly__icon" />
+      <span>
+        {{ nightlyLine }}
+        <span v-if="nightlyLastRunLine" class="tf-nightly__last">{{ nightlyLastRunLine }}</span>
+      </span>
+    </p>
 
     <!--
       Sin unidades no hay nada que filtrar, consultar ni descargar: en vez de la tabla vacía con la
@@ -972,6 +1000,25 @@ onUnmounted(() => {
   border: 1px solid var(--surface-border, #e5e7eb);
   border-radius: var(--border-radius, 6px);
   background: var(--surface-0, #ffffff);
+}
+
+.tf-nightly {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-body-secondary, #6b7280);
+}
+
+.tf-nightly__icon {
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+}
+
+.tf-nightly__last {
+  display: block;
 }
 
 /* ── Estado vacío ─────────────────────────────────────────────────────── */

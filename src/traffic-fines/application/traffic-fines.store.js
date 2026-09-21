@@ -62,6 +62,7 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
   const _cautelarCount = ref(0)
   const _pendingDeliveries = ref({ newCount: 0, changedCount: 0, reappearedCount: 0, total: 0 })
   const _deliveries = ref([])
+  const _nightly = ref(null)
 
   const _detail = ref(null)
 
@@ -70,6 +71,7 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
   const cautelarCount = computed(() => _cautelarCount.value)
   const pendingDeliveries = computed(() => _pendingDeliveries.value)
   const deliveries = computed(() => _deliveries.value)
+  const nightly = computed(() => _nightly.value)
   const activeFilters = computed(() => _activeFilters.value)
   const pagination = computed(() => ({
     page: _page.value,
@@ -118,6 +120,13 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
   /** Tras una consulta o una descarga cambian los importes, la alerta y lo que falta entregar. */
   async function refreshCurrentPage() {
     await Promise.all([fetchPage(_page.value), refreshCounters()])
+  }
+
+  /** La consulta automatica diaria. Informativo: si falla, la pantalla sigue igual. */
+  async function fetchNightlyStatus() {
+    const { data } = await api.getNightlyStatus()
+    _nightly.value = TrafficFineAssembler.toNightlyStatusFromResource(data)
+    return _nightly.value
   }
 
   // ── Detalle ────────────────────────────────────────────────────────────────
@@ -358,6 +367,7 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
     cautelarCount,
     pendingDeliveries,
     deliveries,
+    nightly,
     activeFilters,
     platesBatch,
     satBatch,
@@ -375,6 +385,7 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
     cancelBatch,
     clearBatch,
     fetchPendingDeliveries,
+    fetchNightlyStatus,
     createDelivery,
     downloadDelivery,
     fetchDeliveries,

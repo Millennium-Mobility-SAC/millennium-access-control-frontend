@@ -141,6 +141,31 @@ export class TrafficFineAssembler {
     })
   }
 
+  /** La consulta automatica diaria: configuracion y ultima ejecucion (null si nunca corrio). */
+  static toNightlyStatusFromResource(resource) {
+    const last = resource?.last_run
+    return {
+      enabled: resource?.enabled ?? false,
+      time: resource?.time ?? null,
+      zone: resource?.zone ?? null,
+      maxPlates: toNumber(resource?.max_plates),
+      includeSat: resource?.include_sat ?? false,
+      lastRun: last
+        ? {
+          runDate: last.run_date ?? null,
+          startedAt: last.started_at ?? null,
+          finishedAt: last.finished_at ?? null,
+          platesBatchId: last.plates_batch_id ?? null,
+          platesUnits: last.plates_units ?? null,
+          platesMessage: last.plates_message ?? null,
+          satBatchId: last.sat_batch_id ?? null,
+          satUnits: last.sat_units ?? null,
+          satMessage: last.sat_message ?? null,
+        }
+        : null,
+    }
+  }
+
   static toPendingDeliveriesFromResource(resource) {
     return {
       newCount: toNumber(resource.new_count),

@@ -71,6 +71,11 @@ export class TrafficFinesApi extends BaseApi {
     return this.http.post(`${this.#endpoint.endpointPath}/sat/refresh`)
   }
 
+  /** Hora, tope y portales de la consulta automatica diaria, y que paso la ultima vez. */
+  getNightlyStatus() {
+    return this.http.get(`${this.#endpoint.endpointPath}/nightly`)
+  }
+
   getBatch(batchId) {
     return this.http.get(`${this.#endpoint.endpointPath}/queries/${batchId}`)
   }
