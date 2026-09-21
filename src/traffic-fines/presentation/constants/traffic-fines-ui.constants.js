@@ -2,31 +2,24 @@
  * Columnas de la vista principal: el inventario con su deuda.
  *
  * Misma forma que `VEHICLE_COLUMNS`: `template` nombra un slot del DataManager. La marca comercial
- * va bajo la placa y el periodo bajo el estado del contrato, para que la deuda por portal quepa
- * sin desplazamiento en una pantalla normal.
+ * va bajo la placa, el periodo bajo el estado del contrato y el número de papeletas bajo la deuda
+ * total: con una columna por dato la tabla no cabía y la de acciones quedaba fuera de la vista.
  */
 export const TRAFFIC_FINE_SUMMARY_COLUMNS = [
   {
     field: 'licensePlate',
     header: 'Placa',
     sortable: false,
-    style: 'min-width: 7.5rem',
+    style: 'min-width: 6.5rem',
     template: 'fines-plate',
   },
-  { field: 'advisor', header: 'Asesor', sortable: false, style: 'min-width: 9rem', template: 'fines-advisor' },
+  { field: 'advisor', header: 'Asesor', sortable: false, style: 'min-width: 8rem', template: 'fines-advisor' },
   {
     field: 'contractStatus',
     header: 'Contrato',
     sortable: false,
-    style: 'min-width: 10rem',
+    style: 'min-width: 9.5rem',
     template: 'fines-contract',
-  },
-  {
-    field: 'fineCount',
-    header: 'Papeletas',
-    sortable: false,
-    style: 'min-width: 5.5rem',
-    template: 'fines-count',
   },
   {
     field: 'totalAmountDue',
@@ -39,35 +32,35 @@ export const TRAFFIC_FINE_SUMMARY_COLUMNS = [
     field: 'callaoAmount',
     header: 'Callao',
     sortable: false,
-    style: 'min-width: 6.5rem',
+    style: 'min-width: 5.5rem',
     template: 'fines-callao',
   },
   {
     field: 'satLimaAmount',
     header: 'SAT Lima',
     sortable: false,
-    style: 'min-width: 6.5rem',
+    style: 'min-width: 5.5rem',
     template: 'fines-sat-lima',
   },
   {
     field: 'atuAmount',
     header: 'ATU',
     sortable: false,
-    style: 'min-width: 6.5rem',
+    style: 'min-width: 5.5rem',
     template: 'fines-atu',
   },
   {
     field: 'worstStage',
     header: 'Etapa',
     sortable: false,
-    style: 'min-width: 8.5rem',
+    style: 'min-width: 7.5rem',
     template: 'fines-stage',
   },
   {
     field: 'lastCheckedAt',
     header: 'Última consulta',
     sortable: false,
-    style: 'min-width: 9.5rem',
+    style: 'min-width: 8rem',
     template: 'fines-last-check',
   },
 ]

@@ -25,6 +25,7 @@ import TrafficFinesLaunchDialog from '../components/traffic-fines-launch-dialog.
 import TrafficFinesInventoryImportDialog from '../components/traffic-fines-inventory-import-dialog.vue'
 import TrafficFinesUnitEditDialog from '../components/traffic-fines-unit-edit-dialog.vue'
 import TrafficFinesDeliveriesDialog from '../components/traffic-fines-deliveries-dialog.vue'
+import TrafficFinesImportsDialog from '../components/traffic-fines-imports-dialog.vue'
 import {
   TRAFFIC_FINE_SORTS,
   TRAFFIC_FINE_STATE_FILTERS,
@@ -176,9 +177,10 @@ async function handleLaunch({ unitIds, all, issuers }) {
     showSuccess(`Consulta encolada para ${units} ${units === 1 ? 'unidad' : 'unidades'}.`)
     // Las omitidas se avisan aparte: callarlas haría creer que la selección entera está cubierta.
     if (result.skipped.length) {
-      const listed = result.skipped.slice(0, 10)
+      const shown = 10
+      const listed = result.skipped.slice(0, shown)
         .map((item) => `${item.licensePlate ?? `#${item.unitId}`} (${item.reason})`).join('; ')
-      const more = result.skipped.length > listed.length ? '…' : ''
+      const more = result.skipped.length > shown ? '…' : ''
       showWarning(`${result.skipped.length} ${result.skipped.length === 1 ? 'unidad omitida' : 'unidades omitidas'}: ${listed}${more}`)
     }
   } catch (e) {
@@ -248,20 +250,15 @@ async function handleImported(result) {
   await reload()
 }
 
-const historyPanel = ref(null)
-const historyLoading = ref(false)
+const importsVisible = ref(false)
 
-async function toggleHistory(event) {
-  historyPanel.value?.toggle(event)
-  historyLoading.value = true
-  try {
-    await inventoryStore.fetchImports()
-  } catch {
-    showError('No se pudo cargar el historial de importaciones.')
-  } finally {
-    historyLoading.value = false
-  }
-}
+const inventoryMenu = [
+  {
+    label: 'Historial de importaciones',
+    icon: 'pi pi-history',
+    command: () => { importsVisible.value = true },
+  },
+]
 
 const editVisible = ref(false)
 const unitToEdit = ref(null)
@@ -404,8 +401,16 @@ function goToDetail(item) {
 }
 
 // ── Presentación ───────────────────────────────────────────────────────────
+/** Evita que el estado vacío asome un instante antes de la primera carga. */
+const loadedOnce = ref(false)
+
+/**
+ * Sin unidades no hay nada que filtrar, consultar ni descargar: en vez de la tabla vacía con toda
+ * su barra de acciones deshabilitada, se muestra solo lo que se puede hacer, que es importar.
+ */
 const isInventoryEmpty = computed(
-  () => !isLoading.value && !error.value && !hasActiveFilters.value && store.pagination.totalElements === 0,
+  () => loadedOnce.value && !isLoading.value && !error.value && !hasActiveFilters.value
+    && store.pagination.totalElements === 0,
 )
 
 /** Una consulta fallida del portal: el importe de esa columna no es fiable. */
@@ -435,6 +440,7 @@ onMounted(async () => {
   // Los filtros de asesor y marca pueden quedar vacíos si esto falla; la tabla no depende de ellos.
   inventoryStore.fetchFacets().catch(() => {})
   await reload()
+  loadedOnce.value = true
   // Los lotes siguen corriendo en el servidor aunque se cierre el navegador: al volver se
   // recuperan y, si no han terminado, el sondeo se reanuda solo.
   await store.resumePolling()
@@ -450,37 +456,28 @@ onUnmounted(() => {
     <!--
       La alerta cuenta todo el inventario, no la página ni los filtros: una medida cautelar suele
       ser orden de captura, y no puede quedar escondida porque alguien filtró otra cosa.
-    -->
-    <pv-message
-      v-if="store.cautelarCount > 0"
-      severity="error"
-      :closable="false"
-      class="tf-alert"
-    >
-      <div class="tf-alert__body">
-        <i class="pi pi-exclamation-circle" />
-        <span>
-          <strong>{{ store.cautelarCount }}</strong>
-          {{ store.cautelarCount === 1 ? 'unidad tiene' : 'unidades tienen' }}
-          papeletas en medida cautelar.
-        </span>
-        <pv-button
-          v-if="filterStage !== CAUTELAR_STAGE"
-          label="Ver"
-          size="small"
-          severity="danger"
-          text
-          @click="showCautelarOnly"
-        />
-      </div>
-    </pv-message>
 
-    <pv-message v-if="isInventoryEmpty" severity="info" :closable="false" class="tf-alert">
-      <div class="tf-alert__body">
-        <span>El inventario está vacío. Importa el Excel de contratos para empezar a consultar papeletas.</span>
-        <pv-button label="Importar Excel" icon="pi pi-upload" size="small" @click="importVisible = true" />
-      </div>
-    </pv-message>
+      No es un pv-message: su texto sale de --text-primary, el tinte claro del shell oscuro, y
+      sobre el fondo del contenido no se lee.
+    -->
+    <div v-if="store.cautelarCount > 0" class="tf-alert tf-alert--danger" role="alert">
+      <i class="pi pi-exclamation-circle tf-alert__icon" />
+      <span class="tf-alert__text">
+        <strong>{{ store.cautelarCount }}</strong>
+        {{ store.cautelarCount === 1 ? 'unidad tiene' : 'unidades tienen' }}
+        papeletas en medida cautelar.
+      </span>
+      <pv-button
+        v-if="filterStage !== CAUTELAR_STAGE"
+        label="Ver unidades"
+        icon="pi pi-filter"
+        size="small"
+        severity="danger"
+        text
+        class="tf-alert__action"
+        @click="showCautelarOnly"
+      />
+    </div>
 
     <!-- Una tira por consulta en curso: Callao/ATU y SAT pueden correr a la vez. -->
     <div v-if="store.platesBatch || store.satBatch" class="tf-batches">
@@ -502,7 +499,32 @@ onUnmounted(() => {
       />
     </div>
 
+    <!--
+      Sin unidades no hay nada que filtrar, consultar ni descargar: en vez de la tabla vacía con la
+      barra entera deshabilitada, solo lo que se puede hacer.
+    -->
+    <section v-if="isInventoryEmpty" class="tf-empty">
+      <div class="tf-empty__icon"><i class="pi pi-file-import" /></div>
+      <h2 class="tf-empty__title">Todavía no hay unidades en el inventario</h2>
+      <p class="tf-empty__text">
+        Importa el Excel de contratos para empezar a consultar papeletas. Necesita las columnas
+        <strong>PLACA</strong> y <strong>ESTADO</strong>; marca comercial, asesor y las fechas de
+        contrato y resolución son opcionales.
+      </p>
+      <div class="tf-empty__actions">
+        <pv-button label="Importar Excel" icon="pi pi-upload" @click="importVisible = true" />
+        <pv-button
+          label="Historial de importaciones"
+          icon="pi pi-history"
+          severity="secondary"
+          text
+          @click="importsVisible = true"
+        />
+      </div>
+    </section>
+
     <DataManager
+      v-else
       :items="store.summary"
       :total-records="store.pagination.totalElements"
       :rows="20"
@@ -527,78 +549,84 @@ onUnmounted(() => {
       @clear-filters="clearAllFilters"
       @page-changed="handlePageChange"
     >
+      <!--
+        Dos grupos: a la izquierda lo que consulta los portales, a la derecha lo que entra y sale
+        como archivo. Lo menos frecuente de cada archivo va en el menú de su botón.
+      -->
       <template #extra-actions="{ selectedItems, clearSelection }">
-        <pv-button
-          icon="pi pi-search"
-          :label="selectedItems.length ? `Consultar (${selectedItems.length})` : 'Consultar'"
-          severity="success"
-          size="small"
-          :disabled="!selectedItems.length || store.isPlatesBatchRunning"
-          v-tooltip.top="store.isPlatesBatchRunning ? 'Ya hay una consulta de Callao / ATU en curso' : 'Callao y ATU de las unidades seleccionadas'"
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="openLaunchDialog(selectedItems, clearSelection)"
-        />
-        <pv-button
-          icon="pi pi-list-check"
-          label="Consultar todas"
-          severity="success"
-          size="small"
-          outlined
-          :disabled="store.isPlatesBatchRunning || isInventoryEmpty"
-          v-tooltip.top="store.isPlatesBatchRunning ? 'Ya hay una consulta de Callao / ATU en curso' : 'Activas y de periodo recién terminado, las más antiguas primero'"
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="openLaunchAllDialog"
-        />
-        <pv-button
-          icon="pi pi-refresh"
-          label="Actualizar SAT"
-          severity="info"
-          size="small"
-          outlined
-          :loading="satLoading"
-          :disabled="store.isSatBatchRunning || isInventoryEmpty"
-          v-tooltip.top="store.isSatBatchRunning ? 'Ya hay una actualización de SAT en curso' : 'SAT Lima de toda la flota por el RUC de la empresa'"
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="confirmSatRefresh"
-        />
+        <div class="tf-actions" role="group" aria-label="Consultas a los portales">
+          <pv-button
+            icon="pi pi-search"
+            :label="selectedItems.length ? `Consultar (${selectedItems.length})` : 'Consultar'"
+            severity="success"
+            size="small"
+            :disabled="!selectedItems.length || store.isPlatesBatchRunning"
+            v-tooltip.top="store.isPlatesBatchRunning
+              ? 'Ya hay una consulta de Callao / ATU en curso'
+              : selectedItems.length ? 'Callao y ATU de las unidades seleccionadas' : 'Selecciona unidades en la tabla'"
+            class="dm-stoolbar-btn"
+            @click="openLaunchDialog(selectedItems, clearSelection)"
+          />
+          <pv-button
+            icon="pi pi-list-check"
+            label="Consultar todas"
+            severity="success"
+            size="small"
+            outlined
+            :disabled="store.isPlatesBatchRunning"
+            v-tooltip.top="store.isPlatesBatchRunning
+              ? 'Ya hay una consulta de Callao / ATU en curso'
+              : 'Activas y de periodo recién terminado, las más antiguas primero'"
+            class="dm-stoolbar-btn"
+            @click="openLaunchAllDialog"
+          />
+          <pv-button
+            icon="pi pi-refresh"
+            label="Actualizar SAT"
+            severity="info"
+            size="small"
+            outlined
+            :loading="satLoading"
+            :disabled="store.isSatBatchRunning"
+            v-tooltip.top="store.isSatBatchRunning
+              ? 'Ya hay una actualización de SAT en curso'
+              : 'SAT Lima de toda la flota por el RUC de la empresa'"
+            class="dm-stoolbar-btn"
+            @click="confirmSatRefresh"
+          />
+        </div>
+
         <div class="tf-toolbar-spacer" />
-        <!--
-          Descargar nuevas es la acción de todos los días; descargar todas, el resumen por unidad y
-          el historial van en el menú para no llenar la barra.
-        -->
-        <pv-split-button
-          :label="pendingLabel"
-          icon="pi pi-download"
-          :model="downloadMenu"
-          size="small"
-          :disabled="deliveryLoading || isInventoryEmpty"
-          v-tooltip.top="'Papeletas nuevas, con cambios o reaparecidas desde su última entrega, con los filtros de la tabla'"
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="confirmDeliverNew"
-        />
-        <pv-button
-          icon="pi pi-upload"
-          label="Importar Excel"
-          severity="secondary"
-          size="small"
-          outlined
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="importVisible = true"
-        />
-        <pv-button
-          icon="pi pi-history"
-          severity="secondary"
-          size="small"
-          outlined
-          aria-label="Historial de importaciones"
-          v-tooltip.top="'Historial de importaciones'"
-          class="dm-stoolbar-btn w-full sm:w-auto"
-          @click="toggleHistory"
-        />
+
+        <div class="tf-actions" role="group" aria-label="Archivos">
+          <pv-split-button
+            :label="pendingLabel"
+            icon="pi pi-download"
+            :model="downloadMenu"
+            size="small"
+            :disabled="deliveryLoading"
+            class="dm-stoolbar-btn"
+            @click="confirmDeliverNew"
+          />
+          <pv-split-button
+            label="Importar Excel"
+            icon="pi pi-upload"
+            :model="inventoryMenu"
+            severity="secondary"
+            size="small"
+            outlined
+            class="dm-stoolbar-btn"
+            @click="importVisible = true"
+          />
+        </div>
       </template>
 
+      <!--
+        Mismo esquema que el catálogo de vehículos: la búsqueda en su propia fila y debajo los
+        filtros en rejilla, con su etiqueta encima y todos a la misma altura.
+      -->
       <template #filters="{ clearFilters }">
-        <div class="tf-filters w-full">
+        <div class="tf-filters">
           <pv-icon-field class="tf-filters__search">
             <pv-input-icon class="pi pi-search" />
             <pv-input-text
@@ -609,97 +637,115 @@ onUnmounted(() => {
             />
           </pv-icon-field>
 
-          <pv-multi-select
-            v-model="filterContractStatuses"
-            :options="CONTRACT_STATUSES"
-            option-label="label"
-            option-value="value"
-            placeholder="Contrato"
-            :max-selected-labels="1"
-            selected-items-label="{0} estados"
-            class="tf-filters__control"
-            aria-label="Estado de contrato"
-          />
+          <div class="tf-filters__row">
+            <div class="tf-filters__fields">
+              <div class="tf-filters__field">
+                <label class="tf-filters__label" for="tf-filter-contract">Contrato</label>
+                <pv-multi-select
+                  id="tf-filter-contract"
+                  v-model="filterContractStatuses"
+                  :options="CONTRACT_STATUSES"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Todos"
+                  :max-selected-labels="1"
+                  selected-items-label="{0} estados"
+                />
+              </div>
 
-          <pv-select
-            v-model="filterAdvisor"
-            :options="inventoryStore.facets.advisors"
-            placeholder="Asesor"
-            filter
-            show-clear
-            class="tf-filters__control"
-            aria-label="Asesor"
-          />
+              <div class="tf-filters__field">
+                <label class="tf-filters__label" for="tf-filter-advisor">Asesor</label>
+                <pv-select
+                  id="tf-filter-advisor"
+                  v-model="filterAdvisor"
+                  :options="inventoryStore.facets.advisors"
+                  placeholder="Todos"
+                  filter
+                  show-clear
+                />
+              </div>
 
-          <pv-select
-            v-model="filterBrand"
-            :options="inventoryStore.facets.commercialBrands"
-            placeholder="Marca comercial"
-            filter
-            show-clear
-            class="tf-filters__control"
-            aria-label="Marca comercial"
-          />
+              <div class="tf-filters__field">
+                <label class="tf-filters__label" for="tf-filter-brand">Marca comercial</label>
+                <pv-select
+                  id="tf-filter-brand"
+                  v-model="filterBrand"
+                  :options="inventoryStore.facets.commercialBrands"
+                  placeholder="Todas"
+                  filter
+                  show-clear
+                />
+              </div>
 
-          <pv-multi-select
-            v-model="filterIssuers"
-            :options="TRAFFIC_FINE_ISSUERS"
-            option-label="label"
-            option-value="value"
-            placeholder="Portal"
-            :max-selected-labels="1"
-            selected-items-label="{0} portales"
-            class="tf-filters__control"
-            aria-label="Portal"
-          />
+              <div class="tf-filters__field">
+                <label class="tf-filters__label" for="tf-filter-issuers">Portal</label>
+                <pv-multi-select
+                  id="tf-filter-issuers"
+                  v-model="filterIssuers"
+                  :options="TRAFFIC_FINE_ISSUERS"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Todos"
+                  :max-selected-labels="1"
+                  selected-items-label="{0} portales"
+                />
+              </div>
 
-          <pv-select
-            v-model="filterState"
-            :options="TRAFFIC_FINE_STATE_FILTERS"
-            option-label="label"
-            option-value="value"
-            placeholder="Situación"
-            show-clear
-            class="tf-filters__control"
-            aria-label="Situación"
-          />
+              <div class="tf-filters__field">
+                <label class="tf-filters__label" for="tf-filter-state">Situación</label>
+                <pv-select
+                  id="tf-filter-state"
+                  v-model="filterState"
+                  :options="TRAFFIC_FINE_STATE_FILTERS"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Todas"
+                  show-clear
+                />
+              </div>
 
-          <pv-select
-            v-model="filterStage"
-            :options="COLLECTION_STAGES.filter((stage) => stage.value !== 'CERRADA')"
-            option-label="label"
-            option-value="value"
-            placeholder="Etapa"
-            show-clear
-            class="tf-filters__control"
-            aria-label="Etapa de cobranza"
-          />
+              <div class="tf-filters__field">
+                <label class="tf-filters__label" for="tf-filter-stage">Etapa</label>
+                <pv-select
+                  id="tf-filter-stage"
+                  v-model="filterStage"
+                  :options="COLLECTION_STAGES.filter((stage) => stage.value !== 'CERRADA')"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Todas"
+                  show-clear
+                />
+              </div>
 
-          <pv-select
-            v-model="filterSort"
-            :options="TRAFFIC_FINE_SORTS"
-            option-label="label"
-            option-value="value"
-            placeholder="Ordenar por"
-            class="tf-filters__control"
-            aria-label="Ordenar por"
-          />
+              <div class="tf-filters__field">
+                <label class="tf-filters__label" for="tf-filter-sort">Ordenar por</label>
+                <pv-select
+                  id="tf-filter-sort"
+                  v-model="filterSort"
+                  :options="TRAFFIC_FINE_SORTS"
+                  option-label="label"
+                  option-value="value"
+                />
+              </div>
+            </div>
 
-          <pv-button
-            type="button"
-            label="Limpiar"
-            icon="pi pi-filter-slash"
-            text
-            size="small"
-            class="tf-filters__clear"
-            @click="clearFilters"
-          />
+            <pv-button
+              type="button"
+              label="Limpiar"
+              icon="pi pi-filter-slash"
+              text
+              size="small"
+              class="tf-filters__clear"
+              :disabled="!hasActiveFilters && filterSort === 'plate'"
+              @click="clearFilters"
+            />
+          </div>
         </div>
       </template>
 
       <template #fines-plate="{ data }">
-        <div class="tf-plate-cell">
-          <div class="tf-plate-cell__line">
+        <div class="tf-cell">
+          <div class="tf-cell__line">
             <span class="tf-plate">{{ data.licensePlate }}</span>
             <pv-tag
               v-if="data.isMoto"
@@ -715,11 +761,13 @@ onUnmounted(() => {
       </template>
 
       <template #fines-advisor="{ data }">
-        <span :class="{ 'tf-dash': !data.advisor }">{{ data.advisor || '—' }}</span>
+        <span class="tf-advisor" :class="{ 'tf-dash': !data.advisor }" :title="data.advisor">
+          {{ data.advisor || '—' }}
+        </span>
       </template>
 
       <template #fines-contract="{ data }">
-        <div class="tf-contract-cell">
+        <div class="tf-cell">
           <pv-tag
             :value="formatContractStatusLabel(data.contractStatus)"
             :severity="contractStatusSeverity(data.contractStatus)"
@@ -733,12 +781,14 @@ onUnmounted(() => {
         </div>
       </template>
 
-      <template #fines-count="{ data }">
-        <div class="tf-count-cell">
-          <pv-tag
-            :value="String(data.fineCount)"
-            :severity="data.fineCount > 0 ? 'danger' : 'success'"
-          />
+      <template #fines-amount="{ data }">
+        <div class="tf-cell">
+          <span class="tf-amount" :class="{ 'tf-amount--due': data.totalAmountDue > 0 }">
+            {{ formatSoles(data.totalAmountDue) }}
+          </span>
+          <span class="tf-sub">
+            {{ data.fineCount }} {{ data.fineCount === 1 ? 'papeleta' : 'papeletas' }}
+          </span>
           <!-- Dónde está lo que falta entregar, sin tener que descargar para saberlo. -->
           <span
             v-if="data.undeliveredCount"
@@ -750,18 +800,12 @@ onUnmounted(() => {
         </div>
       </template>
 
-      <template #fines-amount="{ data }">
-        <span class="tf-amount" :class="{ 'tf-amount--due': data.totalAmountDue > 0 }">
-          {{ formatSoles(data.totalAmountDue) }}
-        </span>
-      </template>
-
       <template #fines-callao="{ data }">
         <span class="tf-issuer-amount">
           <span class="tf-amount">{{ formatSoles(data.totalsFor('CALLAO').amountDue) }}</span>
           <i
             v-if="failedCheck(data, 'CALLAO')"
-            class="pi pi-exclamation-triangle text-orange-500"
+            class="pi pi-exclamation-triangle tf-warn-icon"
             v-tooltip.top="failedCheckTooltip(failedCheck(data, 'CALLAO'))"
           />
         </span>
@@ -772,7 +816,7 @@ onUnmounted(() => {
           <span class="tf-amount">{{ formatSoles(data.totalsFor('SAT_LIMA').amountDue) }}</span>
           <i
             v-if="failedCheck(data, 'SAT_LIMA')"
-            class="pi pi-exclamation-triangle text-orange-500"
+            class="pi pi-exclamation-triangle tf-warn-icon"
             v-tooltip.top="failedCheckTooltip(failedCheck(data, 'SAT_LIMA'))"
           />
         </span>
@@ -783,7 +827,7 @@ onUnmounted(() => {
           <span class="tf-amount">{{ formatSoles(data.totalsFor('ATU').amountDue) }}</span>
           <i
             v-if="failedCheck(data, 'ATU')"
-            class="pi pi-exclamation-triangle text-orange-500"
+            class="pi pi-exclamation-triangle tf-warn-icon"
             v-tooltip.top="failedCheckTooltip(failedCheck(data, 'ATU'))"
           />
         </span>
@@ -800,8 +844,8 @@ onUnmounted(() => {
       </template>
 
       <template #fines-last-check="{ data }">
-        <div class="tf-last-check">
-          <span v-if="data.lastCheckedAt">{{ formatDateTimeForUi(data.lastCheckedAt) }}</span>
+        <div class="tf-issuer-amount">
+          <span v-if="data.lastCheckedAt" class="tf-date">{{ formatDateTimeForUi(data.lastCheckedAt) }}</span>
           <span v-else class="tf-dash">Sin consultar</span>
           <!--
             El aviso es lo que impide leer un S/ 0.00 como "no debe nada" cuando en realidad el
@@ -809,38 +853,12 @@ onUnmounted(() => {
           -->
           <i
             v-if="data.hasCheckErrors"
-            class="pi pi-exclamation-triangle text-orange-500"
+            class="pi pi-exclamation-triangle tf-warn-icon"
             v-tooltip.top="checkErrorsTooltip(data)"
           />
         </div>
       </template>
     </DataManager>
-
-    <pv-popover ref="historyPanel">
-      <div class="tf-history">
-        <p class="tf-history__title">Importaciones recientes</p>
-        <div v-if="historyLoading" class="tf-history__empty">Cargando…</div>
-        <div v-else-if="!inventoryStore.imports.length" class="tf-history__empty">
-          Todavía no se importó ningún archivo.
-        </div>
-        <template v-else>
-          <div v-for="record in inventoryStore.imports" :key="record.id" class="tf-history__row">
-            <div class="tf-history__file">
-              <i class="pi pi-file-excel" />
-              <span :title="record.fileName">{{ record.fileName }}</span>
-            </div>
-            <div class="tf-history__meta">
-              {{ formatDateTimeForUi(record.importedAt) }}<span v-if="record.importedBy"> · {{ record.importedBy }}</span>
-            </div>
-            <div class="tf-history__counts">
-              {{ record.totalRows }} filas · {{ record.createdCount }} nuevas · {{ record.unchangedCount }} ya estaban
-              <span v-if="record.differingCount"> · {{ record.differingCount }} con otros datos</span>
-              <span v-if="record.rejectedCount"> · {{ record.rejectedCount }} rechazadas</span>
-            </div>
-          </div>
-        </template>
-      </div>
-    </pv-popover>
 
     <TrafficFinesLaunchDialog
       v-model:visible="launchDialogVisible"
@@ -862,24 +880,51 @@ onUnmounted(() => {
     />
 
     <TrafficFinesDeliveriesDialog v-model:visible="deliveriesVisible" />
+
+    <TrafficFinesImportsDialog v-model:visible="importsVisible" />
   </div>
 </template>
 
 <style scoped>
 /*
- * Los grises salen de --text-body-secondary, no de --text-color-secondary: esa última la define
- * el tema de PrimeVue para el layout oscuro y sobre el fondo claro del contenido queda casi
- * invisible. Es el mismo criterio que sigue vc-filters__label en el catálogo de vehículos.
+ * Los colores del contenido salen de --text-body / --text-body-secondary y no de las variables del
+ * tema de PrimeVue ni de --text-primary: esas están calibradas para el shell oscuro y sobre el
+ * fondo claro del contenido quedan casi invisibles.
  */
-.tf-alert {
-  margin-bottom: 0.5rem;
-}
 
-.tf-alert__body {
+/* ── Alertas y avance ─────────────────────────────────────────────────── */
+
+.tf-alert {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border-radius: var(--border-radius, 6px);
+  border: 1px solid transparent;
+  color: var(--text-body, #111827);
+  font-size: 0.875rem;
+}
+
+.tf-alert--danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  border-left: 4px solid var(--red-600, #dc2626);
+}
+
+.tf-alert__icon {
+  color: var(--red-600, #dc2626);
+  font-size: 1.1rem;
+}
+
+.tf-alert__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tf-alert__action {
+  flex-shrink: 0;
 }
 
 .tf-batches {
@@ -887,70 +932,231 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0.35rem;
   padding: 0.5rem 0.75rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
   border: 1px solid var(--surface-border, #e5e7eb);
   border-radius: var(--border-radius, 6px);
   background: var(--surface-0, #ffffff);
 }
 
+/* ── Estado vacío ─────────────────────────────────────────────────────── */
+
+.tf-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+  border: 1px dashed #c2d9f5;
+  border-radius: var(--border-radius, 6px);
+  background: var(--surface-0, #ffffff);
+}
+
+.tf-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: #e8f0fb;
+  color: #1a5fa8;
+  font-size: 1.5rem;
+}
+
+.tf-empty__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-body, #111827);
+}
+
+.tf-empty__text {
+  margin: 0;
+  max-width: 36rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-body-secondary, #6b7280);
+}
+
+.tf-empty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* ── Barra de acciones ────────────────────────────────────────────────── */
+
 /*
  * La barra secundaria del DataManager se encoge a su contenido y se pega a la derecha con
- * `margin-left: auto`. Aquí lleva dos grupos —consultar a la izquierda, inventario y export a la
- * derecha— y necesita la fila completa para que el separador los aparte.
- *
- * Va con `:deep` y acotado a esta vista: es un componente compartido por todos los módulos y el
- * comportamiento por defecto es el correcto para los que solo ponen botones.
+ * `margin-left: auto`. Aquí lleva dos grupos y necesita la fila completa para que el separador
+ * los aparte. Va con `:deep` y acotado a esta vista: el componente es compartido y el
+ * comportamiento por defecto es el correcto para los módulos que solo ponen botones.
  */
-@media (min-width: 576px) {
-  .tf-page :deep(.dm-secondary-toolbar__secondary) {
-    flex: 1 1 100%;
-    margin-left: 0;
-  }
+.tf-page :deep(.dm-secondary-toolbar__secondary) {
+  flex: 1 1 100%;
+  margin-left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
 
-  .tf-page :deep(.dm-secondary-toolbar__secondary .p-button) {
-    flex-shrink: 0;
-  }
+.tf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tf-actions :deep(.p-button),
+.tf-actions :deep(.p-splitbutton) {
+  flex-shrink: 0;
 }
 
 .tf-toolbar-spacer {
   flex: 1 1 auto;
 }
 
-/*
- * Búsqueda, filtros y botón en una sola fila. Se envuelven en pantallas estrechas en vez de
- * comprimirse hasta ser inservibles.
- */
+/* ── Filtros ──────────────────────────────────────────────────────────── */
+
 .tf-filters {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.tf-filters__search,
+.tf-filters__search :deep(.p-inputtext) {
+  width: 100%;
+}
+
+.tf-filters__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.625rem;
+  width: 100%;
   min-width: 0;
 }
 
-.tf-filters__search {
-  flex: 2 1 14rem;
+.tf-filters__fields {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem 0.625rem;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
-.tf-filters__control {
-  flex: 1 1 8.5rem;
+.tf-filters__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
   min-width: 0;
+}
+
+.tf-filters__label {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-body-secondary, #6b7280);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tf-filters__clear {
   flex-shrink: 0;
+  white-space: nowrap;
+  margin-bottom: 0.125rem;
 }
 
-.tf-plate-cell,
-.tf-contract-cell {
+/* Select y MultiSelect salen de fábrica con alturas y tamaños de letra distintos. */
+.tf-filters :deep(.p-select),
+.tf-filters :deep(.p-multiselect) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.tf-filters :deep(.p-select-label),
+.tf-filters :deep(.p-multiselect-label) {
+  padding: 0 0.625rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+@media (max-width: 1439px) {
+  .tf-filters__fields {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1099px) {
+  .tf-filters__fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .tf-filters__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tf-filters__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tf-filters__clear {
+    align-self: flex-end;
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 479px) {
+  .tf-filters__fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Tabla ────────────────────────────────────────────────────────────── */
+
+/*
+ * Celdas más compactas que el resto de la app: la tabla lleva diez columnas y con el relleno
+ * general la de acciones quedaba fuera de la vista en una pantalla normal.
+ */
+.tf-page :deep(.p-datatable .p-datatable-thead > tr > th) {
+  padding: 0.625rem 0.5rem !important;
+}
+
+.tf-page :deep(.p-datatable .p-datatable-tbody > tr > td) {
+  padding: 0.5rem 0.5rem !important;
+}
+
+.tf-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.15rem;
 }
 
-.tf-plate-cell__line {
+.tf-cell__line {
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -959,6 +1165,7 @@ onUnmounted(() => {
 .tf-plate {
   font-weight: 700;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .tf-sub {
@@ -967,11 +1174,23 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.tf-count-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
+.tf-advisor {
+  display: inline-block;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.tf-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tf-amount--due {
+  font-weight: 700;
+  color: var(--red-600, #dc2626);
 }
 
 .tf-undelivered {
@@ -981,75 +1200,39 @@ onUnmounted(() => {
   color: var(--blue-600, #2563eb);
 }
 
-.tf-amount {
-  font-variant-numeric: tabular-nums;
-}
-
-.tf-amount--due {
-  font-weight: 700;
-  color: var(--red-600, #dc2626);
-}
-
-.tf-issuer-amount,
-.tf-last-check {
+.tf-issuer-amount {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   justify-content: center;
 }
 
+.tf-date {
+  white-space: nowrap;
+}
+
+.tf-warn-icon {
+  color: var(--orange-500, #f97316);
+}
+
 .tf-dash {
   color: var(--text-body-secondary, #6b7280);
 }
 
-.tf-history {
-  width: min(28rem, 90vw);
-  max-height: 22rem;
-  overflow-y: auto;
-}
-
-.tf-history__title {
-  margin: 0 0 0.5rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-body, #111827);
-}
-
-.tf-history__empty {
-  font-size: 0.8125rem;
-  color: var(--text-body-secondary, #6b7280);
-}
-
-.tf-history__row {
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--surface-border, #e5e7eb);
-}
-
-.tf-history__file {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-body, #111827);
-  min-width: 0;
-}
-
-.tf-history__file span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tf-history__meta,
-.tf-history__counts {
-  font-size: 0.75rem;
-  color: var(--text-body-secondary, #6b7280);
-}
+/* ── Pantallas estrechas ──────────────────────────────────────────────── */
 
 @media (max-width: 575px) {
   .tf-toolbar-spacer {
     display: none;
+  }
+
+  .tf-actions {
+    width: 100%;
+  }
+
+  .tf-actions :deep(.p-button),
+  .tf-actions :deep(.p-splitbutton) {
+    flex: 1 1 auto;
   }
 }
 </style>
