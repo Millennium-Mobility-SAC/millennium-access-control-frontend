@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { TrafficFinesApi } from '../infrastructure/api/traffic-fines.api.js'
 import { TrafficFineAssembler } from '../infrastructure/assemblers/traffic-fine.assembler.js'
+import { CAUTELAR_STAGE } from '../domain/format-collection-stage.js'
 import { downloadBlob, fileNameFromContentDisposition } from '@/shared/infrustructure/download-blob.js'
 import { todayIsoLocal } from '@/shared/domain/employee-attendance-day.js'
 
@@ -20,6 +21,9 @@ const POLL_INTERVAL_MS = 4000
  */
 const MAX_CONSECUTIVE_POLL_ERRORS = 5
 
+/** Los dos tipos de lote: Callao y ATU por placa, y SAT Lima por RUC. Corren a la vez. */
+export const BATCH_KINDS = Object.freeze({ PLATES: 'PLATES', SAT_RUC: 'SAT_RUC' })
+
 export const useTrafficFinesStore = defineStore('traffic-fines', () => {
   const api = new TrafficFinesApi()
 
@@ -29,24 +33,24 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
   const _totalElements = ref(0)
   const _totalPages = ref(0)
   const _activeFilters = ref({})
+  const _cautelarCount = ref(0)
+  const _pendingDeliveries = ref({ newCount: 0, changedCount: 0, reappearedCount: 0, total: 0 })
+  const _deliveries = ref([])
 
   const _detail = ref(null)
-  const _batch = ref(null)
-  const _pollErrors = ref(0)
-
-  let _pollTimer = null
 
   const summary = computed(() => _summary.value)
   const detail = computed(() => _detail.value)
-  const batch = computed(() => _batch.value)
+  const cautelarCount = computed(() => _cautelarCount.value)
+  const pendingDeliveries = computed(() => _pendingDeliveries.value)
+  const deliveries = computed(() => _deliveries.value)
+  const activeFilters = computed(() => _activeFilters.value)
   const pagination = computed(() => ({
     page: _page.value,
     size: _size.value,
     totalElements: _totalElements.value,
     totalPages: _totalPages.value,
   }))
-  /** Hay un lote en curso: mientras dure, el botón de consultar queda bloqueado. */
-  const isBatchRunning = computed(() => !!_batch.value && !_batch.value.settled)
 
   // ── Resumen ────────────────────────────────────────────────────────────────
 
@@ -59,23 +63,41 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
     _totalPages.value = data.total_pages ?? 0
   }
 
+  /**
+   * Cuántas unidades de todo el inventario tienen una medida cautelar, sin mirar los filtros de
+   * la tabla: la alerta no puede desaparecer porque alguien filtró otra cosa.
+   */
+  async function fetchCautelarCount() {
+    const { data } = await api.getSummary(api.buildParams({ stage: CAUTELAR_STAGE }, 0, 1))
+    _cautelarCount.value = data.total_elements ?? 0
+  }
+
+  /**
+   * La alerta y el contador de descargas acompañan a la tabla pero no la bloquean: si alguno
+   * fallara, la tabla tiene que verse igual.
+   */
+  function refreshCounters() {
+    return Promise.allSettled([fetchCautelarCount(), fetchPendingDeliveries()])
+  }
+
   async function fetchSummary(filters = {}) {
     _activeFilters.value = { ...filters }
-    await fetchPage(0)
+    await Promise.all([fetchPage(0), refreshCounters()])
   }
 
   async function goToPage(page) {
     await fetchPage(page)
   }
 
+  /** Tras una consulta o una descarga cambian los importes, la alerta y lo que falta entregar. */
   async function refreshCurrentPage() {
-    await fetchPage(_page.value)
+    await Promise.all([fetchPage(_page.value), refreshCounters()])
   }
 
   // ── Detalle ────────────────────────────────────────────────────────────────
 
-  async function fetchVehicleDetail(vehicleId, includeResolved = false) {
-    const { data } = await api.getVehicleDetail(vehicleId, includeResolved)
+  async function fetchUnitDetail(unitId, includeResolved = false) {
+    const { data } = await api.getUnitDetail(unitId, includeResolved)
     _detail.value = TrafficFineAssembler.toDetailFromResource(data)
     return _detail.value
   }
@@ -87,103 +109,188 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
   // ── Lotes ──────────────────────────────────────────────────────────────────
 
   /**
-   * Lanza la consulta y arranca el sondeo.
-   *
-   * Devuelve el acuse completo para que la vista pueda mostrar las unidades omitidas: si se
+   * Estado y sondeo de un tipo de lote. Callao/ATU y SAT son independientes: pueden correr a la
+   * vez y cada uno se cierra por su cuenta.
+   */
+  function createBatchTracker(kind) {
+    const batch = ref(null)
+    let pollTimer = null
+    let pollErrors = 0
+
+    function start() {
+      stop()
+      pollErrors = 0
+      pollTimer = setInterval(tick, POLL_INTERVAL_MS)
+    }
+
+    function stop() {
+      if (pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
+      }
+    }
+
+    async function fetch(batchId) {
+      const { data } = await api.getBatch(batchId)
+      batch.value = TrafficFineAssembler.toBatchFromResource(data)
+      return batch.value
+    }
+
+    async function tick() {
+      const batchId = batch.value?.batchId
+      if (!batchId) {
+        stop()
+        return
+      }
+      try {
+        const updated = await fetch(batchId)
+        pollErrors = 0
+        if (updated.settled) {
+          stop()
+          // Recargar la tabla al cerrar: los importes recién obtenidos no aparecerían hasta que el
+          // usuario navegara a otra parte y volviera.
+          await refreshCurrentPage()
+        }
+      } catch {
+        pollErrors += 1
+        if (pollErrors >= MAX_CONSECUTIVE_POLL_ERRORS) stop()
+      }
+    }
+
+    /** Recupera el último lote de este tipo y reanuda el sondeo si todavía no ha terminado. */
+    async function resume() {
+      const response = await api.getLatestBatch(kind)
+      if (response.status === 204 || !response.data) {
+        batch.value = null
+        return null
+      }
+      batch.value = TrafficFineAssembler.toBatchFromResource(response.data)
+      if (!batch.value.settled) start()
+      return batch.value
+    }
+
+    function adopt(launched) {
+      batch.value = launched
+      start()
+    }
+
+    /**
+     * Se detiene el sondeo antes de llamar: si un tick cayera entre la cancelación y la respuesta,
+     * pintaría el lote todavía «consultando» justo después de haberlo parado. Si la cancelación
+     * falla, el lote sigue vivo en el servidor y el sondeo se reanuda.
+     */
+    async function cancel() {
+      const batchId = batch.value?.batchId
+      if (!batchId) return null
+      stop()
+      try {
+        const { data } = await api.cancelBatch(batchId)
+        batch.value = TrafficFineAssembler.toBatchFromResource(data)
+      } catch (error) {
+        if (batch.value && !batch.value.settled) start()
+        throw error
+      }
+      // Las papeletas que sí llegaron antes de cancelar son datos buenos que hay que mostrar.
+      await refreshCurrentPage()
+      return batch.value
+    }
+
+    function clear() {
+      stop()
+      batch.value = null
+    }
+
+    const isRunning = computed(() => !!batch.value && !batch.value.settled)
+
+    return { batch, isRunning, start, stop, resume, adopt, cancel, clear }
+  }
+
+  const _platesTracker = createBatchTracker(BATCH_KINDS.PLATES)
+  const _satTracker = createBatchTracker(BATCH_KINDS.SAT_RUC)
+
+  function trackerFor(kind) {
+    return kind === BATCH_KINDS.SAT_RUC ? _satTracker : _platesTracker
+  }
+
+  const platesBatch = computed(() => _platesTracker.batch.value)
+  const satBatch = computed(() => _satTracker.batch.value)
+  const isPlatesBatchRunning = computed(() => _platesTracker.isRunning.value)
+  const isSatBatchRunning = computed(() => _satTracker.isRunning.value)
+
+  /**
+   * Consulta Callao y ATU de las unidades elegidas, o de «todas» si `all` es true (el backend
+   * elige cuáles). Devuelve el acuse completo para que la vista pueda mostrar las omitidas: si se
    * descartaran aquí, el usuario creería que su selección entera está cubierta.
    */
-  async function launchQuery(vehicleIds, issuers = []) {
-    const { data } = await api.launchQuery(vehicleIds, issuers)
+  async function launchQuery({ unitIds = [], all = false, issuers = [] } = {}) {
+    const { data } = await api.launchQuery({ unitIds, all, issuers })
     const result = TrafficFineAssembler.toLaunchResultFromResource(data)
-    _batch.value = result.batch
-    startPolling()
+    _platesTracker.adopt(result.batch)
     return result
   }
 
-  async function fetchBatch(batchId) {
-    const { data } = await api.getBatch(batchId)
-    _batch.value = TrafficFineAssembler.toBatchFromResource(data)
-    return _batch.value
+  async function refreshSat() {
+    const { data } = await api.refreshSat()
+    const result = TrafficFineAssembler.toLaunchResultFromResource(data)
+    _satTracker.adopt(result.batch)
+    return result
   }
 
-  /**
-   * Recupera el último lote del sistema, si lo hay.
-   *
-   * Es lo que permite reanudar el sondeo tras recargar la página: el lote sigue corriendo en el
-   * servidor aunque el navegador se haya cerrado.
-   */
-  async function fetchLatestBatch() {
-    const response = await api.getLatestBatch()
-    if (response.status === 204 || !response.data) {
-      _batch.value = null
-      return null
-    }
-    _batch.value = TrafficFineAssembler.toBatchFromResource(response.data)
-    return _batch.value
-  }
-
-  /** Recupera el lote en curso y reanuda el sondeo si todavía no ha terminado. */
+  /** El lote sigue corriendo en el servidor aunque se cierre el navegador: al volver se recupera. */
   async function resumePolling() {
-    const current = await fetchLatestBatch()
-    if (current && !current.settled) startPolling()
-    return current
-  }
-
-  function startPolling() {
-    stopPolling()
-    _pollErrors.value = 0
-    _pollTimer = setInterval(tick, POLL_INTERVAL_MS)
+    await Promise.allSettled([_platesTracker.resume(), _satTracker.resume()])
   }
 
   function stopPolling() {
-    if (_pollTimer) {
-      clearInterval(_pollTimer)
-      _pollTimer = null
-    }
+    _platesTracker.stop()
+    _satTracker.stop()
   }
 
-  async function tick() {
-    const batchId = _batch.value?.batchId
-    if (!batchId) {
-      stopPolling()
-      return
-    }
-    try {
-      const updated = await fetchBatch(batchId)
-      _pollErrors.value = 0
-      if (updated.settled) {
-        stopPolling()
-        // Recargar la página del resumen al cerrar: los importes recién obtenidos no aparecerían
-        // hasta que el usuario navegara a otra parte y volviera.
-        await refreshCurrentPage()
-      }
-    } catch {
-      _pollErrors.value += 1
-      if (_pollErrors.value >= MAX_CONSECUTIVE_POLL_ERRORS) stopPolling()
-    }
+  function cancelBatch(kind) {
+    return trackerFor(kind).cancel()
   }
 
-  function clearBatch() {
-    stopPolling()
-    _batch.value = null
+  function clearBatch(kind) {
+    trackerFor(kind).clear()
+  }
+
+  // ── Descargas de papeletas ─────────────────────────────────────────────────
+
+  /** Lo que llevaría ahora «descargar nuevas» con los filtros de la tabla. */
+  async function fetchPendingDeliveries() {
+    const { data } = await api.getPendingDeliveries(_activeFilters.value)
+    _pendingDeliveries.value = TrafficFineAssembler.toPendingDeliveriesFromResource(data)
+    return _pendingDeliveries.value
   }
 
   /**
-   * Cancela el lote en curso.
-   *
-   * Se detiene el sondeo antes de llamar: si un tick cayera entre la cancelación y la respuesta,
-   * pintaría el lote todavía «consultando» justo después de haberlo parado. Y se recarga el
-   * resumen porque las papeletas que sí llegaron antes de cancelar son datos buenos que hay que
-   * mostrar.
+   * Registra una descarga con los filtros de la tabla. No baja el archivo: si el archivo fallara,
+   * la descarga ya está registrada y quien llama tiene que poder decirlo y ofrecer bajarla otra vez.
    */
-  async function cancelBatch() {
-    const batchId = _batch.value?.batchId
-    if (!batchId) return null
-    stopPolling()
-    const { data } = await api.cancelBatch(batchId)
-    _batch.value = TrafficFineAssembler.toBatchFromResource(data)
-    await refreshCurrentPage()
-    return _batch.value
+  async function createDelivery(kind) {
+    const { data } = await api.createDelivery(kind, _activeFilters.value)
+    const result = TrafficFineAssembler.toDeliveryResultFromResource(data)
+    if (result.created) {
+      // Las etiquetas «por entregar» de la tabla y el contador del botón ya no valen.
+      await Promise.allSettled([fetchPage(_page.value), fetchPendingDeliveries()])
+    }
+    return result
+  }
+
+  async function downloadDelivery(delivery) {
+    const response = await api.downloadDeliveryFile(delivery.id)
+    const fallback = delivery.fileName ?? `papeletas-${delivery.number}.xlsx`
+    const fileName = fileNameFromContentDisposition(
+      response.headers?.['content-disposition'], fallback)
+    downloadBlob(response.data, fileName)
+    return fileName
+  }
+
+  async function fetchDeliveries(limit = 30) {
+    const { data } = await api.getDeliveries(limit)
+    _deliveries.value = (Array.isArray(data) ? data : [])
+      .map((r) => TrafficFineAssembler.toDeliveryFromResource(r))
+    return _deliveries.value
   }
 
   // ── Exportación ────────────────────────────────────────────────────────────
@@ -199,8 +306,8 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
     return fileName
   }
 
-  async function downloadVehicleExport(vehicleId, includeResolved = false) {
-    const response = await api.downloadVehicleExport(vehicleId, includeResolved)
+  async function downloadUnitExport(unitId, includeResolved = false) {
+    const response = await api.downloadUnitExport(unitId, includeResolved)
     const fallback = `papeletas-unidad-${todayIsoLocal()}.xlsx`
     const fileName = fileNameFromContentDisposition(
       response.headers?.['content-disposition'], fallback)
@@ -211,23 +318,31 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
   return {
     summary,
     detail,
-    batch,
     pagination,
-    isBatchRunning,
+    cautelarCount,
+    pendingDeliveries,
+    deliveries,
+    activeFilters,
+    platesBatch,
+    satBatch,
+    isPlatesBatchRunning,
+    isSatBatchRunning,
     fetchSummary,
     goToPage,
     refreshCurrentPage,
-    fetchVehicleDetail,
+    fetchUnitDetail,
     clearDetail,
     launchQuery,
-    fetchBatch,
-    fetchLatestBatch,
+    refreshSat,
     resumePolling,
-    startPolling,
     stopPolling,
-    clearBatch,
     cancelBatch,
+    clearBatch,
+    fetchPendingDeliveries,
+    createDelivery,
+    downloadDelivery,
+    fetchDeliveries,
     downloadSummaryExport,
-    downloadVehicleExport,
+    downloadUnitExport,
   }
 })

@@ -22,6 +22,8 @@ import {
 
 const props = defineProps({
   batch: { type: Object, default: null },
+  /** Qué consulta es: «Callao/ATU» o «SAT». Con dos tiras a la vez, sin esto no se distinguen. */
+  label: { type: String, default: null },
   cancelling: { type: Boolean, default: false },
 })
 
@@ -36,10 +38,10 @@ const failuresPanel = ref(null)
  */
 function confirmCancel() {
   confirm.require({
-    header: 'Cancelar la consulta',
-    message: 'Las unidades que aún no han respondido quedarán sin consultar y el servicio seguirá '
-      + 'procesándolas por su cuenta, pero sus resultados ya no se guardarán. Las papeletas '
-      + 'recibidas hasta ahora se conservan.',
+    header: props.label ? `Cancelar la consulta de ${props.label}` : 'Cancelar la consulta',
+    message: 'Las unidades que aún no han respondido quedarán sin consultar: se le pide al servicio '
+      + 'que se detenga y lo que llegue después ya no se guarda. Las papeletas recibidas hasta '
+      + 'ahora se conservan.',
     icon: 'pi pi-exclamation-triangle',
     rejectProps: { label: 'Seguir esperando', severity: 'secondary', outlined: true },
     acceptProps: { label: 'Cancelar consulta', severity: 'danger' },
@@ -71,6 +73,7 @@ function toggleFailures(event) {
 
 <template>
   <div v-if="batch" class="tf-strip">
+    <span v-if="label" class="tf-strip__label">{{ label }}</span>
     <pv-tag
       :value="formatBatchStatusLabel(batch.status)"
       :severity="batchStatusSeverity(batch.status)"
@@ -136,7 +139,7 @@ function toggleFailures(event) {
         </p>
         <div
           v-for="item in failedItems"
-          :key="`${item.vehicleId}-${item.issuer}`"
+          :key="`${item.unitId}-${item.issuer}`"
           class="tf-strip__row"
         >
           <span class="tf-strip__plate">{{ item.licensePlate ?? '—' }}</span>
@@ -165,6 +168,15 @@ function toggleFailures(event) {
   /* Absorbe todo el hueco libre del toolbar; los botones conservan su tamaño. */
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.tf-strip__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-body-secondary, #6b7280);
+  white-space: nowrap;
 }
 
 .tf-strip__count {

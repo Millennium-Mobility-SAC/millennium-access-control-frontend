@@ -1,25 +1,26 @@
 /**
- * Columnas del resumen de papeletas.
+ * Columnas de la vista principal: el inventario con su deuda.
  *
- * Misma forma que `VEHICLE_COLUMNS`: `template` nombra un slot del DataManager.
+ * Misma forma que `VEHICLE_COLUMNS`: `template` nombra un slot del DataManager. La marca comercial
+ * va bajo la placa y el periodo bajo el estado del contrato, para que la deuda por portal quepa
+ * sin desplazamiento en una pantalla normal.
  */
 export const TRAFFIC_FINE_SUMMARY_COLUMNS = [
   {
     field: 'licensePlate',
     header: 'Placa',
     sortable: false,
-    style: 'min-width: 6rem; max-width: 9rem; font-weight: 700; letter-spacing: 0.04em;',
+    style: 'min-width: 7.5rem',
     template: 'fines-plate',
   },
+  { field: 'advisor', header: 'Asesor', sortable: false, style: 'min-width: 9rem', template: 'fines-advisor' },
   {
-    field: 'vin',
-    header: 'VIN',
+    field: 'contractStatus',
+    header: 'Contrato',
     sortable: false,
-    style: 'min-width: 9rem; font-family: monospace; font-size: 0.8125rem;',
-    template: 'fines-vin',
+    style: 'min-width: 10rem',
+    template: 'fines-contract',
   },
-  { field: 'brand', header: 'Marca', sortable: false, style: 'min-width: 4.75rem' },
-  { field: 'model', header: 'Modelo', sortable: false, style: 'min-width: 5.25rem' },
   {
     field: 'fineCount',
     header: 'Papeletas',
@@ -49,6 +50,20 @@ export const TRAFFIC_FINE_SUMMARY_COLUMNS = [
     template: 'fines-sat-lima',
   },
   {
+    field: 'atuAmount',
+    header: 'ATU',
+    sortable: false,
+    style: 'min-width: 6.5rem',
+    template: 'fines-atu',
+  },
+  {
+    field: 'worstStage',
+    header: 'Etapa',
+    sortable: false,
+    style: 'min-width: 8.5rem',
+    template: 'fines-stage',
+  },
+  {
     field: 'lastCheckedAt',
     header: 'Última consulta',
     sortable: false,
@@ -57,21 +72,28 @@ export const TRAFFIC_FINE_SUMMARY_COLUMNS = [
   },
 ]
 
-/** Columnas del detalle de una unidad. */
+/** Columnas de las papeletas de una unidad. */
 export const TRAFFIC_FINE_DETAIL_COLUMNS = [
   {
     field: 'issuer',
     header: 'Emisor',
     sortable: false,
-    style: 'min-width: 6.5rem',
+    style: 'min-width: 6rem',
     template: 'fine-issuer',
   },
   {
     field: 'ticketNumber',
     header: 'N.º papeleta',
     sortable: false,
-    style: 'min-width: 8.5rem; font-family: monospace; font-size: 0.8125rem;',
+    style: 'min-width: 8.5rem',
     template: 'fine-ticket',
+  },
+  {
+    field: 'infractionCode',
+    header: 'Falta',
+    sortable: false,
+    style: 'min-width: 4.5rem',
+    template: 'fine-code',
   },
   {
     field: 'infractionDate',
@@ -79,13 +101,6 @@ export const TRAFFIC_FINE_DETAIL_COLUMNS = [
     sortable: false,
     style: 'min-width: 8rem',
     template: 'fine-date',
-  },
-  {
-    field: 'totalAmount',
-    header: 'Importe',
-    sortable: false,
-    style: 'min-width: 6.5rem',
-    template: 'fine-total',
   },
   {
     field: 'discountAmount',
@@ -105,15 +120,29 @@ export const TRAFFIC_FINE_DETAIL_COLUMNS = [
     field: 'issuerStatus',
     header: 'Estado portal',
     sortable: false,
-    style: 'min-width: 10rem',
+    style: 'min-width: 9rem',
     template: 'fine-issuer-status',
+  },
+  {
+    field: 'collectionStage',
+    header: 'Etapa',
+    sortable: false,
+    style: 'min-width: 8.5rem',
+    template: 'fine-stage',
   },
   {
     field: 'status',
     header: 'Estado',
     sortable: false,
-    style: 'min-width: 6rem',
+    style: 'min-width: 6.5rem',
     template: 'fine-status',
+  },
+  {
+    field: 'changes',
+    header: 'Historial',
+    sortable: false,
+    style: 'min-width: 5.5rem',
+    template: 'fine-changes',
   },
 ]
 
@@ -121,10 +150,12 @@ export const TRAFFIC_FINE_DETAIL_COLUMNS = [
 export const TRAFFIC_FINE_SORTS = [
   { label: 'Placa (A-Z)', value: 'plate' },
   { label: 'Placa (Z-A)', value: 'plate_desc' },
+  { label: 'Asesor', value: 'advisor' },
   { label: 'Mayor deuda', value: 'debt_desc' },
   { label: 'Menor deuda', value: 'debt_asc' },
   { label: 'Más papeletas', value: 'fines_desc' },
   { label: 'Infracción más antigua', value: 'oldest_infraction' },
+  { label: 'Fin de periodo más próximo', value: 'period_end_asc' },
 ]
 
 export const TRAFFIC_FINE_STATE_FILTERS = [
@@ -134,7 +165,19 @@ export const TRAFFIC_FINE_STATE_FILTERS = [
 ]
 
 /**
- * Tope de unidades por lote. Debe coincidir con `max-plates-per-batch` del backend: el
- * servicio procesa las placas de una en una y un lote mayor tardaría horas.
+ * Tope de unidades por lote de Callao y ATU. Debe coincidir con `max-plates-per-batch` del backend
+ * (por defecto 1000): el servicio guarda el lote en su cola y procesa las placas de una en una.
  */
-export const MAX_VEHICLES_PER_BATCH = 50
+export const MAX_UNITS_PER_BATCH = 1000
+
+/**
+ * «Consultar todas» incluye las unidades cuyo periodo terminó en estos últimos días. Debe coincidir
+ * con `recently-ended-days` del backend.
+ */
+export const RECENTLY_ENDED_DAYS = 90
+
+/**
+ * Segundos aproximados por placa y portal. Solo para la estimación del diálogo: el plazo real lo
+ * devuelve el backend al aceptar el lote.
+ */
+export const ESTIMATED_SECONDS_PER_QUERY = 40

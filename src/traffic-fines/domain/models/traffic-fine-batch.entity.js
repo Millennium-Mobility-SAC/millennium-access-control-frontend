@@ -1,9 +1,11 @@
 /**
- * Un lote de consulta: una pulsación del botón sobre las unidades seleccionadas.
+ * Un lote de consulta: una pulsación de «Consultar» (Callao y ATU por placa, `kind` PLATES) o de
+ * «Actualizar SAT» (SAT Lima por RUC, `kind` SAT_RUC).
  */
 export class TrafficFineBatch {
   constructor({
     batchId = null,
+    kind = null,
     providerJobId = null,
     status = null,
     settled = false,
@@ -22,6 +24,7 @@ export class TrafficFineBatch {
     items = [],
   } = {}) {
     this.batchId = batchId
+    this.kind = kind
     this.providerJobId = providerJobId
     this.status = status
     this.settled = settled

@@ -3,7 +3,7 @@ const TrafficFineDetailView = () => import('./views/traffic-fine-detail-view.vue
 
 export const TRAFFIC_FINES_ROUTES = {
   TRAFFIC_FINES: '/traffic-fines',
-  TRAFFIC_FINE_DETAIL: '/traffic-fines/:vehicleId',
+  TRAFFIC_FINE_DETAIL: '/traffic-fines/:unitId',
 }
 
 /** Nombres de ruta para `router.push` (mismo patrón que `VEHICLE_ROUTE_NAMES`). */
@@ -20,7 +20,7 @@ const trafficFinesRoutes = [
     meta: {
       title: 'Papeletas',
       module: 'Papeletas',
-      description: 'Deuda de papeletas de tránsito por unidad',
+      description: 'Inventario de unidades y su deuda de papeletas de tránsito',
       showBackButton: false,
     },
   },
@@ -31,7 +31,7 @@ const trafficFinesRoutes = [
     meta: {
       title: 'Papeletas de la unidad',
       module: 'Papeletas de la unidad',
-      description: 'Papeletas registradas y última consulta por portal',
+      description: 'Contrato, papeletas y última consulta por portal',
       showBackButton: true,
     },
   },

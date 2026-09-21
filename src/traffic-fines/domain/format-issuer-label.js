@@ -8,7 +8,16 @@
 export const TRAFFIC_FINE_ISSUERS = Object.freeze([
   { value: 'CALLAO', label: 'Callao' },
   { value: 'SAT_LIMA', label: 'SAT Lima' },
+  { value: 'ATU', label: 'ATU' },
 ])
+
+/**
+ * Portales que se consultan placa por placa desde «Consultar». SAT Lima no está: se consulta para
+ * toda la flota por el RUC de la empresa, con «Actualizar SAT».
+ */
+export const PER_PLATE_ISSUERS = Object.freeze(
+  TRAFFIC_FINE_ISSUERS.filter((issuer) => issuer.value !== 'SAT_LIMA'),
+)
 
 const ISSUER_LABELS = Object.freeze(
   Object.fromEntries(TRAFFIC_FINE_ISSUERS.map((issuer) => [issuer.value, issuer.label])),
@@ -21,6 +30,16 @@ const ISSUER_LABELS = Object.freeze(
 export function formatIssuerLabel(issuer) {
   if (!issuer) return '—'
   return ISSUER_LABELS[issuer] ?? issuer
+}
+
+/**
+ * Misma regla que el backend (`TrafficFineUnit.perPlateIssuers`): las motos solo tienen papeletas
+ * de Callao y se reconocen por la marca comercial. Aquí solo sirve para avisar antes de lanzar;
+ * quien decide es el backend.
+ */
+export function isMotoBrand(commercialBrand) {
+  const brand = (commercialBrand ?? '').toUpperCase()
+  return brand.includes('BIKE') || brand.includes('MOTO') || brand.includes('SCOOTER')
 }
 
 /**
