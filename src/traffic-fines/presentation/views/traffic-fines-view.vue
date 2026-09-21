@@ -438,14 +438,20 @@ function periodLabel(row) {
   return `${formatCalendarDateForUi(row.contractStart, '…')} → ${formatCalendarDateForUi(row.periodEnd, '…')}`
 }
 
-/** Qué consulta el servidor solo cada madrugada. Null mientras no se sabe: la línea no aparece. */
+/**
+ * Qué consulta el servidor solo cada madrugada. Null mientras no se sabe: la línea no aparece.
+ *
+ * Callao y ATU van en lotes encadenados dentro de la ventana: lo que no alcanza una noche lo toma
+ * la siguiente, así que la línea no promete recorrer todo el inventario cada noche.
+ */
 const nightlyLine = computed(() => {
   const nightly = store.nightly
   if (!nightly) return null
   if (!nightly.enabled) return 'Consulta automática desactivada: las papeletas se actualizan solo al consultar desde aquí.'
   const zone = nightly.zone === 'America/Lima' ? 'hora de Perú' : nightly.zone
-  const sat = nightly.includeSat ? ' y SAT Lima' : ''
-  return `Consulta automática todos los días a las ${nightly.time} (${zone}): Callao y ATU hasta ${nightly.maxPlates} unidades${sat}.`
+  const hours = nightly.until ? `de ${nightly.time} a ${nightly.until}` : `desde las ${nightly.time}`
+  const sat = nightly.includeSat ? ', y SAT Lima' : ''
+  return `Consulta automática todos los días ${hours} (${zone}): Callao y ATU en lotes de hasta ${nightly.maxPlates} unidades, empezando por las que llevan más tiempo sin consultarse${sat}.`
 })
 
 const nightlyLastRunLine = computed(() => {

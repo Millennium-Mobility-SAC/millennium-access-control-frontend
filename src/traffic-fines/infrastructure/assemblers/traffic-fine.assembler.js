@@ -147,6 +147,7 @@ export class TrafficFineAssembler {
     return {
       enabled: resource?.enabled ?? false,
       time: resource?.time ?? null,
+      until: resource?.until ?? null,
       zone: resource?.zone ?? null,
       maxPlates: toNumber(resource?.max_plates),
       includeSat: resource?.include_sat ?? false,
@@ -158,6 +159,8 @@ export class TrafficFineAssembler {
           platesBatchId: last.plates_batch_id ?? null,
           platesUnits: last.plates_units ?? null,
           platesMessage: last.plates_message ?? null,
+          platesBatchCount: toNumber(last.plates_batch_count),
+          platesChaining: last.plates_chaining ?? false,
           satBatchId: last.sat_batch_id ?? null,
           satUnits: last.sat_units ?? null,
           satMessage: last.sat_message ?? null,
