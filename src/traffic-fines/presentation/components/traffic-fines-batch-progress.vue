@@ -58,6 +58,21 @@ const failedItems = computed(
 
 const done = computed(() => (props.batch?.totalItems ?? 0) - (props.batch?.pendingItems ?? 0))
 
+/**
+ * Cuántas quedaron sin resultado. Sale del contador del lote, no de la lista: la lista viaja
+ * recortada (el backend manda como mucho 200 filas) y contarla daba siempre «200».
+ */
+const problemCount = computed(() => Math.max(props.batch?.failedItems ?? 0, failedItems.value.length))
+
+/**
+ * El servicio rechazó el lote antes de consultar nada. No se pinta como avance: una barra llena
+ * y «1711/1711» se leían como una consulta que corrió entera, y la causa quedaba escondida en el
+ * panel detrás de cientos de filas iguales.
+ */
+const nothingQueried = computed(
+  () => props.batch?.status === 'FAILED' && !(props.batch?.completedItems > 0),
+)
+
 /** El plazo mientras corre; la hora de cierre cuando terminó. Va en el tooltip del estado. */
 const timingHint = computed(() => {
   if (!props.batch) return null
@@ -80,21 +95,31 @@ function toggleFailures(event) {
       v-tooltip.top="timingHint"
     />
 
-    <span class="tf-strip__count">{{ done }}/{{ batch.totalItems }}</span>
-
-    <pv-progress-bar
-      :value="batch.progressPercent"
-      :show-value="false"
-      class="tf-strip__bar"
-    />
-
-    <span class="tf-strip__counters">
-      Nuevas {{ batch.finesCreated }} · Act. {{ batch.finesUpdated }} · Res. {{ batch.finesResolved }}
+    <span
+      v-if="nothingQueried"
+      class="tf-strip__failed"
+      v-tooltip.top="batch.errorMessage"
+    >
+      No se consultó ninguna unidad{{ batch.errorMessage ? `: ${batch.errorMessage}` : '.' }}
     </span>
 
+    <template v-else>
+      <span class="tf-strip__count">{{ done }}/{{ batch.totalItems }}</span>
+
+      <pv-progress-bar
+        :value="batch.progressPercent"
+        :show-value="false"
+        class="tf-strip__bar"
+      />
+
+      <span class="tf-strip__counters">
+        Nuevas {{ batch.finesCreated }} · Act. {{ batch.finesUpdated }} · Res. {{ batch.finesResolved }}
+      </span>
+    </template>
+
     <pv-button
-      v-if="failedItems.length"
-      :label="`${failedItems.length} con problemas`"
+      v-if="problemCount && !nothingQueried"
+      :label="`${problemCount} con problemas`"
       icon="pi pi-exclamation-triangle"
       severity="warn"
       text
@@ -136,6 +161,9 @@ function toggleFailures(event) {
         <p v-else-if="batch.status === 'TIMED_OUT'" class="tf-strip__error">
           El servicio dejó de responder antes de terminar. Las unidades sin resultado conservan
           sus papeletas anteriores; puedes volver a consultarlas.
+        </p>
+        <p v-if="failedItems.length < problemCount" class="tf-strip__note">
+          Se muestran las primeras {{ failedItems.length }} de {{ problemCount }}.
         </p>
         <div
           v-for="item in failedItems"
@@ -196,6 +224,22 @@ function toggleFailures(event) {
   font-size: 0.8125rem;
   color: var(--text-body-secondary, #6b7280);
   white-space: nowrap;
+}
+
+.tf-strip__failed {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  color: var(--text-body, #111827);
+}
+
+.tf-strip__note {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-body-secondary, #6b7280);
 }
 
 .tf-strip__failures,

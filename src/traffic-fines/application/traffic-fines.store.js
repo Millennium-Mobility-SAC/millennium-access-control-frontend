@@ -24,6 +24,32 @@ const MAX_CONSECUTIVE_POLL_ERRORS = 5
 /** Los dos tipos de lote: Callao y ATU por placa, y SAT Lima por RUC. Corren a la vez. */
 export const BATCH_KINDS = Object.freeze({ PLATES: 'PLATES', SAT_RUC: 'SAT_RUC' })
 
+/**
+ * El último lote terminado que el usuario cerró, por tipo.
+ *
+ * Al entrar se recupera el último lote de cada tipo; sin recordar cuál se cerró, un lote ya visto
+ * volvía a aparecer en cada visita hasta que se lanzara otro. Solo hace falta el último: es el
+ * único que se recupera. Es comodidad de este navegador: si el almacenamiento no está disponible,
+ * la tira simplemente reaparece.
+ */
+const DISMISSED_BATCHES_KEY = 'traffic-fines.dismissed-batches'
+
+function readDismissedBatches() {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISSED_BATCHES_KEY) ?? '{}') ?? {}
+  } catch {
+    return {}
+  }
+}
+
+function rememberDismissedBatch(kind, batchId) {
+  try {
+    localStorage.setItem(DISMISSED_BATCHES_KEY, JSON.stringify({ ...readDismissedBatches(), [kind]: batchId }))
+  } catch {
+    // Sin almacenamiento solo se pierde el recuerdo: la tira vuelve en la próxima visita.
+  }
+}
+
 export const useTrafficFinesStore = defineStore('traffic-fines', () => {
   const api = new TrafficFinesApi()
 
@@ -157,16 +183,24 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
       }
     }
 
-    /** Recupera el último lote de este tipo y reanuda el sondeo si todavía no ha terminado. */
+    /**
+     * Recupera el último lote de este tipo y reanuda el sondeo si todavía no ha terminado. Uno
+     * terminado que el usuario ya cerró no se vuelve a mostrar; uno en curso, siempre.
+     */
     async function resume() {
       const response = await api.getLatestBatch(kind)
       if (response.status === 204 || !response.data) {
         batch.value = null
         return null
       }
-      batch.value = TrafficFineAssembler.toBatchFromResource(response.data)
-      if (!batch.value.settled) start()
-      return batch.value
+      const latest = TrafficFineAssembler.toBatchFromResource(response.data)
+      if (latest.settled && readDismissedBatches()[kind] === latest.batchId) {
+        batch.value = null
+        return null
+      }
+      batch.value = latest
+      if (!latest.settled) start()
+      return latest
     }
 
     function adopt(launched) {
@@ -195,8 +229,10 @@ export const useTrafficFinesStore = defineStore('traffic-fines', () => {
       return batch.value
     }
 
+    /** Cierra la tira y recuerda el lote, para que no vuelva al entrar otra vez. */
     function clear() {
       stop()
+      if (batch.value?.settled && batch.value.batchId) rememberDismissedBatch(kind, batch.value.batchId)
       batch.value = null
     }
 
