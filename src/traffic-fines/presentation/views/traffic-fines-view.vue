@@ -251,6 +251,7 @@ async function handleImported(result) {
 }
 
 const importsVisible = ref(false)
+const inventoryMenuRef = ref(null)
 
 const inventoryMenu = [
   {
@@ -276,6 +277,7 @@ async function handleUnitSaved(unit) {
 // ── Descargas de papeletas ─────────────────────────────────────────────────
 const deliveryLoading = ref(false)
 const deliveriesVisible = ref(false)
+const downloadMenuRef = ref(null)
 
 const pendingLabel = computed(() => {
   const total = store.pendingDeliveries.total
@@ -554,12 +556,16 @@ onUnmounted(() => {
         como archivo. Lo menos frecuente de cada archivo va en el menú de su botón.
       -->
       <template #extra-actions="{ selectedItems, clearSelection }">
+        <!--
+          Los tres con el mismo estilo; «Consultar» pasa a relleno cuando hay unidades
+          seleccionadas, que es cuando se puede usar.
+        -->
         <div class="tf-actions" role="group" aria-label="Consultas a los portales">
           <pv-button
             icon="pi pi-search"
             :label="selectedItems.length ? `Consultar (${selectedItems.length})` : 'Consultar'"
-            severity="success"
             size="small"
+            :outlined="!selectedItems.length"
             :disabled="!selectedItems.length || store.isPlatesBatchRunning"
             v-tooltip.top="store.isPlatesBatchRunning
               ? 'Ya hay una consulta de Callao / ATU en curso'
@@ -570,7 +576,6 @@ onUnmounted(() => {
           <pv-button
             icon="pi pi-list-check"
             label="Consultar todas"
-            severity="success"
             size="small"
             outlined
             :disabled="store.isPlatesBatchRunning"
@@ -583,7 +588,6 @@ onUnmounted(() => {
           <pv-button
             icon="pi pi-refresh"
             label="Actualizar SAT"
-            severity="info"
             size="small"
             outlined
             :loading="satLoading"
@@ -598,26 +602,55 @@ onUnmounted(() => {
 
         <div class="tf-toolbar-spacer" />
 
+        <!--
+          Botón con flecha pegada en vez de pv-split-button: los estilos globales de botones fijan
+          relleno y bordes con !important, y con ellos la flecha del split quedaba en blanco y las
+          dos mitades separadas.
+        -->
         <div class="tf-actions" role="group" aria-label="Archivos">
-          <pv-split-button
-            :label="pendingLabel"
-            icon="pi pi-download"
-            :model="downloadMenu"
-            size="small"
-            :disabled="deliveryLoading"
-            class="dm-stoolbar-btn"
-            @click="confirmDeliverNew"
-          />
-          <pv-split-button
-            label="Importar Excel"
-            icon="pi pi-upload"
-            :model="inventoryMenu"
-            severity="secondary"
-            size="small"
-            outlined
-            class="dm-stoolbar-btn"
-            @click="importVisible = true"
-          />
+          <div class="tf-split" role="group" aria-label="Descargar papeletas">
+            <pv-button
+              :label="pendingLabel"
+              icon="pi pi-download"
+              size="small"
+              :loading="deliveryLoading"
+              class="tf-split__main"
+              v-tooltip.top="'Nuevas, con cambios o reaparecidas desde su última entrega, con los filtros de la tabla'"
+              @click="confirmDeliverNew"
+            />
+            <pv-button
+              icon="pi pi-chevron-down"
+              size="small"
+              :disabled="deliveryLoading"
+              class="tf-split__toggle"
+              aria-label="Más opciones de descarga"
+              aria-haspopup="true"
+              v-tooltip.top="'Más opciones de descarga'"
+              @click="downloadMenuRef?.toggle($event)"
+            />
+          </div>
+          <div class="tf-split" role="group" aria-label="Inventario">
+            <pv-button
+              label="Importar Excel"
+              icon="pi pi-upload"
+              severity="secondary"
+              size="small"
+              outlined
+              class="tf-split__main"
+              @click="importVisible = true"
+            />
+            <pv-button
+              icon="pi pi-chevron-down"
+              severity="secondary"
+              size="small"
+              outlined
+              class="tf-split__toggle"
+              aria-label="Más opciones del inventario"
+              aria-haspopup="true"
+              v-tooltip.top="'Más opciones del inventario'"
+              @click="inventoryMenuRef?.toggle($event)"
+            />
+          </div>
         </div>
       </template>
 
@@ -882,6 +915,9 @@ onUnmounted(() => {
     <TrafficFinesDeliveriesDialog v-model:visible="deliveriesVisible" />
 
     <TrafficFinesImportsDialog v-model:visible="importsVisible" />
+
+    <pv-menu ref="downloadMenuRef" :model="downloadMenu" popup class="tf-menu" />
+    <pv-menu ref="inventoryMenuRef" :model="inventoryMenu" popup class="tf-menu" />
   </div>
 </template>
 
@@ -1010,13 +1046,43 @@ onUnmounted(() => {
   gap: 0.5rem;
 }
 
-.tf-actions :deep(.p-button),
-.tf-actions :deep(.p-splitbutton) {
+.tf-actions :deep(.p-button) {
   flex-shrink: 0;
 }
 
 .tf-toolbar-spacer {
   flex: 1 1 auto;
+}
+
+/*
+ * Botón con flecha pegada. Los estilos globales fijan relleno y bordes con !important, así que
+ * aquí también: con más especificidad y cargados después, ganan solo en esta vista.
+ */
+.tf-split {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.tf-split .tf-split__main {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+.tf-split .tf-split__toggle {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  padding: 0 0.625rem !important;
+  min-width: 2.25rem;
+}
+
+/* Con relleno, una línea clara separa la flecha; con contorno, los dos bordes se solapan en uno. */
+.tf-split .tf-split__toggle:not(.p-button-outlined) {
+  border-left: 1px solid rgba(255, 255, 255, 0.4) !important;
+}
+
+.tf-split .tf-split__toggle.p-button-outlined {
+  margin-left: -2px;
 }
 
 /* ── Filtros ──────────────────────────────────────────────────────────── */
@@ -1230,9 +1296,50 @@ onUnmounted(() => {
     width: 100%;
   }
 
-  .tf-actions :deep(.p-button),
-  .tf-actions :deep(.p-splitbutton) {
+  .tf-actions > :deep(.p-button),
+  .tf-split {
     flex: 1 1 auto;
   }
+
+  .tf-split .tf-split__main {
+    flex: 1 1 auto;
+  }
+}
+</style>
+
+<style>
+/*
+ * Menús de la barra, sin scoped: PrimeVue los monta en el <body>. El estilo global de .p-menu es el
+ * oscuro del menú de usuario del encabezado; estos se abren sobre el contenido claro.
+ */
+.tf-menu.p-menu {
+  min-width: 16rem;
+  padding: 0.25rem;
+  font-size: 0.875rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+}
+
+.tf-menu .p-menu-item-link {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  color: #111827;
+}
+
+.tf-menu .p-menu-item-icon {
+  color: #6b7280;
+}
+
+.tf-menu .p-menu-item:not(.p-disabled) > .p-menu-item-content:hover,
+.tf-menu .p-menu-item.p-focus > .p-menu-item-content {
+  background: #f3f4f6;
+}
+
+.tf-menu .p-menu-separator {
+  margin: 0.25rem 0;
+  border-top: 1px solid #e5e7eb;
 }
 </style>
